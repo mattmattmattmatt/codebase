@@ -1,0 +1,17 @@
+if [ $# != 1 ]; then
+   	echo "ERROR: Need to pass the path to the svn base directory"
+elif [ ! -d $1 ]; then
+   	echo "Svn directory $1 isn't a directory"
+elif [ ! -e $1/modules ]; then
+	echo "Svn directory $1 isn't a working svn directory"
+else 
+	export SVNDIR=$(readlink -f $1)
+	export BIOPERL="${SVNDIR}/ext/modules/bioperl/1.2.3"
+   	export ENSEMBLLIB="${SVNDIR}/ext/modules/ens/94/ensembl/modules:${SVNDIR}/ext/modules/ens/94/ensembl-variation/modules:${SVNDIR}/ext/modules/ens/94/ensembl-funcgen/modules:${SVNDIR}/ext/modules/ens/94/ensembl-io/modules"
+    export ENSEMBL_REGISTRY="${SVNDIR}/conf/ensembl_registry.conf"
+    export ENSEMBL_REGISTRY_LOAD="${SVNDIR}/conf/ensembl_registry_load.conf"
+    export CLUSTERPERL="/home/221/mxf221/perl5/lib/perl5:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi/auto"
+    
+    export PERL5LIB="${SVNDIR}:${BIOPERL}:${ENSEMBLLIB}:${CLUSTERPERL}:${PERL5LIB}"
+    export PYTHONPATH=$PYTHONPATH:${SVNDIR}/ext/pythonlib/lib/python/
+fi

@@ -1,0 +1,514 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE page [
+<!-- Variables to replace with xml data generating during the running of create_cluster_xml.pl -->
+<!-- TEMPLATES -->
+<!ENTITY pipeVersion "cluster->(common pipeline_version)">
+<!ENTITY svndir "cluster->(common svndir)">
+<!ENTITY scriptdir "cluster->(common script_dir)">
+<!ENTITY confdir "cluster->(human_related_gatk svn conf_dir)">
+<!ENTITY fastadir "cluster->(human_related_gatk svn fasta_file)">
+<!ENTITY ref "pipe->(human_related_gatk annotation_version ref_genome)">
+<!ENTITY dbsnpVersion "pipe->(human_related_gatk annotation_version dbsnp_version)">
+<!ENTITY ExACVersion "pipe->(human_related_gatk annotation_version exac_version)">
+<!ENTITY GnomADVersion "pipe->(human_single_gatk annotation_version gnomad_version)">	
+<!ENTITY ClinvarVersion "pipe->(human_related_gatk annotation_version clinvar_version)">
+<!ENTITY RegulatoryCustomVersion "pipe->(human_related_gatk annotation_version aB_FOXP3_regulatory_version)">
+<!ENTITY miRNAVersion "pipe->(human_related_gatk annotation_version mirna_version)">
+<!ENTITY exonVersion "pipe->(human_related_gatk annotation_version exon_version)">
+<!ENTITY cosmicVersion "pipe->(human_related_gatk annotation_version cosmic_version)">
+<!ENTITY geneVersion "pipe->(human_related_gatk annotation_version gene_version)">
+<!ENTITY dgvVersion "pipe->(human_related_gatk annotation_version dgv_version)">
+<!ENTITY samtools "pipe->(human_related_gatk binaries samtools binary)">
+<!ENTITY localOutdir "cluster->(human_related_gatk base_directories base_run_directory)/&pipeVersion;">
+<!ENTITY picardJar "pipe->(human_related_gatk binaries picard jar)">
+<!ENTITY javaBin "pipe->(human_related_gatk binaries javabin binary)">
+<!ENTITY javaVersion "pipe->(human_related_gatk binaries javabin version)">	
+<!ENTITY markDupArgs "pipe->(human_related_gatk binaries picard args_markdup)">	
+<!-- marcin on 27/07/2017 -->
+<!ENTITY pythonBin "pipe->(human_related_gatk binaries pythonbin binary)">	
+<!ENTITY pythonVersion "pipe->(human_related_gatk binaries pythonbin version)">	
+
+<!-- COMMANDS -->
+<!ENTITY mergebamCommand "&scriptdir;/merge_bam.pl -source_name &nameSource; -output OUTBAM.merge_bam.out.bam -bamfiles BAMFILES">
+<!ENTITY markdupCommand "&javaBin; -jar &picardJar; &markDupArgs;  I=OUTBAM.merge_bam.out.bam O=OUTBAM.picard_sorted.dupmarked.bam M=OUTBAM_picard_metrics_file.txt TMP_DIR=WORKDIR; &samtools; index OUTBAM.picard_sorted.dupmarked.bam; ln -s OUTBAM.picard_sorted.dupmarked.bam &localOutdir;/SYM_BAM; ln -s OUTBAM.picard_sorted.dupmarked.bam.bai &localOutdir;/SYM_BAM.bai">
+<!ENTITY exonDepthCommand "&samtools; mpileup -A -r CHR -f &fastadir; -l &confdir;/exon/&exonVersion;/&ref;.exon.coord OUTBAM.merge_bam.out.bam 2>/dev/null > WORKDIR/exon.pileup.CHR; &scriptdir;/exon_coverage.pl -exon_pileup WORKDIR/exon.pileup.CHR -exon &confdir;/exon/&exonVersion;/&ref;.exon.overlap.CHR -chr CHR -annotation_file &confdir;/gene/&geneVersion;/&ref;.gene.all -output SUMMARY.exonReport.summary.tsv -sample_name &nameSample; ; rm WORKDIR/exon.pileup.CHR">
+<!ENTITY bamStatsCommand "&scriptdir;/get_bam_stats.pl -exon &confdir;/exon/&exonVersion;/&ref;.exon.overlap.all -sample_name &nameSample; -bam OUTBAM.merge_bam.out.bam -output SUMMARY.readReport.summary.txt">
+<!ENTITY submitsnvCommand "&scriptdir;/submit_snvs.pl -sample_name &nameSample; -submit">
+<!ENTITY mergeVcfCommand "&scriptdir;/merge_bam.pl -source_name &nameSource; -output OUTBAM.gatk.bam -bamdir WORKDIR/gatk ; rm &localOutdir;/SYM_BAM; rm &localOutdir;/SYM_BAM.bai; ln -s OUTBAM.gatk.bam &localOutdir;/SYM_BAM; ln -s OUTBAM.gatk.bam.bai &localOutdir;/SYM_BAM.bai;&scriptdir;/merge_vcf.pl -sample_name &nameSample; -outvcf OUTVCF.all.vcf -output OUTPUT -ref &fastadir; -bam OUTBAM.gatk.bam"> 
+<!ENTITY filterVcfCommand "&scriptdir;/filter_vcf.pl -sample_name &nameSample; -vcf_file OUTVCF -snv_infile INPUT.snv -indel_infile INPUT.indel -overlap_outfile_snv OVERLAPOUT.snv -overlap_outfile_indel OVERLAPOUT.indel">
+<!ENTITY dbVariantCommand "&scriptdir;/db_variants.pl -chr CHR -infile_snv OVERLAPIN.snv -infile_indel OVERLAPIN.indel -snv_pileup INPUT.snv.pileup -indel_pileup INPUT.indel.pileup -overlap_outfile_snv OVERLAPOUT.snv -overlap_outfile_indel OVERLAPOUT.indel">
+<!ENTITY filterExonCommand "&scriptdir;/overlap_general.pl -snv -indel -match PASS -overlap_outfile_snv OVERLAPOUT.snv -overlap_outfile_indel OVERLAPOUT.indel -ref_file_snv OVERLAPIN.snv -ref_file_indel OVERLAPIN.indel -coord_filtername filter_exon -coord_file_snv &confdir;/exon/&exonVersion;/&ref;.exon.overlap.CHR -coord_file_indel &confdir;/exon/&exonVersion;/&ref;.exon.overlap.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterExonNSCommand "&scriptdir;/filter_exon_ns.pl -overlap_outfile_snv OVERLAPOUT.snv -ref_file_snv OVERLAPIN.snv -exonns_filter_name filter_exon_ns -tmpdir WORKDIR -writeDB 1">
+<!ENTITY filterSpliceCommand "&scriptdir;/overlap_general.pl -snv -indel -match PASS -overlap_outfile_snv OVERLAPOUT.snv -overlap_outfile_indel OVERLAPOUT.indel -ref_file_snv OVERLAPIN.snv -ref_file_indel OVERLAPIN.indel -coord_filtername filter_splicesite -coord_file_snv &confdir;/exon/&exonVersion;/&ref;.splice.overlap.CHR -coord_file_indel &confdir;/exon/&exonVersion;/&ref;.splice.overlap.CHR -writeDB 1 -chr CHR" >
+<!ENTITY filterVEPCommand "&scriptdir;/filter_vep.pl -overlap_outfile_snv OVERLAPOUT -ref_file_snv OVERLAPIN.snv -ref_file_indel OVERLAPIN.indel _name filter_vep -tmpdir WORKDIR -writeDB 1">
+<!ENTITY filterDbsnpSnvCommand "&scriptdir;/overlap_general.pl -snv -overlap_outfile_snv OVERLAPOUT -ref_file_snv OVERLAPIN.snv -coord_filtername filter_dbsnp_snv -coord_file_snv &confdir;/dbsnp/&dbsnpVersion;/&ref;.dbsnp.overlap.snv.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterDbsnpIndelCommand "&scriptdir;/overlap_indels_bytype.pl -coord_filtername filter_dbsnp_indel -overlap_outfile OVERLAPOUT -ref_file OVERLAPIN.indel -coord_file &confdir;/dbsnp/&dbsnpVersion;/&ref;.dbsnp.overlap.indel.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterExACSnvCommand "&scriptdir;/overlap_general.pl -match PASS -snv -overlap_outfile_snv OVERLAPOUT -ref_file_snv OVERLAPIN.snv -coord_filtername filter_exac_snv -coord_file_snv &confdir;/exac/&ExACVersion;/&ref;.exac.overlap.snv.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterExACIndelCommand "&scriptdir;/overlap_indels_bytype.pl -match PASS -coord_filtername filter_exac_indel -overlap_outfile OVERLAPOUT -ref_file OVERLAPIN.indel -coord_file &confdir;/exac/&ExACVersion;/&ref;.exac.overlap.indel.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterGnomADSnvCommand "&scriptdir;/overlap_general.pl -match PASS -snv -overlap_outfile_snv OVERLAPOUT -ref_file_snv OVERLAPIN.snv -coord_filtername filter_gnomad_snv -coord_file_snv &confdir;/gnomad/&GnomADVersion;/&ref;.gnomAD.overlap.snv.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterGnomADIndelCommand "&scriptdir;/overlap_indels_bytype.pl -match PASS -coord_filtername filter_gnomad_indel -overlap_outfile OVERLAPOUT -ref_file OVERLAPIN.indel -coord_file &confdir;/gnomad/&GnomADVersion;/&ref;.gnomAD.overlap.indel.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterClinvarSnvCommand "&scriptdir;/overlap_general.pl -match PASS -snv -overlap_outfile_snv OVERLAPOUT -ref_file_snv OVERLAPIN.snv -coord_filtername filter_clinvar_snv -coord_file_snv &confdir;/clinvar/&ClinvarVersion;/&ref;.clinvar.overlap.snv.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterClinvarIndelCommand "&scriptdir;/overlap_indels_bytype.pl -match PASS -coord_filtername filter_clinvar_indel -overlap_outfile OVERLAPOUT -ref_file OVERLAPIN.indel -coord_file &confdir;/clinvar/&ClinvarVersion;/&ref;.clinvar.overlap.indel.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterRegulatoryCustomCommand "&scriptdir;/overlap_general.pl -snv -indel -match PASS -overlap_outfile_snv OVERLAPOUT.snv -overlap_outfile_indel OVERLAPOUT.indel -ref_file_snv OVERLAPIN.snv -ref_file_indel OVERLAPIN.indel -coord_filtername filter_regulatory_custom -coord_file_snv &confdir;/aB_FOXP3_regulatory/&RegulatoryCustomVersion;/&ref;.aB_FOXP3_regulatory.overlap.CHR -coord_file_indel &confdir;/aB_FOXP3_regulatory/&RegulatoryCustomVersion;/&ref;.aB_FOXP3_regulatory.overlap.CHR -writeDB 1 -chr CHR">
+<!ENTITY filterMiRNACommand "&scriptdir;/overlap_general.pl -snv -indel -match PASS -overlap_outfile_snv OVERLAPOUT.snv -overlap_outfile_indel OVERLAPOUT.indel -ref_file_snv OVERLAPIN.snv -ref_file_indel OVERLAPIN.indel -coord_filtername filter_mirna -coord_file_snv &confdir;/mirna/&miRNAVersion;/&ref;.mirbase.overlap.CHR -coord_file_indel &confdir;/mirna/&miRNAVersion;/&ref;.mirbase.overlap.CHR -writeDB 1 -chr CHR">
+<!ENTITY ReportSnvCommand "&scriptdir;/generate_snv_report.pl -ref &ref; -tsv_file SUMMARY.snvList.summary.tsv -exon_coord_file &confdir;/exon/&exonVersion;/&ref;.exon.overlap.all -annotation_file &confdir;/gene/&geneVersion;/&ref;.gene.all.PID -pass_summary_file SUMMARY.snvReport.summary.txt   -pass_file OVERLAPOUT -filter_summary_file SUMMARY.snvfilterList.summary.txt -report_xml &svndir;/conf/report_CACPI.xml">
+<!ENTITY ReportIndelCommand "&scriptdir;/generate_variant_report.pl -ref &ref; -tsv_file SUMMARY.indelList.summary.tsv -exon_coord_file &confdir;/exon/&exonVersion;/&ref;.exon.overlap.all -annotation_file &confdir;/gene/&geneVersion;/&ref;.gene.all.PID -pass_summary_file SUMMARY.indelReport.summary.txt -pass_file OVERLAPOUT -filter_summary_file SUMMARY.indelfilterList.summary.txt -report_xml &svndir;/conf/report_CACPI.xml">
+<!ENTITY runDellyCommand "&scriptdir;/delly.pl -bam &localOutdir;/SYM_BAM -outvcf OUTSV.delly.vcf -outfile OUTSV.delly">
+<!ENTITY runLumpyCommand "&scriptdir;/lumpy.pl -bam &localOutdir;/SYM_BAM -outvcf OUTSV.lumpy.vcf -outfile OUTSV.lumpy">
+<!ENTITY filterDGVCommand "&scriptdir;/overlap_sv_bytype.pl -coord_filtername filter_dgv -coord_file &confdir;/dgv/&dgvVersion;/&ref;.dgv.overlap.SVTYPE.all -ref_file OUTSV.SVCALLER -overlap_outfile OUTSV.SVCALLER.dgv.match -sv_type del,dup,inv"> 
+<!ENTITY filterGeneCommand "&scriptdir;/overlap_general.pl -match PASS -sv -overlap_outfile_sv OUTSV.SVCALLER.gene.match -ref_file_sv OUTSV.SVCALLER -coord_filtername filter_gene -coord_file_sv &confdir;/gene/&geneVersion;/&ref;.gene.overlap.all">
+<!ENTITY filterSVExonCommand "&scriptdir;/overlap_general.pl -match PASS -sv -overlap_outfile_sv OUTSV.SVCALLER.filter_sv_exon.match -ref_file_sv OUTSV.SVCALLER -coord_filtername filter_sv_exon -coord_file_sv &confdir;/exon/&exonVersion;/&ref;.exon.overlap.CHR -chr CHR">
+<!ENTITY ReportSVCommand "&scriptdir;/generate_sv_report.pl -ref &ref; -tsv_file SUMMARY.SVCALLER.svList.summary.tsv -exon_coord_file &confdir;/exon/&exonVersion;/&ref;.exon.overlap.all -annotation_file &confdir;/gene/&geneVersion;/&ref;.gene.all -pass_summary_file SUMMARY.SVCALLER.svReport.summary.txt -pass_file OVERLAPOUT.SVCALLER">
+<!ENTITY cleanupCommand "&scriptdir;/cleanup.pl -run"> 
+<!ENTITY nataCommand "&scriptdir;/nata_report.pl">
+<!ENTITY archiveCommand "&scriptdir;/compress.pl -run 1 -dir WORKDIR -workdir -compress -suffix tar.gz -tarball &nameSample;_RUN.tar.gz -mv">
+<!ENTITY scpResultCommand "&scriptdir;/scp_results.pl -copybam OUTBAM.gatk.bam -source_name &nameSource; -files WORKDIR/&nameSample;_RUN.tar.gz -release_files -workdir WORKDIR">
+]>
+
+<pipeline_config> 
+  <sample_name>&nameSample;</sample_name>
+
+  <!-- List of step to run -->
+  <steps_order>
+  	<!-- file based steps first -->
+  	<step>merge_bam</step>
+    <step>mark_duplicates</step>
+	<step>exon_depth</step>
+    <step>bam_stats</step>
+	<step>submit_snvs</step>
+    <step>single_vcf</step> <!-- This step isn't run in the normal pipeline method but records the creation of a vcf in the database to indicate vcf done for a single chromosome -->
+    <step>merge_vcf</step>
+    <step>filter_vcf</step>
+    <step>db_variants</step>    
+	<step>filter_exon</step>
+	<step>filter_exon_ns</step> 
+	<step>filter_splicesite</step>
+    <step>filter_vep</step>
+   	<step>filter_dbsnp_snv</step>
+   	<step>filter_dbsnp_indel</step>
+   	<step>filter_exac_snv</step>
+   	<step>filter_exac_indel</step>
+   	<step>filter_gnomad_snv</step>
+   	<step>filter_gnomad_indel</step>
+  	<step>filter_clinvar_snv</step>
+ 	<step>filter_clinvar_indel</step>
+ 	<step>filter_regulatory_custom</step>
+ 	<step>filter_mirna</step>
+  	<step>report_snv</step>
+    <step>report_indel</step>
+	<step>run_delly</step>
+	<step>run_lumpy</step>
+	<step>filter_dgv</step>
+	<step>filter_gene</step>
+	<step>filter_sv_exon</step>
+	<step>report_sv</step>
+    <step>cleanup</step>
+	<step>nata_report</step>
+    <step>archive</step>
+    <step>scp_results</step>
+  </steps_order> 
+  
+  <!-- Specifics for each step -->
+  <steps>
+  	<step name="merge_bam">
+  		<command>&mergebamCommand;</command>
+  		<input_from>none</input_from>
+      	<input_overlap>none</input_overlap>
+      	<by_chr>0</by_chr>
+		<mem>16GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+    	<runid_args>1</runid_args>
+      	<first_step>1</first_step>
+      	<release_file>.merge_bam.out.bam</release_file>
+      	<module>module load java/&javaVersion;</module>
+    </step>
+  	
+    <step name="mark_duplicates">
+    	<command>&markdupCommand;</command>
+      	<input_from>merge_bam</input_from>
+      	<input_overlap>merge_bam</input_overlap>
+      	<by_chr>0</by_chr>
+      	<mem>24GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>36:00:00</walltime>
+		<module>module load java/&javaVersion;</module>
+    </step>
+
+   <step name="exon_depth">
+      	<command>&exonDepthCommand;</command>
+      	<input_from>merge_bam</input_from>
+      	<input_overlap>merge_bam</input_overlap>
+      	<by_chr>1</by_chr>
+      	<mem>4GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>    
+    </step>
+    
+    <step name="bam_stats">
+      	<command>&bamStatsCommand;</command>
+      	<by_chr>0</by_chr>
+      	<input_from>merge_bam</input_from>
+      	<input_overlap>merge_bam</input_overlap>
+      	<mem>4GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+    </step>
+    
+    <step name="submit_snvs">
+      	<command>&submitsnvCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>none</input_overlap>
+      	<by_chr>0</by_chr>
+      	<runid_args>1</runid_args>
+      	<mem>4GB</mem>
+      	<cpus>1</cpus>
+	    <walltime>24:00:00</walltime>
+    </step>
+             
+    <!-- placeholder as we never run this command this way; runs after single vcf is generated from submit snvs steps -->        
+    <step name="single_vcf">
+      	<command>none</command>
+	   	<input_from>none</input_from>
+      	<input_overlap>none</input_overlap>
+      	<by_chr>0</by_chr>
+      	<mem>4GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+     	<module>module load java/&javaVersion;</module>
+    </step>
+   
+  <step name="merge_vcf">
+      	<command>&mergeVcfCommand;</command>
+      	<input_from>merge_bam_gatk</input_from>
+      	<input_overlap>none</input_overlap>
+      	<by_chr>0</by_chr>
+	<runid_args>1</runid_args>
+      	<mem>8GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>96:00:00</walltime>
+      	<release_file>.all.vcf</release_file>
+      	<module>module load java/&javaVersion;</module>
+    </step>
+    
+    <step name="filter_vcf">
+      	<command>&filterVcfCommand;</command>
+      	<input_from>merge_vcf</input_from>
+      	<input_overlap>none</input_overlap>
+      	<by_chr>0</by_chr>
+      	<mem>16GB</mem>
+		<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+         <module>module load java/&javaVersion;</module>
+   </step>   
+       
+    <step name="db_variants">
+      	<command>&dbVariantCommand;</command>
+	    <input_from>merge_vcf</input_from>
+      	<input_overlap>filter_vcf</input_overlap>
+      	<by_chr>1</by_chr>
+      	<cpus>1</cpus>
+      	<mem>8GB</mem>
+      	<walltime>48:00:00</walltime>
+      	<runid_args>1</runid_args>
+      	<deleteSnp>1</deleteSnp>
+      	<deleteVar>1</deleteVar>
+    </step>
+    
+    <step name="filter_exon">
+      	<command>&filterExonCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>     
+      	<by_chr>1</by_chr>
+      	<mem>8GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+
+	<step name="filter_exon_ns">
+      	<command>&filterExonNSCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>     
+      	<by_chr>0</by_chr>
+      	<mem>32GB</mem>
+      	<cpus>4</cpus>
+      	<walltime>24:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+
+    <step name="filter_splicesite">
+      	<command>&filterSpliceCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>    
+      	<by_chr>1</by_chr>
+      	<mem>8GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+        
+  	<step name="filter_vep">
+      	<command>&filterVEPCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>     
+      	<by_chr>0</by_chr>
+      	<mem>64GB</mem>
+      	<cpus>8</cpus>
+      	<walltime>48:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+         
+    <step name="filter_dbsnp_snv">
+      	<command>&filterDbsnpSnvCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>    
+      	<by_chr>1</by_chr>
+      	<mem>16GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+    
+    <step name="filter_dbsnp_indel">
+      	<command>&filterDbsnpIndelCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>   
+      	<by_chr>1</by_chr>
+      	<mem>8GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+    
+    <step name="filter_exac_snv">
+      	<command>&filterExACSnvCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>    
+      	<by_chr>1</by_chr>
+      	<mem>8GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+    
+    
+    <step name="filter_exac_indel">
+      	<command>&filterExACIndelCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>   
+      	<by_chr>1</by_chr>
+      	<mem>8GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+         
+     <step name="filter_gnomad_snv">
+      	<command>&filterGnomADSnvCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>    
+      	<by_chr>1</by_chr>
+      	<mem>24GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+    
+    
+    <step name="filter_gnomad_indel">
+      	<command>&filterGnomADIndelCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>db_variants</input_overlap>   
+      	<by_chr>1</by_chr>
+      	<mem>24GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>24:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>     
+    
+    <step name="filter_clinvar_snv">
+    	<command>&filterClinvarSnvCommand;</command>
+        <input_from>none</input_from>
+        <input_overlap>db_variants</input_overlap>
+        <by_chr>1</by_chr>
+        <mem>8GB</mem>
+        <cpus>1</cpus>
+        <walltime>24:00:00</walltime>
+        <runid_args>1</runid_args>
+	</step>
+
+    <step name="filter_clinvar_indel">
+    	<command>&filterClinvarIndelCommand;</command>
+        <input_from>none</input_from>
+        <input_overlap>db_variants</input_overlap>
+        <by_chr>1</by_chr>
+        <mem>8GB</mem>
+        <cpus>1</cpus>
+        <walltime>24:00:00</walltime>
+        <runid_args>1</runid_args>
+	</step>
+ 
+     <step name="filter_regulatory_custom">
+     	<command>&filterRegulatoryCustomCommand;</command>
+     	<input_from>none</input_from>
+     	<input_overlap>db_variants</input_overlap>
+     	<by_chr>1</by_chr>
+     	<mem>8GB</mem>
+     	<cpus>1</cpus>
+     	<walltime>24:00:00</walltime>
+     	<runid_args>1</runid_args>
+     </step>
+
+    <step name="filter_mirna">
+    	<command>&filterMiRNACommand;</command>
+    	<input_from>none</input_from>
+    	<input_overlap>db_variants</input_overlap>
+    	<by_chr>1</by_chr>
+    	<mem>8GB</mem>
+    	<cpus>1</cpus>
+    	<walltime>24:00:00</walltime>
+    	<runid_args>1</runid_args>
+    </step>
+   
+    <step name="report_snv">
+      	<command>&ReportSnvCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>filter_polyphen</input_overlap>
+      	<by_chr>0</by_chr>
+      	<mem>16GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>25:00:00</walltime>
+      	<runid_args>1</runid_args>
+     	<release_file>.snvList.summary.tsv</release_file>
+    </step>
+	           
+    <step name="report_indel">
+      	<command>&ReportIndelCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>none</input_overlap>
+      	<by_chr>0</by_chr>
+      	<mem>8GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>4:00:00</walltime>
+      	<runid_args>1</runid_args>
+      	<release_file>.indelList.summary.tsv</release_file>
+    </step>
+    
+    <step name="run_delly">
+      	<command>&runDellyCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>none</input_overlap>     
+      	<by_chr>0</by_chr>
+      	<mem>32GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>200:00:00</walltime>
+      	<runid_args>1</runid_args>
+    </step>
+    
+    <step name="run_lumpy">
+      	<command>&runLumpyCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>none</input_overlap>     
+      	<by_chr>0</by_chr>
+      	<mem>32GB</mem>
+      	<cpus>8</cpus>
+      	<walltime>96:00:00</walltime>
+      	<runid_args>1</runid_args>
+      	<!-- marcin on 27/07/2017 pythonBin not used as the code can't process multiple vars in the same line-->
+      	<module>module load python/&pythonVersion;</module>
+    </step>
+    
+     <step name="filter_dgv">
+    	<command>&filterDGVCommand;</command>
+        <input_from>none</input_from>
+        <input_overlap>none</input_overlap>
+        <by_chr>0</by_chr>
+        <mem>8GB</mem>
+        <cpus>1</cpus>
+        <walltime>24:00:00</walltime>
+        <runid_args>1</runid_args>
+	</step>
+    
+	<step name="filter_gene">
+    	<command>&filterGeneCommand;</command>
+        <input_from>none</input_from>
+        <input_overlap>none</input_overlap>
+        <by_chr>0</by_chr>
+        <mem>8GB</mem>
+        <cpus>1</cpus>
+        <walltime>24:00:00</walltime>
+        <runid_args>1</runid_args>
+	</step>
+			
+  	<step name="filter_sv_exon">
+    	<command>&filterSVExonCommand;</command>
+        <input_from>none</input_from>
+        <input_overlap>none</input_overlap>
+        <by_chr>1</by_chr>
+        <mem>8GB</mem>
+        <cpus>1</cpus>
+        <walltime>24:00:00</walltime>
+        <runid_args>1</runid_args>
+	</step>
+	
+	 <step name="report_sv">
+      	<command>&ReportSVCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>none</input_overlap>
+      	<by_chr>0</by_chr>
+      	<mem>8GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>4:00:00</walltime>
+      	<runid_args>1</runid_args>
+      	<release_file>.SVCALLER.svList.summary.tsv</release_file>
+    </step>
+	
+	<step name="cleanup">
+    	<command>&cleanupCommand;</command>
+        <input_from>none</input_from>
+        <input_overlap>none</input_overlap>
+        <by_chr>0</by_chr>
+        <mem>8GB</mem>
+        <cpus>1</cpus>
+        <walltime>24:00:00</walltime>
+        <runid_args>1</runid_args>
+	</step>
+	
+	<step name="nata_report">
+    	<command>&nataCommand;</command>
+        <input_from>none</input_from>
+        <input_overlap>none</input_overlap>
+        <by_chr>0</by_chr>
+        <mem>8GB</mem>
+        <cpus>1</cpus>
+        <walltime>1:00:00</walltime>
+        <runid_args>1</runid_args>
+	</step>
+	
+    <step name="archive">
+  	  	<command>&archiveCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>none</input_overlap>
+      	<by_chr>0</by_chr>
+      	<mem>1GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>1:00:00</walltime>
+      	<runid_args>1</runid_args>
+  	</step>
+    
+    <step name="scp_results">
+  	  	<command>&scpResultCommand;</command>
+      	<input_from>none</input_from>
+      	<input_overlap>none</input_overlap>
+      	<by_chr>0</by_chr>
+      	<mem>1GB</mem>
+      	<cpus>1</cpus>
+      	<walltime>1:00:00</walltime>
+      	<runid_args>1</runid_args>
+      	<last_step>1</last_step>
+      	<copyq>1</copyq>
+  	</step>
+	
+ </steps>
+</pipeline_config>	

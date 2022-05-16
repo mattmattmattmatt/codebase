@@ -1,0 +1,515 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE page [
+<!ENTITY commonSNVone "chr,coord,ref_allele,ref_allele_count,var_allele,var_allele_count">
+<!ENTITY commonSNVtwo "snv_score,final_status,other_alleles,read_allele_freq,known_variation,gmaf_1000_genomes,dbsnp_match,dbsnp_var_allele_freq,read_depth,median_quality_score,aa_change,aa_position,aa_length,exon_intron_count,snv_exon_type,sift_prediction,sift_score,polyphen_prediction,polyphen_score,cadd_phred">
+<!ENTITY commonSNVmouse "snv_score,final_status,other_alleles,read_allele_freq,known_variation,dbsnp_match,dbsnp_var_allele_freq,read_depth,median_quality_score,aa_change,aa_position,aa_length,exon_intron_count,snv_exon_type,sift_prediction,sift_score,polyphen_prediction,polyphen_score">
+<!ENTITY commonIndelone "chr,start_coord,end_coord,ref_allele,ref_allele_count,var_type,var_length,var_allele,var_allele_count">
+<!ENTITY commonIndeltwo "var_score,final_status,other_alleles,read_allele_freq,known_variation,gmaf_1000_genomes,dbsnp_match,dbsnp_var_allele_freq,read_depth,median_quality_score,aa_position,aa_length,exon_intron_count,exon_overlap">
+<!ENTITY commonIndelmouse "var_score,final_status,other_alleles,read_allele_freq,known_variation,dbsnp_match,dbsnp_var_allele_freq,read_depth,median_quality_score,aa_position,aa_length,exon_intron_count,exon_overlap">
+<!ENTITY commonSNVcancer "snv_score,clr_score,final_status,tumour_other_alleles,normal_alleles,read_allele_freq,known_variation,gmaf_1000_genomes,dbsnp_match,dbsnp_var_allele_freq,read_depth,median_quality_score,aa_change,aa_position,aa_length,exon_intron_count,snv_exon_type,snv_class,sift_prediction,sift_score,polyphen_prediction,polyphen_score,cadd_phred">
+<!ENTITY commonSNVcancermouse "snv_score,clr_score,final_status,tumour_other_alleles,normal_alleles,read_allele_freq,known_variation,dbsnp_match,dbsnp_var_allele_freq,read_depth,median_quality_score,aa_change,aa_position,aa_length,exon_intron_count,snv_exon_type,snv_class,sift_prediction,sift_score,polyphen_prediction,polyphen_score">
+<!ENTITY commonIndelcancer "var_score,clr_score,final_status,tumour_other_alleles,normal_alleles,read_allele_freq,known_variation,gmaf_1000_genomes,dbsnp_match,dbsnp_var_allele_freq,read_depth,median_quality_score,aa_position,aa_length,exon_intron_count,exon_overlap,variant_class">
+<!ENTITY commonIndelcancermouse "var_score,clr_score,final_status,tumour_other_alleles,normal_alleles,read_allele_freq,known_variation,dbsnp_match,dbsnp_var_allele_freq,read_depth,median_quality_score,aa_position,aa_length,exon_intron_count,exon_overlap,variant_class">
+<!ENTITY commonAnnotations "ens_canonical_trans,protein_domains,uniprot,ccds,refseq,description,omim,pubmed,phenotype">
+<!ENTITY mouseAnnotations "homolog,immgen,gnf,go">
+<!ENTITY humanAnnotations "cosmic,vogelstein,novel_PID_candidate,go">
+<!ENTITY commonInfoSNV "filter_dbsnp_snv,filter_splicesite,filter_exon_ns,filter_exon,filter_vep">
+<!--<!ENTITY commonInfoIndel "filter_dbsnp_indel,filter_splicesite,filter_exon,filter_deletion,filter_insertion,filter_vep">--> 
+<!ENTITY commonInfoIndel "filter_dbsnp_indel,filter_splicesite,filter_exon,filter_vep">
+<!ENTITY commonSVone "chr_1,coord1,chr_2,coord2,sv_caller,sv_type,sv_id,quality,var_bases,length,split_reads,paired_reads">
+<!ENTITY commonSVtwo "final_status,dgv_info,dgv_freq">
+<!ENTITY commonInfoSV "filter_dgv,filter_gene,filter_gene_breakpoint,filter_sv_exon,filter_sv_exon_breakpoint">
+<!ENTITY SVInput "filter_gene">
+<!ENTITY commonInput "filter_exon,filter_splicesite">
+]>
+
+<report_conf>
+	<coverage>
+		<cancer_tumour_primary_cell_line>40</cancer_tumour_primary_cell_line>	
+		<cancer_tumour_primary_patient>60</cancer_tumour_primary_patient>	
+		<cancer_tumour_metastatic_cell_line>40</cancer_tumour_metastatic_cell_line>	
+		<cancer_tumour_metastatic_patient>60</cancer_tumour_metastatic_patient>	
+		<cancer_normal_patient>40</cancer_normal_patient>	
+		<cancer_normal_cell_line>40</cancer_normal_cell_line>	
+	</coverage>
+	
+	<snv>
+		<common>
+		<!-- These values are common to many sample_types -->
+				<!-- _Input filters to the report; filters joined with OR -->
+				<input_filters>&commonInput;,filter_cosmic</input_filters>
+				
+				<!-- Extra db filters for reporting -->
+				<extra_filters>filter_dbsnp_snv</extra_filters>
+			
+				<!-- Extra non-db filters for reporting; need custom handling -->	
+				<extra_headers>ensembl,cosmic_coord</extra_headers>
+				
+				<!-- Columns we need snp_filter info from (eg allele_from dbsnp) OR use filter_name to report group (eg snp_exon_type=NON-SYN,SYN,or SPLICE) OR report pass/fail (filter_common = FAIL)-->
+				<filter_info>&commonInfoSNV;,filter_cosmic</filter_info>
+				
+				<!-- Columns that get overall numbers reported in the text summary -->
+				<summary_report>filter_dbsnp_snv,filter_cosmic</summary_report>
+				
+				<!-- Headers containing information regarding pipeline run / sequence contect, etc-->
+				<run_headers>&commonSNVone;,gene(hgnc),&commonSNVcancer;</run_headers>
+
+				<!-- External annotation headers -->
+				<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+				
+				<human_file_annotations>ens_canonical_trans,gene(hgnc),cosmic,vogelstein,novel_PID_candidate,uniprot,ccds,refseq,description,omim,go,phenotype</human_file_annotations>
+				<mouse_file_annotations>ens_canonical_trans,gene(mgi),uniprot,ccds,refseq,description,omim,go,phenotype,homolog,immgen,gnf</mouse_file_annotations>
+
+				
+				<!-- Conditions required for a snp entry to pass -->
+				<pass_conditions>
+					<rule>filter_dbsnp_snv:allele_freq=0.02</rule>
+					<rule>median_quality_score:20</rule>
+					<rule>read_depth:5</rule>
+				</pass_conditions>
+				
+				
+	
+		</common>
+	
+		<sample_types>
+			<!-- Special sample type specific values go here; default is to use common values above (set to most common use case human cancer) -->
+			<cancer_tumour_primary_cell_line>
+
+			</cancer_tumour_primary_cell_line>	
+				
+			<cancer_tumour_primary_patient>
+
+			</cancer_tumour_primary_patient>	
+			
+			<cancer_tumour_metastatic_cell_line>
+
+			</cancer_tumour_metastatic_cell_line>	
+			
+			<cancer_tumour_metastatic_patient>
+
+			</cancer_tumour_metastatic_patient>	
+			
+			<related_affected>				
+				<input_filters>&commonInput;,filter_mirna</input_filters>
+				<extra_filters>filter_dbsnp_snv,filter_exac_snv,filter_gnomad_snv,filter_clinvar_snv,filter_mirna</extra_filters>
+ 				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoSNV;,filter_exac_snv,filter_gnomad_snv,filter_clinvar_snv,filter_mirna</filter_info>
+				<summary_report>filter_dbsnp_snv</summary_report>
+				<run_headers>&commonSNVone;,gene(hgnc),&commonSNVtwo;</run_headers>
+				<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+			</related_affected>
+			
+			<related_unaffected>
+				<input_filters>&commonInput;,filter_mirna</input_filters>
+				<extra_filters>filter_dbsnp_snv,filter_exac_snv,filter_gnomad_snv,filter_clinvar_snv,filter_mirna</extra_filters>
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoSNV;,filter_exac_snv,filter_gnomad_snv,filter_clinvar_snv,filter_mirna</filter_info>
+				<summary_report>filter_dbsnp_snv</summary_report>
+				<run_headers>&commonSNVone;,gene(hgnc),&commonSNVtwo;</run_headers>
+				<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+			</related_unaffected>
+	
+			<single_affected>
+				<input_filters>&commonInput;,filter_mirna</input_filters>
+				<extra_filters>filter_dbsnp_snv,filter_exac_snv,filter_gnomad_snv,filter_clinvar_snv,filter_mirna</extra_filters>
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoSNV;,filter_exac_snv,filter_gnomad_snv,filter_clinvar_snv,filter_mirna</filter_info>
+				<summary_report>filter_dbsnp_snv</summary_report>				
+				<run_headers>&commonSNVone;,gene(hgnc),&commonSNVtwo;</run_headers>
+				<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+			</single_affected>
+			
+			<single_unaffected>
+				<input_filters>&commonInput;,filter_mirna</input_filters>
+				<extra_filters>filter_dbsnp_snv,filter_exac_snv,filter_gnomad_snv,filter_clinvar_snv,filter_mirna</extra_filters>
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoSNV;,filter_exac_snv,filter_gnomad_snv,filter_clinvar_snv,filter_mirna</filter_info>
+				<summary_report>filter_dbsnp_snv</summary_report>				
+				<run_headers>&commonSNVone;,gene(hgnc),&commonSNVtwo;</run_headers>
+				<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+			</single_unaffected>
+	
+			<G1_external>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_snv,filter_common_snv</extra_filters>				
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoSNV;,filter_common_snv</filter_info>
+				<summary_report>filter_dbsnp_snv,filter_common_snv</summary_report>
+				<run_headers>&commonSNVone;,gene(mgi),&commonSNVmouse;,polyphen_info</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+				
+				<!-- Conditions required for a snp entry to pass -->
+				<pass_conditions>
+					<rule>filter_common_snv:1</rule>
+					<rule>filter_dbsnp_snv:allele_freq=0.02</rule>
+					<rule>median_quality_score:20</rule>
+					<rule>read_depth:16</rule>
+				</pass_conditions>
+			</G1_external>
+			
+			<G1_internal>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_snv,filter_common_snv</extra_filters>				
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoSNV;,filter_common_snv</filter_info>
+				<summary_report>filter_dbsnp_snv,filter_common_snv</summary_report>
+				<run_headers>&commonSNVone;,gene(mgi),&commonSNVmouse;,polyphen_info</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+				
+				<!-- Conditions required for a snp entry to pass -->
+				<pass_conditions>
+					<rule>filter_common_snv:1</rule>
+					<rule>filter_dbsnp_snv:allele_freq=0.02</rule>
+					<rule>median_quality_score:20</rule>
+					<rule>read_depth:16</rule>
+				</pass_conditions>
+			</G1_internal>
+						
+			<ENU_internal>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_snv,filter_common_snv</extra_filters>				
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoSNV;,filter_common_snv</filter_info>
+				<summary_report>filter_dbsnp_snv,filter_common_snv</summary_report>
+				<run_headers>&commonSNVone;,gene(mgi),&commonSNVmouse;,polyphen_info</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+				
+				<!-- Conditions required for a snp entry to pass -->
+				<pass_conditions>
+					<rule>filter_common_snv:1</rule>
+					<rule>filter_dbsnp_snv:allele_freq=0.02</rule>
+					<rule>median_quality_score:20</rule>
+					<rule>read_depth:5</rule>
+				</pass_conditions>
+			</ENU_internal>
+			
+			<ENU_external>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_snv,filter_common_snv</extra_filters>				
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoSNV;,filter_common_snv</filter_info>
+				<summary_report>filter_dbsnp_snv,filter_common_snv</summary_report>
+				<run_headers>&commonSNVone;,gene(mgi),&commonSNVmouse;,polyphen_info</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+				
+				<!-- Conditions required for a snp entry to pass -->
+				<pass_conditions>
+					<rule>filter_common_snv:1</rule>
+					<rule>filter_dbsnp_snv:allele_freq=0.02</rule>
+					<rule>median_quality_score:20</rule>
+					<rule>read_depth:5</rule>
+				</pass_conditions>
+			</ENU_external>
+			
+			<mouse_cancer_tumour>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_snv</extra_filters>
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoSNV;</filter_info>
+				<summary_report>filter_dbsnp_snv</summary_report>
+				<run_headers>&commonSNVone;,gene(mgi),&commonSNVcancermouse;,polyphen_info</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+			</mouse_cancer_tumour>
+			
+			<mouse_cancer_normal>
+				<!-- Don't make these reports-->
+			</mouse_cancer_normal>
+			
+			<cancer_normal_patient>
+				<!-- Don't make these reports-->
+			</cancer_normal_patient>	
+			
+			<cancer_normal_cell_line>
+				<!-- Don't make these reports-->
+			</cancer_normal_cell_line>	
+	
+			
+		</sample_types>
+	</snv>
+	
+	
+	<indel>
+		<common>
+			<!-- _Input filters to the report; filters joined with OR -->
+			<input_filters>&commonInput;,filter_cosmic</input_filters>
+			
+			<!-- Extra columns for reporting -->
+			<extra_filters>filter_dbsnp_indel</extra_filters>
+			
+			<extra_headers>ensembl,cosmic_coord</extra_headers>	
+
+			<!-- Columns we need snp_filter info from (eg allele_from dbsnp) OR use filter_name to report group (eg snp_exon_type=NON-SYN,SYN,or SPLICE) OR report pass/fail (filter_common = FAIL)-->
+			<filter_info>&commonInfoIndel;,filter_cosmic</filter_info>
+			
+			<!-- Columns that get overall numbers reported in the text summary -->
+			<summary_report>filter_dbsnp_indel,filter_cosmic</summary_report>
+			
+			<run_headers>&commonIndelone;,gene(hgnc),&commonIndelcancer;</run_headers>
+
+			<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+
+
+			<!-- Conditions required for a snp entry to pass -->
+			<pass_conditions>
+				<rule>filter_dbsnp_indel:allele_freq=0.02</rule>
+				<rule>median_quality_score:20</rule>
+				<rule>read_depth:5</rule>
+			</pass_conditions>
+
+			<human_file_annotations>ens_canonical_trans,gene(hgnc),cosmic,vogelstein,novel_PID_candidate,uniprot,ccds,refseq,description,omim,go,phenotype</human_file_annotations>
+			<mouse_file_annotations>ens_canonical_trans,gene(mgi),uniprot,ccds,refseq,description,omim,go,phenotype,homolog,immgen,gnf</mouse_file_annotations>
+		</common>
+	
+		<sample_types>
+			<!-- Special sample type specific values go here; default is to use common values above -->
+			<cancer_tumour_primary_cell_line>
+				
+			</cancer_tumour_primary_cell_line>	
+			
+			<cancer_tumour_primary_patient>
+				
+			</cancer_tumour_primary_patient>	
+			
+			<cancer_tumour_metastatic_cell_line>
+				
+			</cancer_tumour_metastatic_cell_line>	
+			
+			<cancer_tumour_metastatic_patient>
+				
+			</cancer_tumour_metastatic_patient>	
+	
+			<related_affected>
+				<input_filters>&commonInput;,filter_mirna</input_filters>
+				<extra_filters>filter_dbsnp_indel,filter_exac_indel,filter_gnomad_indel,filter_clinvar_indel,filter_mirna</extra_filters>
+				<extra_headers>ensembl</extra_headers>	
+				<filter_info>&commonInfoIndel;,filter_exac_indel,filter_gnomad_indel,filter_clinvar_indel,filter_mirna</filter_info>
+				<summary_report>filter_dbsnp_indel</summary_report>
+				<run_headers>&commonIndelone;,gene(hgnc),&commonIndeltwo;</run_headers>
+				<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+			</related_affected>
+			
+			<related_unaffected>
+				<input_filters>&commonInput;,filter_mirna</input_filters>
+				<extra_filters>filter_dbsnp_indel,filter_exac_indel,filter_gnomad_indel,filter_clinvar_indel,filter_mirna</extra_filters>
+				<extra_headers>ensembl</extra_headers>	
+				<filter_info>&commonInfoIndel;,filter_exac_indel,filter_gnomad_indel,filter_clinvar_indel,filter_mirna</filter_info>
+				<summary_report>filter_dbsnp_indel</summary_report>
+				<run_headers>&commonIndelone;,gene(hgnc),&commonIndeltwo;</run_headers>
+				<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+			</related_unaffected>
+	
+			<single_affected>
+				<input_filters>&commonInput;,filter_mirna</input_filters>
+				<extra_filters>filter_dbsnp_indel,filter_exac_indel,filter_gnomad_indel,filter_clinvar_indel,filter_mirna</extra_filters>
+				<extra_headers>ensembl</extra_headers>	
+				<filter_info>&commonInfoIndel;,filter_exac_indel,filter_gnomad_indel,filter_clinvar_indel,filter_mirna</filter_info>
+				<summary_report>filter_dbsnp_indel</summary_report>
+				<run_headers>&commonIndelone;,gene(hgnc),&commonIndeltwo;</run_headers>
+				<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+			</single_affected>
+			
+			<single_unaffected>
+				<input_filters>&commonInput;,filter_mirna</input_filters>
+				<extra_filters>filter_dbsnp_indel,filter_exac_indel,filter_gnomad_indel,filter_clinvar_indel,filter_mirna</extra_filters>
+				<extra_headers>ensembl</extra_headers>	
+				<filter_info>&commonInfoIndel;,filter_exac_indel,filter_gnomad_indel,filter_clinvar_indel,filter_mirna</filter_info>
+				<summary_report>filter_dbsnp_indel</summary_report>
+				<run_headers>&commonIndelone;,gene(hgnc),&commonIndeltwo;</run_headers>
+				<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+			</single_unaffected>
+	
+			<G1_external>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_indel,filter_common_indel</extra_filters>
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoIndel;,filter_common_indel</filter_info>
+				<summary_report>filter_dbsnp_indel,filter_common_indel</summary_report>
+				<run_headers>&commonIndelone;,gene(mgi),&commonIndelmouse;</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+				<pass_conditions>
+					<rule>filter_common_indel:1</rule>
+					<rule>filter_dbsnp_indel:allele_freq=0.02</rule>
+					<rule>median_quality_score:20</rule>
+					<rule>read_depth:16</rule>
+				</pass_conditions>
+			</G1_external>
+			
+			<G1_internal>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_indel,filter_common_indel</extra_filters>
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoIndel;,filter_common_indel</filter_info>
+				<summary_report>filter_dbsnp_indel,filter_common_indel</summary_report>
+				<run_headers>&commonIndelone;,gene(mgi),&commonIndelmouse;</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+				<pass_conditions>
+					<rule>filter_common_indel:1</rule>
+					<rule>filter_dbsnp_indel:allele_freq=0.02</rule>
+					<rule>median_quality_score:20</rule>
+					<rule>read_depth:16</rule>
+				</pass_conditions>
+			</G1_internal>
+			
+			<ENU_internal>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_indel,filter_common_indel</extra_filters>
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoIndel;,filter_common_indel</filter_info>
+				<summary_report>filter_dbsnp_indel,filter_common_indel</summary_report>
+				<run_headers>&commonIndelone;,gene(mgi),&commonIndelmouse;</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+				<pass_conditions>
+					<rule>filter_common_indel:1</rule>
+					<rule>filter_dbsnp_indel:allele_freq=0.02</rule>
+					<rule>median_quality_score:20</rule>
+					<rule>read_depth:5</rule>
+				</pass_conditions>
+			</ENU_internal>
+			
+			<ENU_external>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_indel,filter_common_indel</extra_filters>
+				<extra_headers>ensembl</extra_headers>
+				<filter_info>&commonInfoIndel;,filter_common_indel</filter_info>
+				<summary_report>filter_dbsnp_indel,filter_common_indel</summary_report>
+				<run_headers>&commonIndelone;,gene(mgi),&commonIndelmouse;</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+				<pass_conditions>
+					<rule>filter_common_indel:1</rule>
+					<rule>filter_dbsnp_indel:allele_freq=0.02</rule>
+					<rule>median_quality_score:20</rule>
+					<rule>read_depth:5</rule>
+				</pass_conditions>
+			</ENU_external>
+						
+			<mouse_cancer_tumour>
+				<input_filters>&commonInput;</input_filters>
+				<extra_filters>filter_dbsnp_indel</extra_filters>
+				<extra_headers>ensembl</extra_headers>	
+				<filter_info>&commonInfoIndel;</filter_info>
+				<summary_report>filter_dbsnp_indel</summary_report>
+				<run_headers>&commonIndelone;,gene(mgi),&commonIndelcancermouse;</run_headers>
+				<annotations>&commonAnnotations;,&mouseAnnotations;</annotations>
+			</mouse_cancer_tumour>
+			
+			<mouse_cancer_normal>
+				<!-- Don't make these reports-->
+			</mouse_cancer_normal>
+			
+			<cancer_normal_patient>
+				<!-- Don't make these reports-->
+			</cancer_normal_patient>	
+			
+			<cancer_normal_cell_line>
+				<!-- Don't make these reports-->
+			</cancer_normal_cell_line>	
+	
+			
+		</sample_types>
+	
+			
+	</indel>
+	
+	<sv>
+		<common>
+			<!-- _Input filters to the report; filters joined with OR -->
+			<input_filters>&SVInput;</input_filters>
+			
+			<!-- Extra columns for reporting -->
+			<extra_filters>filter_dgv</extra_filters>
+			
+			<extra_headers>ensembl</extra_headers>	
+
+			<!-- Columns we need snp_filter info from (eg allele_from dbsnp) OR use filter_name to report group (eg snp_exon_type=NON-SYN,SYN,or SPLICE) OR report pass/fail (filter_common = FAIL)-->
+			<filter_info>&commonInfoSV;</filter_info>
+			
+			<!-- Columns that get overall numbers reported in the text summary -->
+			<summary_report>filter_dgv</summary_report>
+			
+			<run_headers>&commonSVone;,breakpoint_gene,breakpoint_exon,gene(hgnc),&commonSVtwo;</run_headers>
+
+			<annotations>&commonAnnotations;,&humanAnnotations;</annotations>
+
+
+			<!-- Conditions required for a snp entry to pass -->
+			<pass_conditions>
+				<rule>filter_dgv:allele_freq=0.02</rule>
+				<rule>supporting_reads:4</rule>
+			</pass_conditions>
+
+			<human_file_annotations>ens_canonical_trans,gene(hgnc),cosmic,vogelstein,uniprot,ccds,refseq,description,omim,go,phenotype</human_file_annotations>
+			<mouse_file_annotations>ens_canonical_trans,gene(mgi),uniprot,ccds,refseq,description,omim,go,phenotype,homolog,immgen,gnf</mouse_file_annotations>
+		</common>
+		
+		<sample_types>
+			<!-- Special sample type specific values go here; default is to use common values above -->
+			<cancer_tumour_primary_cell_line>
+				
+			</cancer_tumour_primary_cell_line>	
+			
+			<cancer_tumour_primary_patient>
+				
+			</cancer_tumour_primary_patient>	
+			
+			<cancer_tumour_metastatic_cell_line>
+				
+			</cancer_tumour_metastatic_cell_line>	
+			
+			<cancer_tumour_metastatic_patient>
+				
+			</cancer_tumour_metastatic_patient>	
+	
+			<related_affected>
+				
+			</related_affected>
+			
+			<related_unaffected>
+				
+			</related_unaffected>
+	
+			<single_affected>
+				
+			</single_affected>
+			
+			<single_unaffected>
+				
+			</single_unaffected>
+	
+			<G1_external>
+				
+			</G1_external>
+			
+			<G1_internal>
+				
+			</G1_internal>
+			
+			<ENU_internal>
+				
+			</ENU_internal>
+			
+			<ENU_external>
+
+			</ENU_external>
+						
+			<mouse_cancer_tumour>
+
+							</mouse_cancer_tumour>
+			
+			<mouse_cancer_normal>
+				<!-- Don't make these reports-->
+			</mouse_cancer_normal>
+			
+			<cancer_normal_patient>
+				<!-- Don't make these reports-->
+			</cancer_normal_patient>	
+			
+			<cancer_normal_cell_line>
+				<!-- Don't make these reports-->
+			</cancer_normal_cell_line>	
+	
+			
+		</sample_types>
+		
+	</sv>
+</report_conf>
