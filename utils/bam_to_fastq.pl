@@ -66,7 +66,7 @@ chomp $outdir;
 
 my $ref = defined $OPT{ref}?$OPT{ref}:'/g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa';
 
-
+#test here
 my $bam = $OPT{bam};
 my $short_bam = basename($bam);
 
