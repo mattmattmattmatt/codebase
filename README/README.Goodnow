@@ -1,0 +1,170 @@
+
+Downloaded bs from https://bintray.com/basespace/BaseSpaceCLI-EarlyAccess-BIN/latest/0.10.8
+
+Then runvar
+>bs auth (only initially)
+>bs list project -> find names
+#For each project run:
+>bs list dataset | grep MANSIN_MO_LE_AB_1906xx | cut -d '|' -f2 | sed -e 's/ //g' > MANSIN_MO_LE_AB_1906xx_samples
+>for f in `cat MANSIN_MO_LE_AB_1906xx_samples`; do echo $f; bs download dataset -n $f -o MANSIN_MO_LE_AB_1906xx_${f}; done
+
+for f in `cat sample_list`; do echo $f; cat fastq/${f}-*R1*gz >> fastq/${f}_R1.fastq.gz; done
+for f in `cat sample_list`; do echo $f; cat fastq/${f}-*R2*gz >> fastq/${f}_R2.fastq.gz; done
+
+~/g/variantdb/trunk/utils/quick_gatk_qsub.pl -readdir vasculitis/fastq/ -sample_list vasculitis/sample_list -qsubdir vasculitis/qsub/ -outdir vasculitis/runs/
+for f in [12]*qsub; do qsub $f; done
+ 
+for f in [12]*qsub; do qsub $f; done
+
+#When done
+qsub joint_call.qsub
+
+Change to GRCh38
+-> Update quick_annotate_vcf.pl
+
+Run VEP on raijin for now (use release 94)
+~/g/variantdb/v2.38/utils/vep_wrapper.pl -vep_in vep.in -vep_bin /g/data/u86/software/vep/ensembl-vep/vep > joint_calls.txt.vep.exon
+~/g/variantdb/v2.38/utils/vep_wrapper.pl -vep_in vep.in -vep_bin /g/data/u86/software/vep/ensembl-vep/vep -all > joint_calls.txt.vep.all
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -outfile vasculitis_all_variants.tsv
+
+#Lots of no data so add feature
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -no_run -outfile vasculitis_all_variants_at_least_half_with_data.tsv -max_nocall_count 24
+
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -no_run -sample_file somatic_sample_list -somatic -outfile vasculitis_somatic_variants.tsv
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -no_run -sample_file somatic_sample_list -somatic -outfile vasculitis_somatic_variants__at_least_half_with_data.tsv
+
+WGS See /g/data/u86/mxf221/Goodnow/vasculitis/wgs
+
+Three rogue samples and one normal.  Ran all four samples to gatk ready followed by mutect2 and manta.
+
+Took mutect2 vcf and ran for all and just passed
+Had to run VEP on raijin
+
+grep ^#  Vasculitis.all.vcf  > tmp1
+grep PASS  Vasculitis.all.vcf  > tmp2
+cat tmp1 tmp2 >> Vasculitis.pass.vcf
+
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf Vasculitis.pass.vcf -outdir results_pass/ -skip_vep
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf Vasculitis.all.vcf -outdir results/ -skip_vep
+
+Run manta:
+~/g/software/manta-1.1.1.centos5_x86_64/bin/configManta.py  --normalBam=normal_gatk.bam --tumourBam=rogue_gatk.bam --referenceFasta=/g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa --runDir=/g/data/u86/mxf221/Goodnow/vasculitis/wgs/runs/manta
+
+/g/data/u86/mxf221/Goodnow/vasculitis/wgs/runs/manta/runWorkflow.py -g 64 -j 16 -m local
+
+Copy somatic vcf file ## REPLACED ##
+/drive2/variantdb/trunk/scripts/parse_manta.pl -manta_vcf somaticSV.vcf
+grep -v inv manta.txt > manta.nobp
+cp manta.tra manta.bp; grep inv manta.txt >> manta.bp 
+grep bnd manta.bp | cut -d$'\t' -f1-5 | awk '{print $1,$2,$2,$5"\n"$3,$4,$4,$5}' > manta.bp.split
+grep inv manta.bp | cut -d$'\t' -f1-5 | awk '{print $1,$2,$2,$4"\n"$1,$3,$3,$4}' >> manta.bp.split
+
+/drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.nobp -just_overlap -coord  /drive2/vardb/v3.0/conf/human/GRCh38/gene/021118/GRCh38.gene.overlap.all -all | sed -e 's/	1$/	NO_GENE/' > manta.nobp.gene
+/drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.bp.split -just_overlap -coord  /drive2/vardb/v3.0/conf/human/GRCh38/gene/021118/GRCh38.gene.overlap.all -all | sed -e 's/	1$/	NO_GENE/' > manta.bp.gene
+
+cat  manta.txt  manta.tra >> manta.all
+cat  manta.nobp.gene manta.bp.gene >> manta.all.gene
+./manta_summarise.pl > Vasculitis_manta.tsv
+
+#New batch 
+cat joint_calls.vcf | grep -v decoy | grep -v random | grep -v ^Un | grep -v ^[NM] > joint_calls_chr.vcf
+
+#Filter out common variants on command line
+cat ROBR_mutect.tsv  | extract -t "_15 <= 0.05"   | sed -e "s/[ACTG]->[ATCG]:\([0-9].[0-9]\+\):[0-9]\+.[0-9]\+/\1/g" | sed -e "s/[+-][ATCG]\+:\([0-9].[0-9]\+\):[0-9]\+.[0-9]\+/\1/" | extract -t "_16 <= 0.05" > ROBR_mutect_nocommon.tsv
+
+
+#Het variants 
+cat 6cells_all_variants.tsv | grep "^11" | extract -t "_1> 102332947 && _2<117166632" | extract -t "_37 eq 'het'" > 6cells_ATM_ctrlHet.tsv
+
+cat 6cells_all_variants.tsv | grep "^11" | extract -t "_1> 92339036 && _2<102339036" | extract -t "_37 eq 'het'" > 6cells_lowATM_ctrlHet.tsv
+
+>cat 6cells_all_variants.tsv | grep "^11" | extract -t "_1> 117148057 && _2<127148057" | extract -t "_37 eq 'het'" > 6cells_highATM_ctrlHet.tsv
+
+# In the meantime I was wondering if you were able to subsample the read-depth of these samples? Would it be possible to subsample to 20X, 10X and 5X coverage for each cell and then return germline HET variants from the control in the same way? This would be useful going forward if we can get away with sequencing say 5 cells at 5X or 10X coverage which would make the approach a lot more feasible.
+
+Get 20X, 10X and 5X reads
+
+Sequencable bases  =  3209286105 (https://github.com/igvteam/igv/blob/master/genomes/sizes/hg38.chrom.sizes)
+
+To get 1X = 3209286105/300 -> 10697620
+
+20X lines needed = 10697620*20*4 = 855809600
+10X = 10697620*10*4 = 427904800
+5X = 10697620*5*4 = 213952400
+
+for f in 213952400 427904800 855809600; do for g in A1_control_ A8_rogue_ C11_rogue_ C2_rogue_ C4_rogue_ C5_rogue_ C6_rogue_; do zcat ${g}R1.fastq.gz | head -${f} > ${g}${f}_R1.fastq; zcat ${g}R2.fastq.gz | head -${f} > ${g}${f}_R2.fastq; done; done
+
+rename 213952400 5X *213952400*
+rename 427904800 10X *427904800*
+rename 855809600 20X *855809600*
+
+#Manta wrapper
+{matt@matt-linux /drive3/work/Goodnow/ss/WGS3/manta}
+>for f in `cat ../sample_list`;do mkdir $f; echo $f; /drive2/variantdb/trunk/utils/quick_manta.pl -vcf_in somatic_${f}.vcf -outdir ./${f}; done
+
+#quick_manta now has group calling mode '-joint'
+
+#Run trisomy analysis
+samtools depth -a -d 10000 normal.bam > normal.depth
+samtools depth -a -d 10000 tumor.bam > tumor.depth
+for f in {1..22} X; do echo $f; grep -w ^${f} normal.depth | cut -d$'\t' -f3 | stats >> normal.stats; done;
+for f in {1..22} X; do echo $f; grep -w ^${f} tumor.depth | cut -d$'\t' -f3 | stats >> tumor.stats; done;
+
+paste normal.stats tumor.stats | cut -d' ' -f4,35 | awk '{print $2/$1}' > normal_tumor_ratio
+
+#Then get average over all chromosomes
+cat normal_tumor_ratio | stats -> NNNNN
+cat normal_tumor_ratio | awk '{print $1"\t"$1/NNNNN}'
+
+#Trisomy ratio ~1.5, full dup ~2, etc
+
+
+#Convert hg19 BAM to reads
+samtools sort -n -@ 32 SVR_tumor.bam | samtools bam2fq -@ 32 -1 SVR_rogue_R1.fastq.gz -2 SVR_rogue_R2.fastq.gz --reference ~/g/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -s /dev/null -0 /dev/null -
+
+#Or else wrapper to generate command
+~/g/variantdb/trunk/utils/bam_to_fastq.pl -bam JT_blood.RG.bam -fq1 JT_blood_R1.fastq.gz -fq2 JT_blood_R2.fastq.gz  -outdir reads/ -ref ~/g/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa
+
+
+
+#Generate depth table files
+module load java/jdk-8.40
+module load samtools;
+for f in `cat sample_list_short`; do echo $f; samtools view -h --threads 32 ${f}_md_realign_recal.bam | /g/data/u86/software/bbmap/pileup.sh in=stdin > ${f}.mapstat; samtools depth -a -d 10000 -b Lymphoma_probe_coords.bed ${f}_md_realign_recal.bam > ${f}.depth; done
+
+see ~/g/templates/depth_template.qsub
+
+
+#Total reads (note tab)
+for f in `cat sample_list`; do cat ${f}.mapstat | grep ^Reads | sed -e 's/^Reads://' -e 's/ //g' -e 's/       //g'; done
+
+#Mean cover
+for f in `cat sample_list`; do cat ${f}.depth | cut -d$'\t' -f3 | stats | cut -d' ' -f 4; done
+
+#Bases in probe set
+
+cat Lymphoma_probe_coords.bed | awk '{print $3-$2}' | awk '{SUM+=$1}END{print SUM}' -> PROBESUM
+
+>1 read bases
+for f in `cat celiac_samples`; do cat ${f}.depth | extract -t "_2 > 1" | wc -l | awk '{print $1/PROBESUM*100"%"}'; done
+
+>15 bases
+for f in `cat celiac_samples`; do cat ${f}.depth | extract -t "_2 > 15" | wc -l | awk '{print $1/PROBESUM*100"%"}'; done
+
+#allelic dropout estimate -> not standard
+#Get hom/ref variant counts first
+for f in {39..83}; do echo "cat ../Celiac2_all_variants.tsv | extract -t \"_${f} eq 'ref' || _${f} eq 'hom'\" | wc -l"; done | bash >> hom_ref_counts
+
+#Get variants also het in control
+for f in {39..83}; do echo "cat ../Celiac2_all_variants.tsv | extract -t \"_${f} eq 'ref' || _${f} eq 'hom'\" | extract -t \"_38 eq 'het'\" | wc -l"; done | bash >> hom_ref_controlhet_counts
+
+#Get percent
+paste hom_ref_controlhet_counts hom_ref_counts | awk '{print $1/$2*100"%"}'
+
+
+

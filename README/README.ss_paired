@@ -1,0 +1,48 @@
+Originally run as two 'somatic' pairs within SIN3306_20170313_userprep_TJ_DNA_2 (SIN3306A01-A1-2 and SIN3306A01-B1-2) but now want all 20 samples run independently.
+
+Samples are:
+SIN3306A01-A1-2
+SIN3306A02-A2-2
+SIN3306A03-A3-2
+SIN3306A04-A4-2
+SIN3306A05-A5-2
+SIN3306A06-A2-1
+SIN3306A07-A11-1
+SIN3306A08-A12-1
+SIN3306A09-A9-2
+SIN3306A10-A10-2
+SIN3306A11-A12-2
+SIN3306A12-B1-2
+SIN3306A13-B2-2
+SIN3306A14-B3-2
+SIN3306A15-B6-2
+SIN3306A16-B7-2
+SIN3306A17-B8-2
+SIN3306A18-B9-2
+SIN3306A19-B10-2
+SIN3306A20-B11-2
+
+Merge read files:
+for f in `'ls' ../raw_reads/*R1* | cut -d'_' -f2 | sed -e 's/reads\///' | cut -d'-' -f2,3 | grep -v A1-2 | sort | uniq`; do cat A1-2.qsub | sed -e "s/A1-2/${f}/g" > ${f}.qsub; done
+
+Then run each through bwa/GATK: (see /g/data/u86/mxf221/Goodnow/ss/ss_paired/qsub)
+
+Parse vcfs
+>for f in vcf/*.vcf; do /drive2/variantdb/trunk/utils/parse_vcf.pl -keep_zyg -vcf $f; done
+
+Prep VEP
+>for f in vcf/*txt; do echo $f; cat $f | grep SNV | sed -e 's/:/ /g' -e 's/;/ /g' -e 's/->/ /' | awk '{print $1,$2,$3,$8,"+"}' > $f.vep_in ;done
+
+Run VEP
+>for f in *vep_in; do echo $f; /drive2/variantdb/trunk/utils/vep_wrapper.pl -vep_in $f -all > $f.vep_all; done
+>for f in *vep_in; do echo $f; /drive2/variantdb/trunk/utils/vep_wrapper.pl -vep_in $f > $f.vep_exon; done
+
+Overlap Exac:
+for f in vcf/*.txt; do /drive2/variantdb/trunk/utils/overlap_files.pl -ref $f -coord exac.snv -just_overlap > ${f}.exac.snv; done
+for f in vcf/*.txt; do /drive2/variantdb/trunk/utils/overlap_files.pl -exact -ref $f -coord exac.indel -just_overlap> ${f}.exac.indel; done
+
+Summarize:
+./summary.pl
+
+
+

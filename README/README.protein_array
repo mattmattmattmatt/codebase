@@ -1,0 +1,17 @@
+Process Sally files
+
+Copy all gpr files and rename to tsv
+
+Remove spaces
+find . -name '*tsv' | awk '{print "mv",$1"\\ "$2"\\ "$3"\\ "$4, $1"_"$2"_"$3"_"$4}' | bash
+
+find /media/matt/SAL\ ARRAY\ 3/EBV\ NCI\ Contract\ 3/ -type f -name '*.gpr' | awk '{print "cp",$1"\\ "$2"\\ "$3"\\ "$4"\\ "$5"\\ "$6"\\ "$7,"."}' | bash
+
+rename 's/.gpr/.tsv/' *.gpr
+
+#Everything happens in script
+>./protein_array.pl -map_in HLA_map.csv -rawdir raw_files/ -outdir processed_files/
+
+
+
+

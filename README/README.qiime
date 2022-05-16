@@ -1,0 +1,55 @@
+#Make sample mapping file:
+~/work/sev_ace/P64/map.pl -> makes final_mapping.tsv
+
+#Create qiime_map.txt from this
+#SampleID	LinkerPrimerSequence	BarcodeSequence	Treatment	Description
+R0218			Non-control	Exp_20_OVA.1_Lung
+.....
+R0301			Control	Blank_controls_c
+
+>validate_mapping_file.py -m qiime_map.txt
+
+
+#Create observation file
+>cat ../analyses/otu_table_R1_count.annotated.tab | cut -d'	' -f1,86 > qiime_obs.txt
+->Update headers to #OTUID\ttaxonomy
+
+#Add data to biom
+>biom add-metadata -i ../analyses/otu_table_count_filtered.biom -o otu_table_count_filtered_meta.biom --sample-metadata-fp qiime_map.txt --observation-metadata-fp  qiime_obs.txt
+
+
+
+#Need to fix problem with formatting (Problem with splitting characters in tax string; can't figure out issue)
+>biom convert -i otu_table_count_filtered_meta.biom -o otu_table_count_filtered_meta.tmp --to-tsv --header-key taxonomy
+>cat otu_table_count_filtered_meta.tmp | sed -e 's/; //g' > otu_table_count_filtered_meta.tsv
+>biom convert -i otu_table_count_filtered_meta.tsv -o new_otu_table_count_filtered_meta_final.biom --to-hdf5 --table-type="OTU table" --process-obs-metadata taxonomy -m qiime_map.txt
+
+#Check biom file
+>biom summarize-table -i otu_table_count_filtered_meta_final.biom > otu_table_count_filtered_meta_final.summary
+
+#Generate taxa plots
+>summarize_taxa_through_plots.py -i otu_table_count_filtered_meta_final.biom -m qiime_map.txt -o ~/work/sev_ace/P64/qiime/taxa_summary
+
+#Generate alpha/rarefaction -> display command first
+>alpha_rarefaction.py -m qiime_map.txt -i otu_table_count_filtered_meta_final.biom -o alpha -t otu_table_count_filtered_meta_final.tre -w -f
+
+#No tree so can't do PD so get commands and run one at a time changing
+alpha_diversity.py -i alpha/rarefaction/ -o alpha/alpha_div/  -t otu_table_count_filtered_meta_final.tre
+TO
+alpha_diversity.py -i alpha/rarefaction/ -o alpha/alpha_div/  -t otu_table_count_filtered_meta_final.tre -m chao1,observed_otus
+
+#Beta diversity -> -e 275 from min value in table summary that isn't empty; won't include water samples
+>beta_diversity_through_plots.py -i otu_table_count_filtered_meta_final.biom -m  qiime_map.txt -o beta -e 276 -f -w
+
+#Then run
+>single_rarefaction.py -i otu_table_count_filtered_meta_final.biom -o beta/otu_table_count_filtered_meta_final_even276.biom -d 276
+>beta_diversity.py -i beta/otu_table_count_filtered_meta_final_even8.biom -o beta --metrics euclidean
+>mv beta/euclidean_otu_table_count_filtered_meta_final_even276.txt beta/euclidean_dm.txt
+>principal_coordinates.py -i beta/euclidean_dm.txt -o beta/euclidean_pc.txt 
+>make_emperor.py -i beta/euclidean_pc.txt -o beta/euclidean_unifrac_emperor_pcoa_plot/ -m qiime_map.txt
+
+
+#Start again.....
+merge_otu_tables.py  -i P64/analyses/otu_table_count_filtered.biom,P65/analysis/otu_table_count_filtered.biom -o all/otu_filtered_all.biom
+
+

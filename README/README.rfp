@@ -1,0 +1,64 @@
+Received list of recurrent FP:
+Investigate overlap with multiSNP -> standard parse_ucsc_dbsnp and overlap_files
+Investigate with alignibility (mouse and human) and uniqueness (human only)
+Investigate with cases where ref is minor allele (minorref)
+
+Download USCS mappability tracks:
+1) Fix offset, chr, and split by chromosome for overlapping
+for f in {1..22} X Y; do echo $f; grep -w ^chr$f hg19.wgEncodeDukeMapabilityUniqueness35bp.bed | sed -e 's/chr//' | awk '{print $1"\t"$2+1"\t"$3"\t"$4}' > bychr/hg19.wgEncodeDukeMapabilityUniqueness35bp.${f}.bed; done
+
+2) Generate benchmark stats for alignability
+for f in {1..22} X Y; do echo $f; ./full_nums.pl < hg19.wgEncodeDukeMapabilityUniqueness35bp.${f}.bed > hg19.wgEncodeDukeMapabilityUniqueness35bp.${f}.stats; done
+cat hg19.wgEncodeDukeMapabilityUniqueness35bp.22.stats | stats (only up to ~300M files for memory)
+
+>for f in {1..22} X Y; do echo $f; cat hg19.wgEncodeCrgMapabilityAlign36mer.exon.${f}.stats | stats; done
+
+-> TOTAL mean 0.986 for human and 0.978 for mouse
+
+3) Human for our snvs
+>cat *align | grep ^[0-9X]  | cut -d'   ' -f5 | sed -e 's/-DUP//' | stats
+n 3768 mean 0.711 median 1.000 mode 1.000 stddev 0.3691 min 0.001 max 1.000 p01 0.019 p05 0.062 p10 0.125 p16 0.200000 p84 1.000 p90 1.000 p95 1.000 p99 1.000
+
+For each sample:
+>for f in *align; do cat $f | cut -d'   ' -f5 | sed -e 's/-DUP//' | stats | cut -d' ' -f4 >> total_align; done 
+
+
+>TODO mouse when finished
+for chr in {1..19} X; do for f in mmu_c3h_170919_vcf_counts.overlap mmu_cba_170919_vcf_counts.overlap mmu_fvb_170919_vcf_counts.overlap mmu_ref_170919_vcf_counts.overlap; do cat bychr/${f}.${chr}.align | grep -v OVERLAP >> ${f}.align; done; done
+
+
+
+Also ran for Duke uniqueness but not available for mouse so skip for now.
+
+4) Tried with blacklist from encode but no overlap
+
+5) Stats for multisnp:
+Human:
+Expect 0.093% of variants to have hit by chance:
+2712992/2897310462
+
+>wc -l *overlap | grep -v total | shrinkwrap | sed -e 's/_vcfcounting_30rounds_all_vars_170919//' > total_overlap
+>for f in *overlap.multidbsnp; do cat $f | grep -v NO_ | wc -l >> total_dbsnp_overlap; done
+
+>paste total_dbsnp_overlap total_overlap  | shrinkwrap | awk '{print $1/$2*100,$2,$3}' > hg19.multisnp.summary
+
+Mouse:
+Background level:
+bcplus 2572986/2620345972 -> 0.098%
+
+>paste total_dbsnp_overlap total_overlap  | shrinkwrap | awk '{print $1/$2*100,$2,$3}' > mm10.multisnp.summary
+
+6) Stats for rare ref
+cat hs37d5.dbsnp.overlap.snv.* | sed -e 's/->/ /' | sed -e 's/ [ACTG](/ /' -e 's/)$//' | grep -v n/a | extract -t "_4 > 0.5 > /drive3/work/docs/papers/rfp/human/hg19.minorref.bed
+
+>for f in *overlap; do echo $f; /drive2/variantdb/v2.3/utils/overlap_files.pl -ref $f -coord mm10.minorref.bed -just_overlap  > $f.minorref; done
+
+Background: 
+Mouse 919937/2620345972 -> 0.035%
+Human 2418620/2897310462 -> 0.084%
+
+#Final summary:
+>paste mm10.multisnp.summary mm10.minorref.summary mm10.align.summary | tr " " "\t" | awk '{print $3,$2,$1,$4,$7}' | tr " " "\t" > mm10.summary
+
+
+

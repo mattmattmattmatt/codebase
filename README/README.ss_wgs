@@ -1,0 +1,71 @@
+From Manu:
+
+"I’ve finally received the whole genome sequencing of the Rogue and Memory pools of 50 cells- I’ve put the data on NCI in the folder that you have accessed previoulsy for Amanda. The location should be: /g/data2/pw1/Rogue1_WGS. There should be a .csv file in there with the Sample Ids (again there should be 2 Rogue (tumour) samples and 2 Memory (control) samples). 
+
+Similar to your SNV analysis, we would be looking for somatic structural changes that are found in the Rogue pools but not in the Memory pools. One thing that we need to be careful of is that whole-genome amplification was used to prepare these libraries which will introduce substantial bias. It may be best if we first look for structural variations that are not found in both Memory pools but are found in either one or both Rogue pools."
+
+
+Ran four samples through pipeline:
+
+Goodnow_sample21 (Pair1_rogue)
+Goodnow_sample22 (Pair2_rogue)
+Goodnow_sample23 (Pair1_memory)
+Goodnow_sample24 (Pair2_memory)
+
+In general the quality of the alignments is lower than I usually see which will likely yield more FP throughout all analyses.
+
+1) SNVs
+Called somatic SNVs using mutect2 (build into gatk v3.6) using commands like:
+java -Xms9200m -Xmx9600m -jar GenomeAnalysisTK.jar -T MuTect2 -R hs37d5.fa -L 7.intervals -I:tumor Goodnow_sample21_sg1_humansingle1_1914.picard_sorted.dupmarked.bam -I:normal Goodnow_sample23_sg1_humansingle1_1916.picard_sorted.dupmarked.bam -o Pair1.7.vcf
+
+Pair1 yielded 45034 somatic SNVS
+Pair2 yielded 66468 somatic SNVS
+
+Overlap to genes, exac, vep_exon, and vep_all
+
+Use summary.pl and toggle Pair1/Pair2 inside code and add -gene flag
+
+SNVs are annotated in Pair1_somatic_all.tsv,Pair1_somatic_exon.tsv,Pair2_somatic_all.tsv, and Pair2_somatic_exon.tsv.
+
+The exon files contain nonsense and missense mutations (310 for Pair1 and 535 for Pair2)
+
+
+2) 
+Called somatic SVs using delly and manta using commands like:
+Delly:
+delly call -t DEL -x delly.excl -o Pair1_DEL.bcf -g hs37d5.fa Goodnow_sample21_sg1_humansingle1_1914.gatk.bam Goodnow_sample23_sg1_humansingle1_1916.gatk.bam  
+
+delly filter -t DEL -f somatic -o Pair1_DEL.pre.bcf -g hs37d5.fa -s Pair1.tsv Pair1_DEL.bcf
+
+delly  call -t DEL -o Pair1_DEL_geno.bcf -g hs37d5.fa -v Pair1_DEL.pre.bcf -x delly.excl Goodnow_sample21_sg1_humansingle1_1914.gatk.bam Goodnow_sample23_sg1_humansingle1_1916.gatk.bam 
+
+delly filter -t DEL -f somatic -o Pair1_DEL.somatic.bcf -g hs37d5.fa -s Pair1.tsv Pair1_DEL_geno.bcf
+
+For some reason delly DEL calls timed out (after 200 hours) so there are no deletion calls. To view these vcf files you need bcftools (bcftools view file.vcf)
+
+Pair1 somatic DUPS: 8
+Pair2 somatic DUPS: 42
+Pair1 somatic INVS: 71
+Pair2 somatic INVS: 1173
+Pair1 somatic TRAS: 0
+Pair2 somatic TRAS: 3
+
+Manta:
+configManta.py --normalBam=Goodnow_sample24_sg1_humansingle1_1917.picard_sorted.dupmarked.bam --tumourBam=Goodnow_sample22_sg1_humansingle1_1915.picard_sorted.dupmarked.bam --referenceFasta=hs37d5.fa --runDir=Pair2_manta/
+/g/data/u86/mxf221/Goodnow/ss/WGS/manta/Pair2_manta/runWorkflow.py -g 64 -j 16 -m local
+
+Pair1 somatic DUPS: 10
+Pair2 somatic DUPS: 18
+Pair1 somatic INVS: 134
+Pair2 somatic INVS: 421
+Pair1 somatic TRAS: 4 
+Pair2 somatic TRAS: 15
+Pair1 somatic DELS: 0
+Pair2 somatic DELS: 1
+
+As manta called all SV types I manually interogated dups, trans, and dels for Pair1 and Pair2 and attached pictures of numerous 'somatic' events that look real to me (particularly the dups).
+
+These are pngs in the pictures directory loosely named after the events.  In the IGV screenshots the order is t1/n1 t2/n2 so looking at the alignments should tell you which pair has called the event. Of particular interest are events like intron amplification in FOXB2 in Pair1, exon amplification in SPTBN1 in Pair2, intron amplication in VPS13D, etc.
+
+
+

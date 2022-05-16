@@ -1,0 +1,13 @@
+Brain with phiX controls (7 runs)
+
+https://www.ncbi.nlm.nih.gov/sra/SRX016359[accn]
+
+UHR with phiX controls (7 runs)
+
+https://www.ncbi.nlm.nih.gov/sra/SRX016367[accn]
+
+
+for f in SRR037439 SRR037440 SRR037441 SRR037442 SRR037443 SRR037444; do echo $f; ~/software/qc/sratoolkit.2.9.2-ubuntu64/bin/prefetch $f; done
+for f in SRR037439 SRR037440 SRR037441 SRR037442 SRR037443 SRR037444; do echo $f; ~/software/qc/sratoolkit.2.9.2-ubuntu64/bin/fastq-dump --gzip -O brain/ $f ; done
+for f in `'ls' *gz`; do echo $f; /g/data/u86/software/STAR/bin/Linux_x86_64/STAR --runThreadN 16 --readFilesCommand zcat  --genomeDir /g/data/u86/mxf221/ref_genomes/GRCh38/35bp/ --outFileNamePrefix /g/data/u86/mxf221/RNASeq_qpcr/BAMS/`echo $f | sed -e 's/.fastq.gz//'` --readFilesIn $f --outSAMtype BAM SortedByCoordinate --outFilterScoreMinOverLread 0 --outFilterMatchNminOverLread 0  --outFilterMatchNmin 20 --seedSearchStartLmax 10; done
+

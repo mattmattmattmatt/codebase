@@ -1,0 +1,34 @@
+I’m crunching all the data we’ve got for this Schistosoma haematobium diagnostic project (we have probed the Schistosoma protein arrays you helped me construct last year with urine from infected people) and I’ve come up with 38 significant hits. I’ve attached a file where I’ve made a frequency of recognition table for each antigen. I have stratified our infected cohort by infection intensity (egg count) and split them into high, medium, low and very low (no eggs but still infected) infection intensity. I have assigned a 1 to the individuals who recognise an antigen and a 0 to those who don’t and tallied them for the whole cohort.
+
+ 
+
+For any single antigen, I can work out the frequency of recognition for each or across all of the groups but what I want to do try and work out if there is a combination of 2-5 antigens which could give the best recognition coverage over all 114 samples; ie the most recognised antigen is C_00050 (92/114 or 80% of samples) but are there other antigens which could recognise samples C_00050 doesn’t and give greater overall recognition? A separate analysis would be doing this for each group on its own.
+
+ 
+
+By a bit of sorting and eyebalIing, I can come up with a combo of 3 which gives around 94% recognition (B_00818, C_00050, C_00181) but want to make sure I’m not missing a combo. If this is something which is possible to do, could you find some time to help me out? No rush.
+
+./antigen.pl -tsv_in frequency\ of\ recognition\ table\ -\ significant\ urine\ hits.csv | sort +2nr -3 +0n -1 > all_combos.tsv
+
+cut -d',' -f1-37 frequency\ of\ recognition\ table\ -\ significant\ urine\ hits.csv > High.tsv
+cut -d',' -f1,38-72 frequency\ of\ recognition\ table\ -\ significant\ urine\ hits.csv > Medium.tsv
+cut -d',' -f1,73-108 frequency\ of\ recognition\ table\ -\ significant\ urine\ hits.csv > Low.tsv
+cut -d',' -f1,109-115 frequency\ of\ recognition\ table\ -\ significant\ urine\ hits.csv  >No.tsv
+
+./antigen.pl -tsv_in High.tsv   | sort +2nr -3 +0n -1  > high_combos.tsv
+./antigen.pl -tsv_in Medium.tsv   | sort +2nr -3 +0n -1 > medium_combos.tsv
+./antigen.pl -tsv_in Low.tsv   | sort +2nr -3 +0n -1 > low_combos.tsv
+./antigen.pl -tsv_in No.tsv   | sort +2nr -3 +0n -1 > no_combos.tsv
+
+For new data (rename above to urine as new data is serum)
+
+>cut -d',' -f1-77 frequency\ of\ recognition\ table\ -\ significant\ serum\ hits\ 11-12-2017_final.csv  > serum_high_input.tsv
+>cut -d',' -f1,78-144 frequency\ of\ recognition\ table\ -\ significant\ serum\ hits\ 11-12-2017_final.csv > serum_medium_input.tsv
+>cut -d',' -f1,145-242 frequency\ of\ recognition\ table\ -\ significant\ serum\ hits\ 11-12-2017_final.csv  > serum_low_input.tsv
+>cut -d',' -f1,243-246 frequency\ of\ recognition\ table\ -\ significant\ serum\ hits\ 11-12-2017_final.csv  > serum_noegg_input.tsv
+
+for f in *input.tsv; do echo $f; ./antigen.pl -tsv_in $f | sort +2nr -3 +0n -1 >  `echo $f | sed -e 's/input/output/'`; done
+
+Make smaller (files too big)
+>for f in 4 3 2; do grep ^$f serum_all_output.tsv | head -100 >> serum_all_output_top.tsv; done 
+

@@ -1,0 +1,149 @@
+1) Reference Genomes:
+
+i) species canis
+Downloaded draft genome for canis from ftp://ftp.ensemblgenomes.org/pub/metazoa/release-37/fasta/sarcoptes_scabiei/dna/
+
+Downloaded both untouched and repeat masked files
+Sarcoptes_scabiei.SscaA1.dna.toplevel.fa
+Sarcoptes_scabiei.SscaA1.dna_sm.toplevel.fa (rm)
+
+Annotations for CDS and lncrna (replace dna with cds and ncrna in url above)
+Sarcoptes_scabiei.SscaA1.ncrna.fa
+Sarcoptes_scabiei.SscaA1.cds.all.fa
+
+ii) Pig and human
+Downloaded draft genome sequences for Scabies suis (pig) and hominid (human)
+
+ftp://penguin.genomics.cn/pub/10.5524/100001_101000/100198/draft_assemblies/
+ftp://penguin.genomics.cn/pub/10.5524/100001_101000/100198/annotation
+
+Readme from the download:
+....
+The following are the draft genome files (major scaffolds, post bacterial scaffold removal)
+
+Filename					Host		Type	Compression
+
+s_scabiei_var_hominis_draft_genome_patientB.fa	Human		FASTA	None
+s_scabiei_var_suis_draft_genome_washed3.fa	Pig		FASTA	None
+
+preliminary_platanus_assembly_pig_unwashed.fa   Pig             FASTA   None
+preliminary_platanus_assembly_pig_washed1.fa    Pig             FASTA   None
+preliminary_platanus_assembly_pig_washed2.fa    Pig             FASTA   None
+preliminary_platanus_assembly_pig_washed3.fa    Pig             FASTA   None
+
+**Annotation file**
+
+Filename						Host		Type	Compression
+s_scabiei_var_hominis_patientB_geneFeatures.bed		Human		bed	None
+
+*bed file columns*
+Column 1: Scaffold name
+Column 2: Feature start position
+Column 3: Feature end position
+Column 4: Strand
+Column 5: Comma separated list of orthologs
+Column 6: Comma separated list of bit scores
+Column 7: Number of orthologs
+
+
+Downloaded read pairs from EBI (https://www.ebi.ac.uk/ena/data/view/PRJEB12428)
+ERR1223401 -> patient A
+ERR1223402 -> patient B
+ERR1223484 -> pig unwashed
+ERR1223485 -> pig wash 1
+ERR1223486 -> pig wash 2
+ERR1223487 -> pig wash 3
+
+PatientB selected reference so work with this data
+Do trim-galore as per the paper
+~/software/qc/TrimGalore-0.4.5/trim_galore --paired Patient2_1.fastq.gz Patient2_2.fastq.gz
+
+Do bowtie2 to filter human reads
+bowtie2 -x  ~/software/aligner/bowtie2/hs37d5 -p 4 --end-to-end --very-fast -1 Patient2_1_val_1.fq.gz -2 Patient2_2_val_2.fq.gz -S Patient2_full.sam
+
+Appear to be already filtered (alignment possibly due to using hs37d5)
+34830507 reads; of these:
+....
+0.78% overall alignment rate
+
+Filter out the remaining small % and sort by name for input to bam2fastq:
+>samtools view -b -f 12 Patient2_full.sam | samtools sort -n --threads 3 - -o Patient2_byname_unmapped.bam 
+>bamToFastq -i Patient2_byname_unmapped.bam -fq Patient2_final_R1.fastq -fq2 Patient2_final_R2.fastq
+
+Removed ~600,000 read pairs
+>samtools flagstat Patient2_full.sam 
+69661014 + 0 in total (QC-passed reads + QC-failed reads)
+>samtools flagstat Patient2_byname_unmapped.bam
+69072242 + 0 in total (QC-passed reads + QC-failed reads)
+
+Upload data via curl to RepeatExplorer2 in Galaxy:
+>curl -T Patient2_final_R1.fastq.gz -k -v -u mattfield:USUALPASSE ftps://repeatexplorer-elixir.cerit-sc.cz
+
+Then on Galaxy
+
+1) Get data -> Upload file from computer -> Select FTP
+2) Run through FASTQ Groomer
+3) FASTQ to FASTA converter
+4) FASTA interlacer
+5) RepeatExplorer with all defaults except metazoa and up read count to 1 million reads
+
+Repeat for Patient1 to compare.
+
+In the end got five hits for each human sample, three of which are common:
+
+Three common hits were blasted and no significant hits were found (see /drive3/work/DNASeq/Scabies/RepeatExplorer2/high_matches.fa)
+
+
+As won't be able to run PacBio reads through as RepeatExplorer2 doesn't work with this data (also doesn't work with assembled genome)
+
+To work around tried RepeatModeler which takes in assembled genome. 
+1) ~/software/repeat/RepeatModeler-open-1.0.11/BuildDatabase -name scabies -engine ncbi s_scabiei_var_hominis_draft_genome_patientB.fa
+
+2)  nohup ~/software/repeat/RepeatModeler-open-1.0.11/RepeatModeler -engine ncbi -pa 3 -database scabies >& run.out & 
+
+This generated 33 repeats, none of which appear to overlap the three reported by RepeatExplorer2
+
+
+Canis no fastq but vectorbase has repeats lib
+
+>cat Sarcoptes-scabiei-Arlian_REPEATS.lib | sed -e 's/ /_/g' -e 's/)/)_canis/' > canis_repeats.fasta
+
+
+Generate single repeat file
+
+Summary of RepeatExplorer2:
+cat Patient1/TR_consensus_rank_* | sed -e 's/nt/nt_Patient1_hom_RE/'   >> Patient1_all_repeat.fasta
+cat Patient2/TR_consensus_rank_* | sed -e 's/nt/nt_Patient2_hom_RE/' >> Patient2_all_repeat.fasta
+cat Patient*fasta >> RepeatExplorer2_Patient1_Patient2_repeats.fasta
+
+Same for Pig (pig1 = untreated; pig2 = treatment1)
+
+>cat RepeatExplorer2/RepeatExplorer2_Patient1_Patient2_repeats.fasta RepeatModeler/RepeatModeler_Patient2_repeats.fasta canis_repeats.fasta >> All_repeats.fasta
+
+Ran all RepeatExplorer2 repeats through MAFFT and made tree.  Most clustering makes sense and the cases that don't are due to reverse compliment repeats being reported.
+
+TODO: Categorise by size and run MSA for each cluster
+
+Got pacbio data and made blasstdb
+>makeblastdb -in scabies.fasta -dbtype nucl -parse_seqids
+>blastn -query RepeatExplorer2_all_repeats_high_confidence.fasta -db scabies.fasta -out scabies.blast -num_alignments 5 -outfmt "7 qseqid sseqid evalue bitscore"
+
+Then made groups of blast hits for each 6 cases (e.g. 201bp_blast)
+Get stats for pacbio reads hit and frequency:
+>cat 201bp_blast | cut -d'	' -f2 | cut -d'/' -f2,3 | sort | uniq -c | sort -nr | shrinkwrap -> number times each read hit
+>cat 201bp_blast | cut -d'      ' -f2 | cut -d'/' -f2,3 | sort | uniq -c | sort -nr | shrinkwrap |wc -> reads hit
+>wc 201bp_blast -> total hits
+>cat 201bp_blast  | sort -gr -k 3
+
+Put stats in final summary file to send (Pacbio_final_summary.docx)
+
+
+
+
+
+
+
+
+
+
+

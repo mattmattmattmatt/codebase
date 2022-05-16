@@ -1,0 +1,34 @@
+#Start with high quality isoseq PacBio data
+
+~/g/software/cdhit/cd-hit-est -i High-Quality_Isoforms.fasta -o High-Quality_Isoforms_cdhit.fasta -T 32
+
+~/g/software/TransDecoder-TransDecoder-v5.5.0/TransDecoder.LongOrfs -t High-Quality_Isoforms_cdhit.fasta
+
+split --lines 10000 /g/data/u86/mxf221/PacBio/High-Quality_Isoforms_cdhit.fasta.transdecoder_dir/longest_orfs.pep /g/data/u86/mxf221/PacBio/High-Quality_Isoforms_cdhit.fasta.transdecoder_dir/longest_orfs.split.
+
+/g/data/u86/software/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmscan --cpu 48 --domtblout pfam.aa.domtblout -o hmmscan.aa.out ~/g/software/pfam/Pfam-A.hmm High-Quality_Isoforms_cdhit.fasta.transdecoder_dir/longest_orfs.split.aa
+
+export BLASTDB=/g/data/u86/software/blastdb
+
+/g/data/u86/software/ncbi-blast-2.3.0+/bin/blastp -query High-Quality_Isoforms_cdhit.fasta.transdecoder_dir/longest_orfs.split.ab -db uniprot_sprot.fasta  -max_target_seqs 1 -outfmt 6 -evalue 1e-5 -num_threads 48 > blastp_orf_aa.outfmt6
+
+for f in a{a..f} ; do cat hmmscan.${f}.out >> hmmscan_orf.out; cat pfam.${f}.domtblout >> pfam_orf.domtblout; cat blastp_orf_${f}.outfmt6 >>  blastp_orf.outfmt6; done
+
+/g/data/u86/software/TransDecoder-TransDecoder-v5.5.0/TransDecoder.Predict -t High-Quality_Isoforms_cdhit.fasta --retain_pfam_hits pfam_orf.domtblout --retain_blastp_hits blastp_orf.outfmt6
+
+awk 'BEGIN {n_seq=0;} /^>/ {if(n_seq%3000==0){file=sprintf("transdecoder_pep_%d.fa",n_seq);} print >> file; n_seq++; next;} { print >> file; }' < High-Quality_Isoforms_cdhit.fasta.transdecoder.pep
+
+/g/data/u86/software/ncbi-blast-2.3.0+/bin/blastp -query transdecoder_pep_6000.fa -db uniprot_sprot.fasta  -max_target_seqs 1 -outfmt 6 -evalue 1e-5 -num_threads 48 > blastp_trans_ac.outfmt6
+etc...
+
+for f in a{a..f} ; do  cat blastp_trans_${f}.outfmt6 >>  blastp_orf.outfmt6; done
+
+for f in a{a..f} ; do cat hmmscan.${f}.out >> hmmscan_orf.out; cat pfam.${f}.domtblout >> pfam_orf.domtblout; cat blastp_orf_${f}.outfmt6 >>  blastp_orf.outfmt6; done
+
+awk 'BEGIN {n_seq=0;} /^>/ {if(n_seq%3000==0){file=sprintf("transdecoder_DNA_%d.fa",n_seq);} print >> file; n_seq++; next;} { print >> file; }' < High-Quality_Isoforms_cdhit.fasta.transdecoder.cds
+
+/g/data/u86/software/ncbi-blast-2.3.0+/bin/blastx -query transdecoder_DNA_0.fa -db uniprot_sprot.fasta  -max_target_seqs 1 -outfmt 6 -evalue 1e-5 -num_threads 48 > blastx_trans_aa.outfmt6
+
+for f in a{a..f} ; do  cat blastx_trans_${f}.outfmt6 >>  blastx_trans.outfmt6; done
+
+~/g/software/signalp-4.1/signalp -f short -n -v -T /g/data/u86/mxf221/PacBio/tmp/ High-Quality_Isoforms_cdhit.fasta.transdecoder.pep > signalp_trans.out

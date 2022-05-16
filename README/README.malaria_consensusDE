@@ -1,0 +1,107 @@
+Ran on all samples first:
+
+setwd("/drive3/work/RNASeq/malaria_consensusDE/All")
+all_dir <- paste(getwd(),'/',sep="")
+
+de_full_filter <- buildSummarized(summarized = "/drive3/work/RNASeq/malaria_consensusDE/se.R",filter=TRUE)
+
+#MonosEMI1 is huge outlier as twice as many reads so remove this sample.
+no_EME1 <- colnames(de_full) != c("MonosEMI1d0.bam","MonosEMI1doA.bam")
+
+de_full_filter_noEME1 <- subset(de_full_filter,select=no_EME1)
+
+multi_de_pairs(summarized = de_full_filter_noEME1, ruv_correct = TRUE, plot_dir=all_dir, output_combined = all_dir, output_voom = all_dir, output_edger = all_dir,output_deseq = all_dir, ensembl_annotate = org.Hs.eg.db)
+
+
+#Now do CHMI
+just_Monos <- grepl("Monos",colnames(de_full_filter_noEME1)) 
+
+de_chmi_filter_noEME1 <- subset(de_full_filter_noEME1,select=just_Monos)
+
+setwd("/drive3/work/RNASeq/malaria_consensusDE/CHMI")
+
+chmi_dir <- paste(getwd(),'/',sep="")
+
+multi_de_pairs(summarized = de_chmi_filter_noEME1, ruv_correct = TRUE, plot_dir=chmi_dir, output_combined = chmi_dir, output_voom = chmi_dir, output_edger = chmi_dir,output_deseq = chmi_dir, ensembl_annotate = org.Hs.eg.db)
+
+#Clinical (adult and kids together)
+
+all_clin <- grepl("^[AF]",colnames(de_full_filter_noEME1))
+
+de_clin_filter_noEME1 <- subset(de_full_filter_noEME1,select=all_clin)
+
+setwd("/drive3/work/RNASeq/malaria_consensusDE/Clinical")
+
+clin_dir <- paste(getwd(),'/',sep="")
+
+multi_de_pairs(summarized = de_clin_filter_noEME1, ruv_correct = TRUE, plot_dir=clin_dir, output_combined = clin_dir, output_voom = clin_dir, output_edger = clin_dir,output_deseq = clin_dir, ensembl_annotate = org.Hs.eg.db)
+
+#Now segregate into child and adults
+
+de_clin_adultkid_filter_noEME1 <- subset(de_full_filter_noEME1,select=all_clin)
+
+#Command line to get string (almost)
+cat sample_table_input.tsv | cut -d'   ' -f2 | grep -v group | sed -e 's/d$/d","/g' -e 's/t$/t","/g' | tr "\n" " " | sed -e 's/ C/C/g' -e 's/ T/T/g'
+
+colData(de_clin_adultkid_filter_noEME1)[[2]] <- as.factor(c("Treated_child","Control_child","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_child","Control_child","Treated_child","Control_child","Treated_child","Control_child","Treated_child","Control_child","Treated_adult","Control_adult","Treated_child","Control_child","Treated_child","Control_child","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_child","Control_child","Treated_adult","Control_adult","Treated_child","Control_child","Treated_adult","Control_adult"))
+
+setwd("/drive3/work/RNASeq/malaria_consensusDE/Clinical_adult_kids")
+
+clin_adult_kids_dir <- paste(getwd(),'/',sep="")
+
+multi_de_pairs(summarized = de_clin_adultkid_filter_noEME1, ruv_correct = TRUE, plot_dir=clin_adult_kids_dir, output_combined = clin_adult_kids_dir, output_voom = clin_adult_kids_dir, output_edger = clin_adult_kids_dir,output_deseq = clin_adult_kids_dir, ensembl_annotate = org.Hs.eg.db)
+
+Try as paired:
+
+Command line to get pair names
+cat unpaired_analysis/All/sample_table_input.tsv  | grep -v group | cut -d'    ' -f1 | sed -e 's/day0.bam//' -e 's/day28.bam//'  -e 's/d0.bam//'  -e 's/doA.bam//' | tr "\n" "," | sed -e 's/,/","/g'
+
+de_full_filter$pairs <- as.factor(c("AMT18","AMT18","FC009","FC009","FC10006","FC10006","FC1059","FC1059","FC1082","FC1082","FC1097","FC1097","FC120","FC120","FC121","FC121","FC139","FC139","FC149","FC149","FC150","FC150","FC188","FC188","FC199","FC199","FC204","FC204","FC209","FC209","FC23","FC23","FC29","FC29","FC32","FC32","FC36","FC36","MonosEME1","MonosEME1","MonosEME2","MonosEME2","MonosEME3","MonosEME3","MonosEMH1","MonosEMH1","MonosEMH2","MonosEMH2","MonosEMI1","MonosEMI1"))
+
+no_EME1 <- colnames(de_full_filter) != c("MonosEMI1d0.bam","MonosEMI1doA.bam")
+
+de_full_filter_noEME1 <- subset(de_full_filter,select=no_EME1)
+
+multi_de_pairs(summarized = de_full_filter_noEME1, ruv_correct = TRUE, plot_dir=all_dir, output_combined = all_dir, output_voom = all_dir, output_edger = all_dir,output_deseq = all_dir, ensembl_annotate = org.Hs.eg.db, paired="paired")
+
+Repeat as above but use "paired" mode
+multi_de_pairs(summarized = de_clin_filter_noEME1, ruv_correct = TRUE, plot_dir=clin_dir, output_combined = clin_dir, output_voom = clin_dir, output_edger = clin_dir,output_deseq = clin_dir, ensembl_annotate = org.Hs.eg.db, paired="paired")
+
+multi_de_pairs(summarized = de_clin_adultkid_filter_noEME1, ruv_correct = TRUE, plot_dir=clin_adult_kids_dir, output_combined = clin_adult_kids_dir, output_voom = clin_adult_kids_dir, output_edger = clin_adult_kids_dir,output_deseq = clin_adult_kids_dir, ensembl_annotate = org.Hs.eg.db, paired="paired") -> Failed due to model matrix is not full rank DESeq2 error
+
+#Work around is to split is just Control_adult vs Control_child and Treated_adult vs Treated_child -> can't do paired anymore 
+setwd("/drive3/work/RNASeq/malaria_consensusDE/Clinical_controls_adult_kids")
+
+clin_controls_adults_kids_dir <- paste(getwd(),'/',sep="")
+
+just_Controls <- grepl("Control",colData(de_clin_adultkid_filter_noEME1)[[2]])
+
+de_clin_adultkid_filter_control_noEME1 <- subset(de_clin_adultkid_filter_noEME1,select=just_Controls)
+ 
+colData(de_clin_adultkid_filter_control_noEME1)[[2]] <- as.factor(c("Control_child","Control_adult","Control_adult","Control_adult","Control_adult","Control_child","Control_child","Control_child","Control_child","Control_adult","Control_child","Control_child","Control_adult","Control_adult","Control_adult","Control_child","Control_adult","Control_child","Control_adult"))
+
+de_clin_adultkid_filter_control_noEME1$pairs <- NULL
+
+multi_de_pairs(summarized = de_clin_adultkid_filter_control_noEME1, ruv_correct = TRUE, plot_dir=clin_control_adult_kids_dir, output_combined = clin_control_adult_kids_dir, output_voom = clin_control_adult_kids_dir, output_edger = clin_control_adult_kids_dir,output_deseq = clin_control_adult_kids_dir, ensembl_annotate = org.Hs.eg.db)
+
+> setwd("/drive3/work/RNASeq/malaria_consensusDE/Clinical_treated_adult_kids")
+> clin_treated_adult_kids_dir <- paste(getwd(),'/',sep="")
+> just_Treated <- grepl("Treated",colData(de_clin_adultkid_filter_noEME1)[[2]])
+>de_clin_adultkid_filter_treated_noEME1 <- subset(de_clin_adultkid_filter_noEME1,select=just_Treated)
+>colData(de_clin_adultkid_xsfilter_treated_noEME1)[[2]] <- as.factor(c("Treated_child","Treated_adult","Treated_adult","Treated_adult","Treated_adult","Treated_child","Treated_child","Treated_child","Treated_child","Treated_adult","Treated_child","Treated_child","Treated_adult","Treated_adult","Treated_adult","Treated_child","Treated_adult","Treated_child","Treated_adult"))
+>data.frame(colData(de_clin_adultkid_filter_treated_noEME1))
+>de_clin_adultkid_filter_treated_noEME1$pairs <- NULL
+>multi_de_pairs(summarized = de_clin_adultkid_filter_treated_noEME1, ruv_correct = TRUE, plot_dir=clin_treated_adult_kids_dir, output_combined = clin_treated_adult_kids_dir, output_voom = clin_treated_adult_kids_dir, output_edger = clin_treated_adult_kids_dir,output_deseq = clin_treated_adult_kids_dir, ensembl_annotate = org.Hs.eg.db)
+
+#now kids and adults separately
+> all_clin <- grepl("^[AF]",colnames(de_full_filter))
+> de_clin_filter <- subset(de_full_filter,select=all_clin)
+> de_clin_filter$pairs <- as.factor(c("AMT18","AMT18","FC009","FC009","FC10006","FC10006","FC1059","FC1059","FC1082","FC1082","FC1097","FC1097","FC120","FC120","FC121","FC121","FC139","FC139","FC149","FC149","FC150","FC150","FC188","FC188","FC199","FC199","FC204","FC204","FC209","FC209","FC23","FC23","FC29","FC29","FC32","FC32","FC36","FC36"))
+> all_clin_adults <- grepl("adult",colData(de_clin_filter)[[2]])
+> all_clin_children <- grepl("child",colData(de_clin_filter)[[2]])
+> de_clin_filter_children <- subset(de_clin_filter,select=all_clin_children)
+> de_clin_filter_adults <- subset(de_clin_filter,select=all_clin_adults) 
+> colData(de_clin_filter_adults)[[2]] <- as.factor(c("Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult","Treated_adult","Control_adult"))
+> colData(de_clin_filter_children)[[2]] <- as.factor(c("Treated_child","Control_child","Treated_child","Control_child","Treated_child","Control_child","Treated_child","Control_child","Treated_child","Control_child","Treated_child","Control_child","Treated_child","Control_child","Treated_child","Control_child","Treated_child","Control_child"))
+> multi_de_pairs(summarized = de_clin_filter_children, ruv_correct = TRUE, plot_dir="/drive3/work/RNASeq/malaria_consensusDE/paired_final/Clinical_kids/", output_combined = "/drive3/work/RNASeq/malaria_consensusDE/paired_final/Clinical_kids/", paired="paired", ensembl_annotate = org.Hs.eg.db)
+> multi_de_pairs(summarized = de_clin_filter_adults, ruv_correct = TRUE, plot_dir="/drive3/work/RNASeq/malaria_consensusDE/paired_final/Clinical_adults/", output_combined = "/drive3/work/RNASeq/malaria_consensusDE/paired_final/Clinical_adults/", paired="paired", ensembl_annotate = org.Hs.eg.db)

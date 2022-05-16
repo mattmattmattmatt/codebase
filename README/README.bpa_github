@@ -1,0 +1,20 @@
+1. Go to https://github.com/BPA-CSIRO-Workshops/btp-manuals-md
+2. Click Fork at the top
+3. Go to your terminal
+4. git clone https://github.com/YOURUSERNAME/btp-manuals-md
+5. cd btp-manuals-md
+6. git remote add upstream https://github.com/BPA-CSIRO-Workshops/btp-manuals-md.git
+
+7. >mkdocs serve (no python path set) 
+8. Edit documents until happy
+
+git commit -a -m "Changed NNN"
+git push
+
+9. Make a pull request at https://github.com/BPA-CSIRO-Workshops/btp-manuals-md
+10. git fetch upstream
+12. git merge upstream/master and cross fingers
+13. Goto 7.
+
+
+

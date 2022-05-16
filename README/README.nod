@@ -1,0 +1,103 @@
+See /g/data/u86/mxf221/mouse_cancer
+
+Basically have two normal NODS and two NODS which get diabetes and want to know the difference.
+
+Found NOD strainn variation from Sanger
+wget ftp://ftp-mouse.sanger.ac.uk/current_indels/strain_specific_vcfs/NOD_ShiLtJ.mgp.v5.snps.dbSNP142.vcf.gz
+wget ftp://ftp-mouse.sanger.ac.uk/current_indels/strain_specific_vcfs/NOD_ShiLtJ.mgp.v5.indels.dbSNP142.normed.vcf.gz
+
+Two controls:
+NODk_G42_18 / NODk_G42_37
+
+Two affecteds:
+ASD527_N4F2_22 / ASD527_N4F2_24
+
+1) Align:
+/g/data/u86/variantdb/v2.3/ext/bin/bwa_mem mem -M -R "@RG\tID:NODk_G42_18_l4\tSM:NODk_G42_18\tPL:ILLUMINA" -t 16 /g/data/u86/variantdb/v2.0/conf/mouse/mm10/bwa_index/mm10 /g/data/u86/massdata_tmp/variantdb/reads/MOUSE_cancer19/normal/IGL03432_read1_l4.fastq /g/data/u86/massdata_tmp/variantdb/reads/MOUSE_cancer19/normal/IGL03432_read2_l4.fastq  |  /g/data/u86/variantdb/v2.3/ext/bin/samtools view -u -S - | /g/data/u86/software/bin/novosort --md --kt -c 8 -x 6 -m 10G -t $PBS_JOBFS -i -o /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_18_l4.bam -
+
+2) Merge bam / markdup:
+java -Xms9200m -Xmx9600m  -Djava.io.tmpdir=/g/data/u86/mxf221/mouse_cancer/qsub/tmp -jar  /g/data/u86/variantdb/v2.3/ext/bin/picard-tools-2.4.1/picard.jar MergeSamFiles VALIDATION_STRINGENCY=LENIENT TMP_DIR=/g/data/u86/mxf221/mouse_cancer/qsub/tmp O=/g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_18.bam I=/g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_18_l1.bam I=/g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_18_l2.bam I=/g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_18_l3.bam I=/g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_18_l4.bam
+
+java -Xms9200m -Xmx9600m  -jar /g/data/u86/variantdb/v2.3/ext/bin/picard-tools-2.4.1/picard.jar MarkDuplicates AS=TRUE VALIDATION_STRINGENCY=LENIENT  I=/g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_18.bam O=/g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_18.markdup.bam M=/g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_18_md.txt TMP_DIR=/g/data/u86/mxf221/mouse_cancer/qsub/tmp
+
+3) SNV calls:
+java -Xms9g -Xmx9500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T BaseRecalibrator -L /g/data/u86/variantdb/v2.3/conf/mouse/mm10/fasta/intervals/Y.intervals -R /g/data/u86/variantdb/v2.0/conf/mouse/mm10/fasta/single_file/mm10.fa -I /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.markdup.bam -knownSites /g/data/u86/mxf221/mouse_cancer/NOD_ShiLtJ.mgp.v5.snps.dbSNP142.vcf -knownSites /g/data/u86/mxf221/mouse_cancer/NOD_ShiLtJ.mgp.v5.indels.dbSNP142.normed.vcf -o /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.recal.Y.table -U ALLOW_SEQ_DICT_INCOMPATIBILITY
+
+java -Xms9g -Xmx9500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T PrintReads -L /g/data/u86/variantdb/v2.3/conf/mouse/mm10/fasta/intervals/Y.intervals -R /g/data/u86/variantdb/v2.0/conf/mouse/mm10/fasta/single_file/mm10.fa -I /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.markdup.bam -BQSR /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.recal.Y.table  -o /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.markdup.recal.Y.bam
+
+samtools view -H /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.markdup.recal.Y.bam | sed -e 's/SM:NODk_G42_37_l[1234]/SM:NODk_G42_37/' | samtools reheader - /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.markdup.recal.Y.bam > /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.markdup.rg_fixed.Y.bam (TO FIX GIVING FIDD SAMPLE NAMES IN RG -> OTHERWISE NOT NEEDED)
+
+samtools index /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.markdup.rg_fixed.Y.bam
+
+java -Xms9g -Xmx9500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -L /g/data/u86/variantdb/v2.3/conf/mouse/mm10/fasta/intervals/Y.intervals -nt 1 -ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000 --minPruning 3 --maxNumHaplotypesInPopulation 200 --max_alternate_alleles 3 -contamination 0.0 -R /g/data/u86/variantdb/v2.0/conf/mouse/mm10/fasta/single_file/mm10.fa -I /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.markdup.rg_fixed.Y.bam -o /g/data/u86/mxf221/mouse_cancer/runs/NODk_G42_37.Y.gvcf
+
+4) joint calls:
+java -Xms16g -Xmx16g -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T GenotypeGVCFs -L /g/data/u86/variantdb/v2.3/conf/mouse/mm10/fasta/intervals/Y.intervals -nt 1 -R /g/data/u86/variantdb/v2.3/conf/mouse/mm10/fasta/single_file/mm10.fa -V /g/data/u86/mxf221/mouse_cancer/runs/vcf/ASD527_N4F2_22.Y.gvcf -V /g/data/u86/mxf221/mouse_cancer/runs/vcf/ASD527_N4F2_24.Y.gvcf -V /g/data/u86/mxf221/mouse_cancer/runs/vcf/NODk_G42_18.Y.gvcf -V /g/data/u86/mxf221/mouse_cancer/runs/vcf/NODk_G42_37.Y.gvcf  -o /g/data/u86/mxf221/mouse_cancer/runs/joint.Y.vcf
+
+5) parse_vcf
+for f in *vcf; do echo $f; /drive2/variantdb/trunk/utils/parse_vcf.pl -vcf $f -keep_zyg; done
+
+6) Prep for VEP:
+Last bit removes AT->AG 'snvs'
+for f in *txt; do cat $f | grep SNV |  sed -e 's/:/ /g' -e 's/;/ /g' -e 's/->/\//' | awk '{if (length($7) == 3) {print $1,$2,$3,$7,"+"}}' > ../vep/${f}.vep_in; done
+
+7) for f in *vep_in; do echo $f; /g/data/u86/variantdb/v2.3/ext/bin/variant_effect_predictor.pl --force_overwrite --cache --offline --species mouse --fork 4 --canonical --coding_only --sift b --dir /g/data/u86/variantdb/v2.3/conf/mouse/mm10/vep_index --i $f --o `echo $f | sed -e 's/vep_in/vep_exon.out/'`; done
+
+for f in *vep_in; do echo $f; /g/data/u86/variantdb/v2.3/ext/bin/variant_effect_predictor.pl  --dir /g/data/u86/variantdb/v2.3/conf/mouse/mm10/vep_index -force_overwrite --cache --offline --species mouse  --fork 4 --canonical --domains --pubmed --check_existing --numbers --biotype --regulatory --i $f --o `echo $f | sed -e 's/vep_in/vep_all.out/'`; done
+
+#Vep run without wrapper so need to parse the results:
+>for f in overlap/*vep*out; do echo $f; ./parse_mouse_vep.pl -vep_file $f > $f.parsed; done
+
+>cat overlap/*vep_exon*parsed >> overlap/joint.vep_exon
+>cat overlap/*vep_all*parsed >> overlap/joint.vep_all
+
+#Create exon coord file
+>for f in {1..19} X Y; do cat /drive2/variantdb/trunk/conf/mouse/mm10/exon/040614/mm10.exon.overlap.$f >> mm10.exon_coord; done
+
+./create_gene_coord.pl -exon_file mm10.exon_coord  > mm10.gene_coord
+
+#overlap gene/exon files
+ for f in overlap/*txt; do /drive2/variantdb/v2.3/utils/overlap_files.pl -just_overlap -ref $f -coord mm10.exon_coord -all | sed -e 's/\s1$/\tNO_EXON/' > $f.exon; done
+for f in overlap/*txt; do /drive2/variantdb/v2.3/utils/overlap_files.pl -just_overlap -ref $f -coord mm10.gene_coord -all | sed -e 's/\s1$/\tNO_GENE/' > $f.gene; done
+
+>cat overlap/*.gene >> overlap/joint.gene
+
+./joint_summary.pl > NOD_diabetes_summary_full.csv
+
+#Create subsets
+extract -delim "\t" -t "_8 eq 'YES'" NOD_diabetes_summary_full.csv > NOD_diabetes_summary_somatic.csv
+extract -delim "\t" -t "_9 eq 'YES'" NOD_diabetes_summary_full.csv > NOD_diabetes_summary_loh.csv
+
+For each of full, somatic, and loh:
+for f in full loh somatic; do grep ENS NOD_diabetes_${f}.csv > NOD_diabetes_${f}_genes.csv; grep ENSMUST NOD_diabetes_${f}.csv > NOD_diabetes_${f}_nonsyn.csv; grep ENSMUST NOD_diabetes_${f}.csv | grep -v rs > NOD_diabetes_${f}_nonsyn_novel.csv; grep ENSMUST NOD_diabetes_${f}.csv | grep -v rs | grep -v tolerated > NOD_diabetes_${f}_nonsyn_novel_deletreious.csv; done
+
+Add back headers:
+for f in NOD_diabetes*csv; do cat header.csv $f >> `echo $f | sed -e 's/_diabetes/_variants/'`; done
+
+#Also run mutect (see qsub/mutect*qsub)
+-Used NOD*18 as control (only one allowed) for each of tumour22 and tumour24
+
+#Ran manta for SVs
+~/g/software/manta-1.1.1.centos5_x86_64/bin/configManta.py --normalBam=../runs/bam/NODk_G42_18.bam --tumourBam=../runs/bam/ASD527_N4F2_24.bam --referenceFasta=/g/data/u86/variantdb/v2.3/conf/mouse/mm10/fasta/single_file/mm10.fa  --runDir=./tumour24
+
+Also for tumour22
+for f in ins inv del dup; do /drive2/variantdb/v2.3/utils/overlap_files.pl -ref tumour22.$f -coord tumour24.$f -just_overlap -max_distance 500 > tumour_overlap.$f; done
+
+Try for mutect2:
+for f in *.vcf; do cat $f | grep -v '^#' | grep -v alt_allele_in_normal | grep -v t_lod_fstar | grep -v homologous_mapping_event | grep -v str_contraction | grep -v germline_risk > `echo $f | sed -e 's/.vcf/.filter.vcf/'`; done
+
+
+Find clusters of somatics:
+./find_clust.pl < ASD_tumour_somatic.tsv > clusters_greater5.txt
+cat clusters_greater5.txt | mergecoordinates | extract -t "_3 > 5000" > somatic_clusters.txt
+-> Visually inspect and find following regions
+3:44-68Mb
+16:78-89Mb
+16:93-98Mb
+17:3-12Mb
+17:63-68Mb
+/drive2/variantdb/v2.3/utils/overlap_files.pl -ref clusters_final.txt -coord mm10.gene_coord -just_overlap
+
+/drive2/variantdb/v2.3/utils/overlap_files.pl -ref clusters_final.txt -coord mm10.gene_coord -just_overlap | sed -e 's/\^\^\^/ /g' | shrinkwrap  | tr " " "\n" | grep ENS | sort | sed -e 's/-DUP//' |uniq > region_genes
+
+for f in `cat region_genes`; do grep $f ensembl_all >> gene_annotations.tsv; done

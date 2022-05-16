@@ -1,0 +1,18 @@
+See /g/data/u86/mxf221/Goodnow/ss/2011_2013_combined/depth
+
+#First samtools depth
+samtools depth -a -d 100000 /g/data/u86/mxf221/Goodnow/ss/WGS2/results/TJ2013_6_A6_md_realign_recal.bam > TJ2013_6_A6.depth 
+
+#Then bbmap
+samtools view -h --threads 16 /g/data/u86/mxf221/Goodnow/ss/WGS2/results/TJ2013_7_A5_md_realign_recal.bam | /g/data/u86/software/bbmap/pileup.sh in=stdin > /g/data/u86/mxf221/Goodnow/ss/2011_2013_combined/depth/TJ2013_7_A5.mapstat
+
+for f in `cat sample_order`; do wc -l $f.depth_greater1 | awk '{print $1/3105720449*100"%"}'; done
+
+#Stats from mapstats
+for f in `cat sample_order`; do cat ${f}.mapstat | grep 'Percent of' | cut -d'	' -f2; done
+etc
+
+#Reads greater 15 bases
+for f in *depth; do cat $f | awk '{if ($3>15) {print $3}}' > ${f}_greater15; done
+for f in `cat sample_order`; do wc -l $f.depth_greater15 | awk '{print $1/3105720449*100"%"}'; done
+

@@ -1,0 +1,70 @@
+#Everything in ~/bin or /usr/local/bin except flye27 and medaka_consensus
+
+#Create dir
+mkdir ~/tutorial
+cd ~/tutorial
+
+#Create fastq
+cat ~/data/amtp4/*fastq >> amtp4_20X.fastq 
+
+#Trim fastq
+porechop -t 2 -i amtp4_20X.fastq -v 1 -o amtp4_trim.fastq
+
+#Redbean assembly
+mkdir ~/tutorial/redbean
+cd ~/tutorial/redbean
+wtdbg2 -x ont -g 5m -t 2 -i ~/tutorial/amtp4_trim.fastq -fo amtp4_wtdbg
+wtpoa-cns -t 2 -i ~/tutorial/redbean/amtp4_wtdbg.ctg.lay.gz -fo amtp4_wtdbg.ctg.fa
+
+#Flye assembly
+mkdir ~/tutorial/flye
+cd ~/tutorial
+conda activate flye27
+flye --nano-raw ~/tutorial/amtp4_trim.fastq --out-dir flye --genome-size 5m --threads 2
+
+#Compare two assemblies
+cd ~/tutorial/
+assembly-stats redbean/amtp4_wtdbg.ctg.fa
+assembly-stats flye/assembly.fasta
+
+#Polish flye assembly
+cd ~/tutorial/flye
+cat ~/bin/racon.sh
+bash ~/bin/racon.sh
+
+#Medaka consensus
+. ~/medaka/venv/bin/activate
+cd ~/tutorial
+medaka_consensus -i ~/tutorial/amtp4_trim.fastq -d ~/tutorial/flye/flye.4.fasta -o medaka_consensus -t 2 -m r941_min_fast_g507 -b 20
+
+#Stats for polished/medaka
+#original flye
+assembly-stats flye/flye.0.fasta
+#polished flye
+assembly-stats flye/flye.4.fasta
+#medaka flye
+assembly-stats medaka_consensus/consensus.fasta
+
+#quast (on best only)
+cd ~/tutorial
+
+quast.py -o quast_flye -l flye_final,flye_original ~/tutorial/medaka_consensus/consensus.fasta ~/tutorial/flye/flye.0.fasta -t 2 --circos --glimmer -r ~/data/amtp4/reference/vibrio/vibrio.fna --features  ~/data/amtp4/reference/vibrio/vibrio.gff --nanopore ~/tutorial/amtp4_trim.fastq
+
+
+
+
+Total time (2 threads) -> 50 minutes
+
+real    3m38.102s
+real    1m5.672s
+real    4m42.219s
+real    20m1.140s
+real    4m30.390s
+real    8m14.676s
+real    8m2.412s
+
+
+
+
+
+

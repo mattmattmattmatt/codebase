@@ -1,0 +1,20 @@
+Paired analysis as usual:
+
+Speed up se step
+> library(BiocParallel)
+> register(MulticoreParam(workers=4))
+
+#Add annotation
+>short_ens <- gsub("\\..*","",row.names(res))
+> res$genename <- mapIds(org.Hs.eg.db, keys = short_ens,column="GENENAME",keytype="ENSEMBL",multiVals="first")
+'select()' returned 1:many mapping between keys and columns
+> res$symbol <- mapIds(org.Hs.eg.db, keys = short_ens,column="SYMBOL",keytype="ENSEMBL",multiVals="first")
+
+Filter for min cover (>3)
+res_cover <- res[which(res$baseMean > 3),]
+
+Sort by padj
+res_cover <- res_cover[order(res_cover$padj,decreasing = FALSE),]
+
+Write to file
+write.table(res_cover,file="adult_clinical_all.tsv",sep="\t")

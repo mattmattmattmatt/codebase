@@ -1,0 +1,119 @@
+#Lots of work to set up eagle for hg38, etc
+#Also had to change to not add 'chr' to chromosome name
+export LIRA_DIR='/home/matt/software/singlecell/LiRA'
+cd ~/software/singlecell/LiRA
+
+lira setup -c config-example.txt
+lira setup -c config-example-bulk.txt
+lira split -c config-example.txt -m 22
+lira split -c config-example-bulk.txt -m 22
+lira plink -c config-example.txt
+lira plink -c config-example-bulk.txt
+lira compare -b config-example-bulk.txt -s config-example.txt --chr 22 -o
+lira ppower -b config-example-bulk.txt -s config-example.txt
+lira varcall -b config-example-bulk.txt -s config-example.txt -o
+
+#Dies at second step, go load R object created 'mutations'
+
+load("mutations.rda")
+somatic <- subset(mutations,somatic.proper == TRUE)
+write.csv(somatic,file="lira_somatic.tsv")
+
+#Parse for overlap
+cat lira_somatic.tsv | sed -e 's/"//g' | tr "," "\t" | awk '{print $1,$2"_"$3"_"$4"_"$5"_"$6"_"$7}'  | tr ';' "\t" | awk '{print $1"\t"$2"\t"$2"\t"$5}' > lira_somatic_filtered.tsv
+wc  lira_somatic_filtered.tsv -> 198
+
+
+#Get chr22 calls from other method
+>cat all_samples_all_variants.tsv | cut -d'     ' -f1-5,39,69 | grep "^chr\|^22" > ../LiRA/simple_somatic.tsv
+#Filter down to true somatics
+>cat simple_somatic.tsv | grep "^chr\|ref$" | grep -v no_call | grep -v 'ref    ref' | awk '{print $1"\t"$2"\t"$3"\t"$4"_"$7"_"$8}' > simple_somatic_filtered.tsv
+wc simple_somatic_filtered.tsv -> 4952
+
+/drive2/variantdb/trunk/utils/overlap_files.pl -ref simple_somatic_filtered.tsv -coord lira_somatic_filtered.tsv -just_overlap > overlap_both.tsv
+
+/drive2/variantdb/trunk/utils/overlap_files.pl -ref simple_somatic_filtered.tsv -coord lira_somatic_filtered.tsv -just_overlap -fail > simple_somatic_only.tsv
+
+/drive2/variantdb/trunk/utils/overlap_files.pl -coord simple_somatic_filtered.tsv -ref lira_somatic_filtered.tsv -just_overlap -fail > lira_somatic_only.tsv
+
+#Got things further and candidate.somatic object contains 18 objects:
+22;17385989;G;A" "22;23030833;C;T" "22;26299725;G;A" "22;27412367;G;A" "22;28818154;G;A" "22;31533366;G;A" "22;31984159;G;A" "22;32738008;G;A" "22;32740027;G;A" "22;33931785;C;G" "22;35706373;C;T" "22;36684479;G;A" "22;37514461;C;T" "22;38161914;G;A" "22;38986823;A;C" "22;41891410;C;T" "22;45371519;G;A" "22;46106966;G;A"
+
+
+#Had to change utils.R L95
+#chromosomes <- paste("chr",1:22,sep="")
+chromosomes <- as.character(1:22)
+
+
+Got it to run finally with new version -> 17 passed and 1 passed/mosaic
+
+#States listed in vcf headers
+##FILTER=<ID=UNLINKED,Description="No spaning reads">
+##FILTER=<ID=LOW_POWER,Description="Low number of spanning reads in bulk or single-cell (CC = 0 or 1)">
+##FILTER=<ID=FILTERED_FP,Description="Artifact inferred from discordant reads">
+##FILTER=<ID=UNCERTAIN_CALL,Description="No discordant reads and CC >= 2, but variant failed to pass composite coverage threshold.">
+##FILTER=<ID=PASS,Description="All filters passed">
+##FILTER=<ID=MOSAIC,Description="sSNV pattern is consistent with mosacism; i.e., sSNV supporting haplotype and unmutated haplotypes are observed in bulk.">
+##FILTER=<ID=BULK_SUPPORT,Description="Reads support the sSNV in bulk, but no linked haplotype with a nearby gHet is observed.">
+##FILTER=<ID=GERMLINE_POLYMORPHIC_HET,Description="Germline polymorphic heterozygous site.">
+
+#State of calls
+cat out.vcf | grep -v ^# | cut -d$'\t' -f7 | sort | uniq -c
+     50 BULK_SUPPORT
+     16 BULK_SUPPORT;FILTERED_FP
+      2 BULK_SUPPORT;LOW_POWER
+     76 FILTERED_FP
+     35 LOW_POWER
+      4 MOSAIC;FILTERED_FP
+      1 MOSAIC;PASS
+     17 PASS
+  48157 UNLINKED
+
+cat out.vcf | grep -v UNLINKED | grep -v FILTERED_FP | grep -v LOW_POWER > lira_filtered.vcf
+
+cat lira_filtered.vcf | grep -v ^# | awk '{print $1"\t"$2"\t"$2"\t"$4"->"$5":"$7":"$3}' | sed -e 's/:.$//' > lira_pass_bulk.tsv
+
+/drive2/variantdb/trunk/utils/overlap_files.pl -coord simple_somatic_filtered.tsv -ref lira_pass_bulk.tsv -just_overlap -all | sed -e 's/1$/NOT_CALLED/' > lira_pass_or_bulksupport.tsv -> Add column names manually
+
+
+
+#On gadi
+module load python2-as-python
+module load bcftools
+module load htslib
+module load samtools
+module load R/3.6.1
+module load java/jdk-8.40
+ 
+export R_LIBS_USER="/g/data/u86/mxf221/R"
+export PATH="$PATH:/g/data/u86/software/bin/"
+export LIRA_DIR="/g/data/u86/software/LiRA"
+
+#pysam was broken so force reinstall
+pip install --force-reinstall pysam --user
+
+for f in `cat ../sample_names`; do cat template_split.qsub | sed -e "s/SAMPLE/${f}/g" > ${f}_split.qsub; done
+for f in *split.qsub; do qsub $f; done
+
+for c in {1..22}; do for f in `cat ../sample_names`; do  cat template_compare.qsub | sed -e "s/SAMPLE/${f}/g" -e "s/CHR/${c}/g" > ${f}_${c}_compare.qsub ;done ; done
+
+
+#Download all Lira results
+for f in `cat sample_names`; do scp -r mxf221@gadi-dm.nci.org.au:/g/data/u86/mxf221/Goodnow/ss/WGS2/LIRA/${f}/varcall_memory_control1/ .; mv varcall_memory_control1 ${f}_results; done
+
+#Get PASS variants
+for f in `cat sample_names`; do zcat ${f}_results/out.vcf.gz | grep "PASS\|^#" >  ${f}_LiRA_PASS.vcf; bgzip ${f}_LiRA_PASS.vcf; tabix -p vcf ${f}_LiRA_PASS.vcf.gz; done
+
+#Merge variants
+'ls' *PASS*gz | tr "\n" " "
+
+~/software/variantcall/vcftools/src/perl/vcf-merge 1_A10_orange_LiRA_PASS.vcf.gz 1_A12_orange_LiRA_PASS.vcf.gz 1_A2_blue_LiRA_PASS.vcf.gz 1_A7_blue_LiRA_PASS.vcf.gz 1_A9_blue_LiRA_PASS.vcf.gz 2_A11_blue_LiRA_PASS.vcf.gz 2_A3_orange_LiRA_PASS.vcf.gz 2_A4_orange_LiRA_PASS.vcf.gz 2_A5_blue_LiRA_PASS.vcf.gz 2_A6_orange_LiRA_PASS.vcf.gz 2_A8_orange_LiRA_PASS.vcf.gz 3_B11_orange_LiRA_PASS.vcf.gz 3_B5_blue_LiRA_PASS.vcf.gz 4_A11_orange_LiRA_PASS.vcf.gz 4_A7_blue_LiRA_PASS.vcf.gz 4_A8_orange_LiRA_PASS.vcf.gz 4_A9_blue_LiRA_PASS.vcf.gz 6_A12_blue_LiRA_PASS.vcf.gz 6_A7_blue_LiRA_PASS.vcf.gz 6_A8_blue_LiRA_PASS.vcf.gz 7_A10_orange_LiRA_PASS.vcf.gz 7_A12_orange_LiRA_PASS.vcf.gz TJ2013_1_A4_LiRA_PASS.vcf.gz TJ2013_1_A8_LiRA_PASS.vcf.gz TJ2013_2_A10_LiRA_PASS.vcf.gz TJ2013_2_A9_LiRA_PASS.vcf.gz TJ2013_3_B7_LiRA_PASS.vcf.gz TJ2013_3_B8_LiRA_PASS.vcf.gz TJ2013_4_A3_LiRA_PASS.vcf.gz TJ2013_6_A6_LiRA_PASS.vcf.gz TJ2013_7_A4_LiRA_PASS.vcf.gz TJ2013_7_A5_LiRA_PASS.vcf.gz > LiRA_merged_pass.vcf
+
+
+Try conbase:
+
+Need special vcf
+>zcat ../LiRA/joint_nochr.vcf.gz | grep "^#\|^22" | cut -d$'\t' -f1,2,4,5 | sed -e 's/#//' > germline.vcf
+
+Run stats
+>python3 ~/software/singlecell/conbase/bin/Main.py --stats germline.vcf bam_file_list.csv /drive2/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa 4 conbase_test

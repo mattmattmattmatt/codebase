@@ -1,0 +1,68 @@
+Talen work
+
+Here are the details of our TALEN targeting design:
+The best pair that targeted all 3 genes (H2Afb2 (Lap1a); Gm14920(Lap1b); H2Afb3(Lap1c) ) was 
+101421: CCCGCACCTCCAGAG (15bp)
+101422: CACTCGGACCACCTTG (16bp)
+With a 17bp gap between them
+
+Please see slide 6 of the presentation (H2A_TALEN_leads_2001-7-25)  made by our collaborators, who created TALENs for us. It has an alignment figure (please note that Lap1a is called Lap1, lap1b is called lap2 and Lap1c is called Lap3)
+Slides 5 and 6 in this presentation show that the 4th "pseudo" gene is not targeted as efficiently by this pair or TALENS (in fact by any other pair)
+
+Three genes of interest
+H2afb2 chrX:116681178-116681525 (Lap1c)
+Gm14920 chrX:117014757-117015104 (Lap1b)
+H2afb3 chrX:120312748-120313095 (Lap1a)
+
+Run four samples through production pipeline (v2.0) on local machine
+
+Lots of variants detected (10 fold too many vs normal) so get strain specific variants for FVBN/JArc. Able to find fvbn list at ftp://ftp-mouse.sanger.ac.uk/REL-1206-FVBNJ/, no list for JArc available although doesn't look very different.
+
+Remove common variants
+./find_common.pl > single_variants.txt
+
+Now filter out FVBNJ variants
+cat single_variants.txt | sed -e 's/:/ /g' -e 's/-/ /' | grep SNV | awk '{print $1,$2,$3,$5}' > single_snvs.txt
+for f in {1..4}; do grep Talen$f single_snvs.txt > single_snvs.txt.sample$f; done
+
+/drive2/variantdb/trunk/utils/overlap_files.pl -ref single_snvs.txt.sample1 -coord FVBNJ.out.snv.mm10.final -fail -silent
+etc...
+
+Now check vcf files we generated
+Had to convert variant lists to mm10 from mm9
+/drive2/variantdb/trunk/utils/parse_vcf.pl -vcf 2012-0612-snps+indels_FVBNJ_annotated.vcf  -out FVBNJ.out
+grep DEL FVBNJ.out >  FVBNJ.out.del
+awk '{print "chr"$1":"$2"-"$3}' FVBNJ.out.del  > del.tmp
+~/software/ngs/overlap/liftOver -positions del.tmp ~/software/ngs/overlap/mm9ToMm10.over.chain FVBNJ.out.del.mm10 FVBNJ.out.del.unmapped
+cat FVBNJ.out.del.mm10 | sed -e 's/:/ /' -e 's/-/ /' >  FVBNJ.out.del.mm10.final
+
+#Get the local vcf hits as well
+grep DEL FVBN_strain_sg1_mousesingle1_669.call_all_variants.out.indel > FVBN_calls.del
+cat FVBNJ.out.del.mm10.final FVBN_calls.del >> FVBNJ_final_filter.del
+
+/drive2/variantdb/trunk/utils/overlap_files.pl -ref single_dels.txt.sample1 -coord FVBNJ_final_filter.del -silent -fail
+....
+
+
+
+Check SV:
+~/software/ngs/SV/pindel_0.2.4t/pindel -f /drive2/variantdb/trunk/conf/mouse/mm10/fasta/single_file/mm10.fa -i ~/work/analysis/mouse/talen/Sample_NM4_G2_18_index3/pindel.cfg -o Sample_NM4_G2_18_index3/NM4_G2_18_index3_pindel -c X
+for f in Sample_NM*/*pindel_LI; do cat $f | grep ChrID | awk '{print $8,$10,$11,$1":"$3":"$16":"$25}' > $f.final; done
+grep 'X 11668' */*final
+Found 1 64-bp deletion and two other deletions already seen
+
+Also check janda results: no hits to regions
+
+BLAST:
+blast two primers and get hits -> download table text format
+-get NC mapping from NCBI (NC_mapping file)
+./parse_blast.pl > primer.blast.final
+Gave 583 hits
+Overlap with indels -> no matches
+
+Check how many of 583 hits match exons:
+/drive2/variantdb/trunk/utils/overlap_files.pl  -ref primer.blast.final -coord /drive2/variantdb/trunk/conf/mouse/mm10/exon/040614/mm10.exon.overlap.all
+for f in {1..19} X Y; do echo $f; /drive2/variantdb/trunk/utils/overlap_files.pl  -ref primer.blast.final -coord /drive2/variantdb/trunk/conf/mouse/mm10/exon/040614/mm10.splice.overlap.$f; done
+
+-> total matches 54 out of 583 (9.3%)
+

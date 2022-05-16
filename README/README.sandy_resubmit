@@ -1,0 +1,16 @@
+grep '>' sandy.v2.0.fasta | cut -d ' ' -f1 | sed -e 's/>//' | grep -v SCAFF | awk '{print $1","$1}' | sed -e 's/.[0-9][0-9]$//' -e 's/,SANDYCHR/,/' > ctg_to_chr.csv
+
+sed to change [ACTG]Nx25[ACTG] to [ACTG]Nx500[ACTG]
+
+sed -e '/SANDYCHR[123456789X].0[23456789]/,+1d' sandy.v2.0.fasta >sandy.v2.0.fasta.1
+sed -e '/SANDYCHR[123][123456789].0[23456789]/,+1d' sandy.v2.0.fasta.1 >sandy.v2.0.fasta.2
+sed -e '/SANDYCHR1.10/,+1d' sandy.v2.0.fasta.2 >sandy.v2.0.no_secondary.fasta
+
+
+Run minimap2
+
+Get matched bases:
+./cigar.pl < chr_secondary_canfam.sam | cut -d$'\t' -f1-7 | sort +0nr -1 > chr_secondary_canfam_sorted.sam
+
+for f in `cat chr_secondary`; do grep $f chr_secondary_canfam_sorted.sam | head -1 | awk '{print $4" ("$1")"}'; done
+for f in `cat chr_secondary`; do grep $f chr_secondary_canfam_sorted.sam | head -2 | tail -1 | awk '{print $4" ("$1")"}'; done

@@ -1,0 +1,50 @@
+116 samples from memory and naive
+
+1) Get data -> Accept basespace share
+cd /drive3/work
+basemount basespace
+cd /drive3/work/basespace/Projects/SIN3039_TJ_2013_ss_RNA_20161216/Samples
+ls SIN3039_A*/Files/*gz -> takes a little time
+cp SIN3039_A*/Files/*gz mxf221@r-dm.nci.org.au:/g/data/u86/mxf221/ss_singlecell_RNA/reads
+
+
+2) Concat files
+On raijin:
+for f in {1..116}; do for g in 1 2; do cat *_S${f}_*_R${g}_* >> ../reads_concat/S${f}_R${g}.fastq.gz; done; done
+
+3) Make map
+'ls' *L001_R1* | sed -e 's/_/ /g' | cut -d' ' -f 1,2 | awk '{print $2"\t"$1}' | sort > ../sample_map.tsv
+
+4) Star command:
+/g/data/u86/software/STAR/bin/Linux_x86_64/STAR --runThreadN 16 --readFilesCommand zcat  --genomeDir /g/data/u86/mxf221/GRCh37_star --outFileNamePrefix /g/data/u86/mxf221/ss_singlecell_RNA/STAR/S1 --readFilesIn /g/data/u86/mxf221/ss_singlecell_RNA/reads/S1_R1.fastq.gz /g/data/u86/mxf221/ss_singlecell_RNA/reads/S1_R2.fastq.gz --outSAMtype BAM SortedByCoordinate --outSAMattrRGline ID:S1 SM:S1_l1 PL:ILLUMINA
+
+5) Create all qsubs
+for f in {2..116}; do cat /g/data/u86/mxf221/ss_singlecell_RNA/qsub/S1_star.qsub | sed -e "s/S1/S${f}/g" > /g/data/u86/mxf221/ss_singlecell_RNA/qsub/S${f}_star.qsub; done
+
+6) Generate variants
+samtools index /g/data/u86/mxf221/ss_singlecell_RNA/STAR/S1.bam
+java -jar -Djava.io.tmpdir=/g/data/u86/mxf221/tmp  /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T SplitNCigarReads -R /g/data/u86/variantdb/v2.2/conf/human/GRCh37/fasta/single_file/GRCh37.fa -I /g/data/u86/mxf221/ss_singlecell_RNA/STAR/S1.bam -o /g/data/u86/mxf221/ss_singlecell_RNA/STAR/S1_fix.bam  -rf ReassignOneMappingQuality -RMQF 255 -RMQT 60 -U ALLOW_N_CIGAR_READS
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T BaseRecalibrator -R /g/data/u86/variantdb/v2.2/conf/human/GRCh37/fasta/single_file/GRCh37.fa  -I /g/data/u86/mxf221/ss_singlecell_RNA/STAR/S1_fix.bam -knownSites /g/data/u86/variantdb/v2.2/conf/human/GRCh37/gatk_resources//dbsnp_138.hg19.mt_end.vcf -knownSites /g/data/u86/variantdb/v2.2/conf/human/GRCh37/gatk_resources//Mills_and_1000G_gold_standard.indels.hg19.sites.vcf -o /g/data/u86/mxf221/ss_singlecell_RNA/runs/S1.table
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T PrintReads -R /g/data/u86/variantdb/v2.2/conf/human/GRCh37/fasta/single_file/GRCh37.fa -I /g/data/u86/mxf221/ss_singlecell_RNA/STAR/S1_fix.bam -BQSR /g/data/u86/mxf221/ss_singlecell_RNA/runs/S1.table -o /g/data/u86/mxf221/ss_singlecell_RNA/runs/S1.recal.bam
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -dontUseSoftClippedBases -stand_call_conf 20.0 -stand_emit_conf 20.0 -R /g/data/u86/variantdb/v2.2/conf/human/GRCh37/fasta/single_file/GRCh37.fa -I /g/data/u86/mxf221/ss_singlecell_RNA/runs/S1.recal.bam -o /g/data/u86/mxf221/ss_singlecell_RNA/runs/S1.gvcf
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar  -T VariantFiltration -R /g/data/u86/variantdb/v2.2/conf/human/GRCh37/fasta/single_file/GRCh37.fa -V /g/data/u86/mxf221/ss_singlecell_RNA/runs/S1.gvcf -window 35 -cluster 3 -filterName FS -filter "FS > 30.0" -filterName QD -filter "QD < 2.0" -o /g/data/u86/mxf221/ss_singlecell_RNA/runs/S1.vcf
+
+7) Filter failed variants:
+for f in *.vcf; do grep -v SnpCluster $f > $f.pass; done
+for f in vcf/*.vcf.pass; do echo $f; /drive2/variantdb/trunk/utils/parse_vcf.pl -vcf $f; done
+
+8) Run vep:
+>for f in overlap/*txt; do echo $f; cat $f | grep SNV | sed -e 's/:/ /g' -e 's/;/ /g' -e 's/->/ /' | awk '{print $1,$2,$3,$8,"+"}' > $f.vep_in ;done
+
+for f in overlap/*vep_in; do echo $f; /drive2/variantdb/trunk/utils/vep_wrapper.pl -vep_in $f > $f.vep_exon; done
+for f in overlap/*vep_in; do echo $f; /drive2/variantdb/trunk/utils/vep_wrapper.pl -vep_in $f -all > $f.vep_all; done
+
+9) Generate reports:
+/drive3/work/anu/ss/ss_singlecell_RNA/summary.pl > ss_RNA_summary.tsv
+
+10) Did joint calling (unsupported for GATK; see ss_DNA README)
+
+11) Ran STAR-fusion
+../FusionFilter/prep_genome_lib.pl --genome_fa ref_genome.fa -gtf ref_annot.gtf -blast_pairs blast_pairs.outfmt6.gz --max_readlength 150
+
+~/software/RNAseq/STAR-Fusion/STAR-Fusion --genome_lib_dir ~/software/RNAseq/STAR-Fusion/GRCh37_gencode_v19_CTAT_lib_July272016 --left_fq S18_R1.fastq.gz --right_fq S18_R2.fastq.gz --output_dir STAR-fusion/

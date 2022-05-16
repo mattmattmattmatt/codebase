@@ -1,0 +1,12 @@
+Index human ref
+bwa index -a bwtsw /path/to/GRCh38d1_noalt.fa
+
+BWA align to sort BAM
+
+bwa mem -t 8 M -R "RG\tID:SAMPLENAME\tSAMPLENAME_l1\tPL:ILLUMINA" /path/to/GRCh38d1_noalt /path/to/read1.fq.gz /path/to/read2.fq.gz | samtools view -u -S - | samtools sort -o sorted.bam
+
+samtools view -@ 8 -b -f 12 -F 256 -o unaligned.bam sorted.bam
+
+samtools bam2fq -@ 8 -1 unmapped_R1.fq.gz -2 unmapped_R2.fq.gz -N --reference /path/to/GRCh38d1_noalt.fa  -s /dev/null unaligned.bam
+
+Then proceed with these fastqs for Pk alignment

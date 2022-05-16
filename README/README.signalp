@@ -1,0 +1,8 @@
+Remove signalp chunk from some proteins and convert back to nt
+
+Run signalp:
+~/software/prediction/signalp-4.1/signalp  -T /drive3/work/schisto/signalp/ -k -f summary -v array_balance.fa >  array_balance.summary
+
+./signalp.pl -prot_in array_balance.fa -ref_in schisto.fa -signalp_in array_balance.summary > array_balance_no_signalp.fa
+
+./signalp.pl -prot_in proteomics_list.fa -ref_in schisto.fa -signalp_in proteomics_list.summary > proteomics_list_no_signalp.fa

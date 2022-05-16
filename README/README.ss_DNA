@@ -1,0 +1,50 @@
+Mostly followed previous jurkat stuff for singles (see qsubs in /g/data/u86/mxf221/ss/ss_DNA/qsub):
+
+Added gene overlap from
+/drive3/work/anu/hiv/create_gene_coord.pl
+
+Also added exac
+for f in {1..22} X Y; do cat hs37d5.exac.overlap.snv.$f >> exac.snv; done
+for f in *.txt; do /drive2/vardb/v2.3/utils/overlap_files.pl -ref $f -coord ../../ss_DNA/exac.snv -all  > $f.exac; done
+
+Then wanted extra analysis to look at tumour/normal samples
+(S13 or Memory-B1-1is normal and S1 or Rogue-A1-1 is tumour)
+
+Did joint calling in GATK:
+java -Xms16g -Xmx16g -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T GenotypeGVCFs -nt 1 -R /g/data/u86/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -V /home/221/mxf221/g/mxf221/ss_DNA/runs/S1.g.vcf -V /home/221/mxf221/g/mxf221/ss_DNA/runs/S13.g.vcf  -o  /home/221/mxf221/g/mxf221/ss_DNA/runs/joint.vcf
+
+Parse vcf and keep zyg
+/drive2/variantdb/trunk/utils/parse_vcf.pl -vcf joint.vcf -keep_zyg
+
+Then wrote special summary file joint_summary.pl which get zyg and looks for somatic and loh patterns
+
+./joint_summary.pl > ss_DNA_joint_summary.tsv
+
+Then run delly in somatic mode:
+For each SV type:
+/g/data/u86/software/delly/delly call -t TRA -x /g/data/u86/software/bin/delly.excl -o /g/data/u86/mxf221/ss_DNA/delly/ss_DNA_TRA.bcf -g /g/data/u86/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa /g/data/u86/mxf221/ss_DNA/runs/S1_md_realign_recal.bam /g/data/u86/mxf221/ss_DNA/runs/S13_md_realign_recal.bam
+
+~/g/software/bin/delly filter -t TRA -f somatic -o ss_DNA_TRA.pre.bcf -g /g/data/u86/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -s samples.tsv ss_DNA_TRA.bcf
+
+~/g/software/bin/delly call -t TRA -o ss_DNA_TRA_geno.bcf -g /g/data/u86/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -v ss_DNA_TRA.pre.bcf -x /g/data/u86/software/bin/delly.excl /g/data/u86/mxf221/ss_DNA/runs/S1_md_realign_recal.bam /g/data/u86/mxf221/ss_DNA/runs/S13_md_realign_recal.bam
+
+~/g/software/bin/delly filter -t TRA -f somatic -o ss_DNA_TRA.somatic.bcf -g /g/data/u86/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -s samples.tsv ss_DNA_TRA_geno.bcf
+
+For paper:
+Do depth stats:
+Use samtools depth -r 1:1-100 S1.bam ....
+overlap to gene files
+./depth.pl
+
+Run STAR-Fusion
+>export PATH=/g/data/u86/software/STAR-Fusion/:$PATH
+>module load perl/5.22.1
+>vars
+>~/g/software/STAR-Fusion/STAR-Fusion --genome_lib_dir ~/g/software/STAR-Fusion/GRCh37_gencode_v19_CTAT_lib_July272016 --left_fq /g/data2/pw1/Rogue1_RNA/Combined_runs/Sample_009_R1.fastq.gz --right_fq /g/data2/pw1/Rogue1_RNA/Combined_runs/Sample_009_R2.fastq.gz --output_dir /g/data/u86/mxf221/Goodnow/ss/ss_DNA_rogue1/star_fusion/sample9
+
+
+
+
+
+
+

@@ -1,0 +1,76 @@
+Open a terminal (Application -> Utilities -> Terminal).  Type uname -a and if you see x86_64 this mean the machine is 64-bit, if it says i386 it means your 32 bit.
+
+Go to http://sco.h-its.org/exelixis/web/software/pear/ and download either the 32-bit or 64-bit precompiled version.
+
+Then run a command like the one below.  You'll need to figure out where the program and files are located (the full path).  In the example below they're all on the Desktop.
+
+~/Desktop/pear-0.9.10-bin-64/pear-0.9.10-bin-64 -f ~/Desktop/09-Sydney-HM001_2ul_S9_L001_R1_001.fastq.gz -r ~/Desktop/09-Sydney-HM001_2ul_S9_L001_R2_001.fastq.gz -o ~/Desktop/09-Sydney-HM001_2ul_S9_L001.fastq
+
+You now have a merged fastq file.
+
+Then download mitcr from https://github.com/milaboratory/mitcr/releases. There is only one version. Then type
+
+> java -Xmx4g -jar ~/Desktop/mitcr.jar -species mm -t 4 -pset flex ~/Desktop/09-Sydney-HM001_2ul_S9_L001.fastq 09-Sydney-HM001_2ul_S9_L001.txt
+
+The 4g part is saying use 4Gb of memory, so adjust accordingly.
+
+
+Try mixcr:
+
+Download zip file from https://github.com/milaboratory/mixcr/releases
+
+~/Desktop/mixcr align -s mmu ~/Desktop/09-Sydney-HM001_2ul_S9_L001_R1_001.fastq.gz ~/Desktop/09-Sydney-HM001_2ul_S9_L001_R2_001.fastq.gz ~/Desktop/09-Sydney-HM001_2ul_S9_L001.vdjca
+
+~/Desktop/mixcr assemble ~/Desktop/09-Sydney-HM001_2ul_S9_L001.vdjca ~/Desktop/09-Sydney-HM001_2ul_S9_L001.clones.clns
+
+ ~/Desktop/mixcr exportClones --chains TRA ~/Desktop/09-Sydney-HM001_2ul_S9_L001.clones.clns ~/Desktop/09-Sydney-HM001_2ul_S9_L001.TRA.txt
+
+~/Desktop/mixcr exportClones --chains TRB ~/Desktop/09-Sydney-HM001_2ul_S9_L001.clones.clns ~/Desktop/09-Sydney-HM001_2ul_S9_L001.TRB.txt
+
+
+Batch mode:
+
+>'ls' fastq/*R1* | cut -d'/' -f2 | cut -d'_' -f1,2 > sample_names
+
+>for f in `cat sample_names`; do echo $f; ~/software/vdj/pear-0.9.10-bin-64/pear-0.9.10-bin-64 -j 4 -f fastq/${f}_L001_R1_001.fastq.gz -r fastq/${f}_L001_R2_001.fastq.gz -o pear/${f}_pear.fastq; pigz -p 4 pear/${f}_pear.fastq.assembled.fastq; done
+
+> for f in `cat sample_names`; do echo $f; java -Xmx4g -jar ~/software/vdj/mitcr-1.0.3.jar -species mm -t 4 -pset flex pear/${f}_pear.fastq.assembled.fastq.gz mitcr/${f}_mitcr.tsv; done
+
+> for f in `cat sample_names`; do echo $f; ~/software/vdj/mixcr-2.0.3/mixcr align -s mmu -t 4 fastq/${f}_L001_R1_001.fastq.gz fastq/${f}_L001_R2_001.fastq.gz mixcr/${f}.vdjca; done
+
+> for f in `cat sample_names`; do echo $f; ~/software/vdj/mixcr-2.0.3/mixcr assemble -t 4 mixcr/${f}.vdjca mixcr/${f}.clones.clns; done
+
+> for f in `cat sample_names`; do echo $f; ~/software/vdj/mixcr-2.0.3/mixcr  exportClones --chains TRA mixcr/${f}.clones.clns mixcr/${f}_TRA.txt; done
+
+> for f in `cat sample_names`; do echo $f; ~/software/vdj/mixcr-2.0.3/mixcr  exportClones --chains TRB mixcr/${f}.clones.clns mixcr/${f}_TRB.txt; done
+
+
+
+To preserve read info:
+1) Add -g and -a to align
+for f in `cat sample_names`; do echo $f; ~/software/vdj/mixcr-2.0.3/mixcr align -s mmu -t 4 -g -a fastq/${f}_L001_R1_001.fastq.gz fastq/${f}_L001_R2_001.fastq.gz mixcr/${f}.vdjca.gz; done
+
+2) Generate index in assemble
+for f in `cat sample_names`; do echo $f; ~/software/vdj/mixcr-2.0.3/mixcr assemble -t 4 -i mixcr/${f}.index mixcr/${f}.vdjca.gz mixcr/${f}.clones.clns; done
+
+3) Same as above for exportClones...
+
+4) Get info from alignment -> not sure if this is useful
+~/software/vdj/mixcr-2.0.3/mixcr exportalignmentPretty -r TGCTGGTTTTTGTTGAGGTTATTGTCACAGTGGAACACGGGTTACCAGAACTTCTATTTT -n 1 -d 01-thymus-1_S1.vdjca
+
+5) Get info from clone
+~/software/vdj/mixcr-2.0.3/mixcr exportClonesPretty -r TGCTGGTTTTTGTTGAGGTTATTGTCACAGTGGAACACGGGTTACCAGAACTTCTATTTT -n 1 01-thymus-1_S1.clones.clns
+
+while read line; do s=$(echo $line | awk '{print $1}'); seq=$(echo $line | awk '{print $2}'); echo "~/software/vdj/mixcr-2.0.3/mixcr exportClonesPretty -r $seq -n 1 $s.clones.clns | grep Clone"; done < sample_seq_map.txt
+
+6) Get reads for clone of interest
+~/software/vdj/mixcr-2.0.3/mixcr exportReadsForClones 01-thymus-1_S1.index 01-thymus-1_S1.vdjca.gz 6 01-thymus-1_S1.reads.fastq.gz
+
+while read line; do s=$(echo $line | awk '{print $1}'); echo "~/software/vdj/mixcr-2.0.3/mixcr exportReadsForClones $s.index $s.vdjcz.gz $clone ${s}.reads.fastq"; done < sample_seq_map.txt
+
+7) Get total read counts
+for  f in *R1*gz; do echo $f;zcat $f |wc -l| awk '{print $1/4}'; done
+
+8) Get raw read counts
+while read line; do s=$(echo $line | awk '{print $1}'); seq=$(echo $line | awk '{print $2}'); echo "zcat ../fastq/${s}_L001_R2_001.fastq.gz | grep $seq | wc"; done < sample_seq_map.txt |bash
+

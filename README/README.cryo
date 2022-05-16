@@ -1,0 +1,39 @@
+Error with bs download
+
+P1-D4_L002
+2021-11-09 | 10:53:03 [ ERROR   ] ambigious name P1-D4_L002: more than one match found 
+
+
+
+So use ID flag instead
+>bs list dataset  |grep P1-D4
+| P1-D4_L002 | ds.8d34073355b840caa0f7d65329e51aaf | 20211015_SHAKEL_Run2 | illumina.fastq.v1.8 |
+| P1-D4_L002 | ds.a6f77ed5fe7449aa84cfd5ba7de5a305 | 2105gDNA_poolG | illumina.fastq.v1.8 |
+
+> bs download dataset -i ds.8d34073355b840caa0f7d65329e51aaf  -o Cryo_P1-D4_L002
+
+
+#Sample names
+>cat tmp | cut -d'_' -f1 | sort | uniq | awk '{print "Cryo_"$1}' > sample_names_full
+>cat tmp | cut -d'_' -f1 | sort | uniq > sample_names
+
+#Concat reads
+#Check patterns
+for f in `cat sample_names`; do echo $f; ls reads/${f}_*R2*.fastq.gz ; echo; done (groups of 4)
+
+for f in `cat sample_names`; do echo $f; cat reads/${f}_*R1*.fastq.gz >> reads/Cryo_${f}_R1.fastq.gz; done
+for f in `cat sample_names`; do echo $f; cat reads/${f}_*R2*.fastq.gz >> reads/Cryo_${f}_R2.fastq.gz; done
+
+~/g/variantdb/trunk/utils/quick_gatk_qsub.pl -readdir reads/ -outdir output/ -qsubdir  qsub/ -sample_list sample_names -template ~/g/mxf221/templates/gatk_GT_template.qsub
+
+#Get the gvcfs for the joint calls
+'ls' *gz | tr " " "\n" | awk '{print "-V",$1}' | tr "\n" " "
+
+#Get chr vcf
+grep "^#\|^[0-9X]" output/joint_calls.vcf | grep -v random | grep -v patch | grep -v alt > joint_calls_chr.vcf
+
+#First run
+/g/data/u86/variantdb/trunk/utils/quick_annotate_vcf.pl -outdir results/ -outfile Cryo_patient1_all -vcf joint_calls_chr.vcf
+
+#No control / 2 samples at least
+/g/data/u86/variantdb/trunk/utils/quick_annotate_vcf.pl -skip_vep -no_run -outdir results/ -outfile Cryo_patient1_somatic.tsv -vcf joint_calls_chr.vcf -sample_file samples_clone -somatic -min_sample_count 2

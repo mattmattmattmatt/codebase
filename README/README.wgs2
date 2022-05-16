@@ -1,0 +1,91 @@
+As a follow up to the Rogue paper – one of the things we wanted to further explore was the mechanism behind the KLHL6 mutations found in the rogue clones from two patients. One of the ideas that we had was that the KLHL6 mutations causes hypermutations of the entire genome and this is why we see greater VDJ mutations. To test this idea I’ve performed WGS on 10 cells from the rogue clone of the first patient which had two subclones that were either KLHL6 WT (orange branch) or KLHL6 MUT (blue branch). We would predict that we should see more mutations genome-wide on the blue branch than the orange branch.
+ 
+Would you be able to perform variant calling on this dataset? The data is on NCI at: Gadi/WGS/R_200212_MANSIN_INDEXLIBX10_M001
+I’ve attached a sample sheet of which sample is which. Would you be able to use a previous WGS sample that you analysed from a few years ago as the control sample – a pool of 50 memory cells. There are two memory control samples: Goodnow_sample23 and Goodnow_sample24. The bam files are located at BAM/Whole_genome_seq. There is also the corresponding fastq files on NCI if they need to be realigned at Rogue1_WGS/R_170406_MANSIN_LIBX10_M001. Samples 170407_FD02807282 and 170407_FD02807283 are the memory samples. Use any of the two samples as the control
+ 
+To call somatic mutations would you be able to identify variants found in these single cells but not in the 50 cell control memory sample. Since the false positive rate is very high – would you be able to return a list of variants found in two or more cells and a column of which samples they are found in?
+
+See ss/WGS2 on gadi for jobs to generate joint_calls.vc
+
+See summary.pl generated somatic variants in at least two rogue clones and not in control for the orange and blue branch.
+
+Further questions:
+
+I’ve submitted another 20 cells for WGS (10 blue and 10 orange) to get better statistical power, I should get that data in the next couple of weeks or so. There were a couple of extra things for this dataset that I wouldn’t mind looking at if your able to look into:
+
+1. Are you able to send me a file that reports variants found in 2 or more cells but not the memory pools regardless of whether it is found in orange or blue? This way I can check what the sharing of variants between the two branches are.
+ 
+2. What is the number of total variants detected for each individual cell but not the memory pools? Despite a high level of false positives that will be generated in 1 cell the false positive rate should be consistent for each sample so we should still see more variants in blue vs orange.
+
+3. Do you have any experience with determining mutational signatures such as the different COSMIC signatures? It would be great if we can determine what the mutation signature is of the orange and blue branches and if there is any differences between the two. I had a look at the single nucleotide changes but I think we need to break it up into trinucleotides to match them with the signatures in COSMIC. It would be good if we could do this for variants found in 3 or more cells of each branch as there is still a large number of variants detected and we would avoid technical noise coming from 2 or more cells – I can send you this file of filtered variants if that helps.
+
+I’ve just received the additional sequencing data for the orange vs blue KLHL6 project. The download links and sample sheet are attached. This will add an additional 11 blue and 11 orange cells. Are you able to run these samples through the same pipeline and combine with the previous 10 samples to call variants not present in the memory pools but in 2 or more cells in orange or blue?
+
+Needed to run on gadi due to memory
+
+Then ran summary.pl to get orange and blue somatic numbers.
+
+
+#To prep for mutation-signature need single sample vcfs -> -e removes non-variant entries
+>for f in `cat sample_names2`; do echo $f; ~/software/variantcall/vcftools/src/perl/vcf-subset -c $f results_all/joint_calls_chr.vcf -e > single_sample_vcf/${f}.vcf; done
+
+#Convert from csv to tsv
+for f in *csv; do cat $f | perl -lne 'my $re = qr/,(?=(?:[^"]*"[^"]*")*(?![^"]*"))/; print join "\t", map { s/(?<!\\)"//gr =~ s/\\"/"/gr } split $re;' > `echo $f | sed -e 's/csv/tsv/'`; done
+
+#Create single vcfs
+for f in `cat sample_names2`; do echo $f; ~/software/variantcall/vcftools/src/perl/vcf-subset -c $f results_all/joint_calls_chr.vcf -e > single_sample_vcf/${f}.vcf; done
+
+#Generate input vcfs for 3,4, and 5 sample counts for blue/orange branch
+>./parse_for_sig.pl -csv blue_no_orange_5_or_more.tsv -vcf_dir ../single_sample_vcf/ -outdir 5_samples_blue/
+etc
+
+#Generate matrices using R package
+
+library("reticulate")
+use_python("/usr/bin/python3")
+py_config()
+library("SigProfilerMatrixGeneratorR")
+matrices <- SigProfilerMatrixGeneratorR("3_samples_blue", "GRCh38", "/drive3/work/Goodnow/ss/WGS2/mut_sig/3_samples_blue", plot=T)
+setwd("/drive3/work/Goodnow/ss/WGS2/mut_sig/4_samples_blue")
+matrices <- SigProfilerMatrixGeneratorR("4_samples_blue", "GRCh38", "/drive3/work/Goodnow/ss/WGS2/mut_sig/4_samples_blue", plot=T)
+setwd("/drive3/work/Goodnow/ss/WGS2/mut_sig/5_samples_blue")
+matrices <- SigProfilerMatrixGeneratorR("5_samples_blue", "GRCh38", "/drive3/work/Goodnow/ss/WGS2/mut_sig/5_samples_blue", plot=T)
+setwd("/drive3/work/Goodnow/ss/WGS2/mut_sig/5_samples_orange")
+matrices <- SigProfilerMatrixGeneratorR("5_samples_orange", "GRCh38", "/drive3/work/Goodnow/ss/WGS2/mut_sig/5_samples_orange", plot=T)
+setwd("/drive3/work/Goodnow/ss/WGS2/mut_sig/4_samples_orange")
+matrices <- SigProfilerMatrixGeneratorR("4_samples_orange", "GRCh38", "/drive3/work/Goodnow/ss/WGS2/mut_sig/4_samples_orange", plot=T)
+setwd("/drive3/work/Goodnow/ss/WGS2/mut_sig/3_samples_orange")
+matrices <- SigProfilerMatrixGeneratorR("3_samples_orange", "GRCh38", "/drive3/work/Goodnow/ss/WGS2/mut_sig/3_samples_orange", plot=T)
+
+#Extractor needs python
+
+
+#New 2011 files and also gnomad/dbsnp filter and lira
+
+#Want to run on Manu's dbsnp/gnomad variants
+
+#Convert to tsv
+>for f in *csv; do cat $f | perl -lne 'my $re = qr/,(?=(?:[^"]*"[^"]*")*(?![^"]*"))/; print join "\t", map { s/(?<!\\)"//gr =~ s/\\"/"/gr } split $re;' > `echo $f | sed -e 's/csv/tsv/'`; done
+
+#Change internals slightly (field[5] vs field[4] and file names)
+./parse_manu_files.pl -tsv 2011/ss_2011_orangeunique_2samples_filtered_noDBSNP_noRS_2-or-more.tsv
+
+#Parse for sig (change internals (field[8 vs field[9])
+./parse_for_sig.pl  -vcf single_sample_vcf_2011/ -csv 2011/3_samples_orange_2011.tsv -outdir 2011/2011_orange_no_blue_3/
+
+
+#Combine for single analysis
+{matt@matt-linux /drive3/work/Goodnow/ss/WGS2/mut_sig/new_filtered/2013/2013_orange_no_blue_5}
+>for f in *vcf; do bgzip $f; tabix -p vcf $f.gz; done
+{matt@matt-linux /drive3/work/Goodnow/ss/WGS2/mut_sig/new_filtered/2013/2013_orange_no_blue_5}
+>'ls' *vcf.gz | tr "\n" " "
+>mkdir vcf_combined; ~/software/variantcall/vcftools/src/perl/vcf-merge 1_A10_orange_l1.vcf.gz 1_A12_orange_l1.vcf.gz 2_A3_orange_l1.vcf.gz 2_A4_orange_l1.vcf.gz 2_A6_orange_l1.vcf.gz 2_A8_orange_l1.vcf.gz 3_B11_orange_l1.vcf.gz 4_A11_orange_l1.vcf.gz 4_A8_orange_l1.vcf.gz 7_A10_orange_l1.vcf.gz 7_A12_orange_l1.vcf.gz TJ2013_1_A8_l1.vcf.gz TJ2013_2_A10_l1.vcf.gz TJ2013_2_A9_l1.vcf.gz TJ2013_3_B8_l1.vcf.gz TJ2013_4_A3_l1.vcf.gz  > vcf_combined/2013_orange_no_blue_5_merge.vcf
+
+
+#Examine germline variants (in both controls)
+
+cat all_samples_all_variants.tsv | grep "memory_control1_l1,memory_control2_l1\|chr" > all_samples_all_variants_2controls.tsv
+for f in `cat ../sample_names2`; do echo $f; cat all_samples_all_variants_2controls.tsv | grep $f |wc -l; done
+
+#put in tmp
+grep -v l1 tmp -> add to xl

@@ -1,0 +1,25 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normal
+#PBS -l walltime=48:00:00,mem=16GB,jobfs=200GB,ncpus=1
+#PBS -l storage=gdata/u86+scratch/u86+gdata/xx92+gdata/pw1
+
+module load java/jdk-8.40
+source /g/data/u86/variantdb/v2.3/conf/export_env.txt /g/data/u86/variantdb/v2.3
+
+/g/data/u86/variantdb/v2.3/ext/bin/bwa_mem mem -M -R "@RG\tID:SAMPLE\tSM:SAMPLE_l1\tPL:ILLUMINA" -t 1  /g/data/u86/variantdb/v2.38/conf/human/GRCh38/bwa_index/GRCh38d1_noalt READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz |  /g/data/u86/variantdb/v2.3/ext/bin/samtools view -u -S - | /g/data/u86/software/bin/novosort --md --kt -c 8 -x 6 -m 10G -t $PBS_JOBFS -i -o OUTDIR/SAMPLE.bam -
+
+java -Xms3200m -Xmx3600m  -jar /g/data/u86/variantdb/v2.3/ext/bin/picard-tools-2.4.1/picard.jar MarkDuplicates AS=TRUE VALIDATION_STRINGENCY=LENIENT  I=OUTDIR/SAMPLE.bam O=OUTDIR/SAMPLE_md.bam M=OUTDIR/SAMPLE_md.txt TMP_DIR=OUTDIR
+
+/g/data/u86/variantdb/v2.3/ext/bin/samtools index OUTDIR/SAMPLE_md.bam
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T RealignerTargetCreator -nt 1 -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md.bam -known /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Homo_sapiens_assembly38.known_indels.vcf -o OUTDIR/SAMPLE.intervals
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T IndelRealigner --consensusDeterminationModel KNOWNS_ONLY -LOD 0.4 -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md.bam -known /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Homo_sapiens_assembly38.known_indels.vcf -targetIntervals OUTDIR/SAMPLE.intervals -o OUTDIR/SAMPLE_md_realign.bam
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T BaseRecalibrator -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md_realign.bam -knownSites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Homo_sapiens_assembly38.dbsnp138.vcf -knownSites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Mills_and_1000G_gold_standard.indels.hg38.vcf -o OUTDIR/SAMPLE_md_realign.recal.table 
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T PrintReads -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md_realign.bam -BQSR  OUTDIR/SAMPLE_md_realign.recal.table  -o OUTDIR/SAMPLE_md_realign_recal.bam 
+
+java -Xms3g -Xmx7500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -nt 1 -ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000 --minPruning 3 --maxNumHaplotypesInPopulation 200 --max_alternate_alleles 3 -contamination 0.0 -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md_realign_recal.bam -o OUTDIR/SAMPLE.g.vcf.gz
+

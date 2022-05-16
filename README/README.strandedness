@@ -1,0 +1,6 @@
+I believe for Illumina Tru-seq stranded protocol you need to use the 4th column.
+However, the general rule is to compare the total counts over genes in the 3rd and 4th column, and select the column which has much larger total counts.
+If the counts in two columns are not very different, the protocol is unstranded and you need to use the 2nd column.
+Yet even an easier method is to look at the N_noFeature line for the 3rd and 4th column and pick the column with the lowest count.
+
+Simply put, pick strandMode=1 if column 3 greatest (or N_noFeature lowest) and strandMode=2 if column 4 greatest (or N_noFeature lowest)

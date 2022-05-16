@@ -1,0 +1,80 @@
+Trying different software
+
+#MonoVar
+>export PYTHONPATH="/home/221/mxf221/.local/lib/python2.7/site-packages"
+>python2 /g/data/u86/software/MonoVar/src/monovar.py
+samtools mpileup -BQ0 -d10000 -f GRCh38d1_noalt.fa -q 40 -b bam_files.txt | ~/software/MonoVar/src/monovar.py -p 0.002 -a 0.2 -t 0.05 -m 2 -f GRCh38d1_noalt.fa -b bam_files.txt -o monovar_22.vcf
+
+
+#Prosolo
+>startconda
+
+>conda activate prosolo
+
+#Create new vcf with just two samples
+java -Xms16g -Xmx16g -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T GenotypeGVCFs -nt 1 --intervals /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/intervals/22.intervals -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V /g/data/u86/mxf221/Goodnow/ss/WGS2/results/memory_control1.g.vcf.gz -V /g/data/u86/mxf221/Goodnow/ss/WGS2/results/1_A2_blue.g.vcf.gz -o 1_A2_blue_memory1.vcf
+
+prosolo single-cell-bulk --omit-indels --candidates 1_A2_blue_memory1.vcf --output prosolo_22.bcf 1_A2_blue_l1.bam memory_control1_l1.bam GRCh38d1_noalt.fa
+
+
+
+#Conbase
+python3 -m pip install --user pysam #install new stuff
+export PYTHONPATH="/home/221/mxf221/.local/lib/python3.7/site-packages"
+module load python3-as-python
+python Misc.py --help
+
+cat ../prosolo/1_A2_blue_memory1.vcf | cut -d$'\t' -f1,2,4,5 | sed -e 's/#//' > germline.vcf
+
+#Doesn't work with single node -> puts files in ../results
+python3 ~/software/singlecell/conbase/bin/Main.py --stats germline.vcf bam_file_list.tsv GRCh38d1_noalt.fa 2 conbase_22
+
+#More problems so scrap it (only 10 cites in 2 years)
+
+
+
+
+#SCcaller
+module load samtools
+python2 sccaller_v2.0.0.py
+python ~/software/singlecell/SCcaller/sccaller_v2.0.0.py --bam somatic.bam --fasta GRCh38d1_noalt.fa --output SCcaller_germline.vcf --snp_type hsnp --snp_in memory1_het.vcf  --cpu_num 2 --engine samtools
+
+python ~/software/singlecell/SCcaller/sccaller_v2.0.0.py --bam control.bam --bulk somatic.bam --fasta GRCh38d1_noalt.fa --output SCcaller_somatic.vcf --snp_type hsnp --snp_in memory1_het.vcf  --cpu_num 2 --engine samtools
+
+python ~/software/singlecell/SCcaller/sccaller_v2.0.0.py --bam control.bam --bulk somatic.bam --fasta GRCh38d1_noalt.fa --output SCcaller_somatic.vcf --snp_type hsnp --snp_in memory1_het.vcf  --cpu_num 2 --engine samtools
+
+#Cases with '.' in filter field are passes
+
+
+#SCIPHI -> could only install locally (maybe SeqAn >= 2.3.2 requirement?)
+~/software/singlecell/SCIPhI/build/sciphi -o sciphi_22 --in cellNames.csv --seed 42 control_somatic.mpileup
+
+
+#Scan-snv -> no luck; conda craps out
+Found solution:
+>conda create -v -n scansnvtest -c bioconda -c conda-forge/label/cf201901 -c jluquette -c soil -c dranew scansnv
+
+#supporting docs in hg19 only
+
+
+#LiRA
+#update config files to use new path
+cd /drive3/work/variants/singlecell/LiRA
+lira setup -c config-example.txt
+lira setup -c config-example-bulk.txt
+lira split -c config-example.txt -m 22
+lira split -c config-example-bulk.txt -m 22
+lira plink -c config-example.txt
+lira plink -c config-example-bulk.txt
+lira compare -b config-example-bulk.txt -s config-example.txt --chr 22 
+lira ppower -b config-example-bulk.txt -s config-example.txt
+lira varcall -b config-example-bulk.txt -s config-example.txt
+
+
+#Linux python 2.7 -> rebuild broken modules
+sudo python2 -m pip uninstall h5py
+sudo rm -Rf /usr/lib/python2.7/dist-packages/h
+sudo python2 -m pip install h5py
+
+
+python2 -m pip install --user pathlib

@@ -1,0 +1,76 @@
+Take biom file and check for mouse seq:
+
+For control
+>bowtie2 -x ~/software/aligner/bowtie2/mm10 -p 4 -U sequences.fasta -f -S qiime_seq_align.sam
+
+Found one: OTU 38a4d04f179e2f58bdaeeb75fb3395c4
+
+>biom convert -i ./J1702_results/statistics/features_hdf5.biom  -o tmp.tsv --to-tsv --table-type="OTU table" --header-key taxonomy
+
+>cat tmp.tsv | grep -v 38a4d04f179e2f58bdaeeb75fb3395c4 > tmp_filtered.tsv
+
+For 4 samples: Use bowtie2
+>bowtie2 -x ~/software/aligner/bowtie2/mm10 -p 4 -U samples_seq.fa -f -S qiime_samples_align.sam
+1722 reads; of these:
+  1722 (100.00%) were unpaired; of these:
+    555 (32.23%) aligned 0 times
+    1105 (64.17%) aligned exactly 1 time
+    62 (3.60%) aligned >1 times
+67.77% overall alignment rate
+
+Need to remove this 67.7%
+
+#Get unaligned OTUs
+>samtools view -f 4 -F 256 qiime_samples_align.sam | cut -d'    ' -f1 > qiime_samples_otu_unaligned
+
+Remove these otus:
+>biom subset-table -i J1691_results/statistics/features_hdf5.biom -a observation -s qiime_samples_otu_unaligned -o sample_mouse_filtered.biom
+
+Left with 555 OTUs (from 1722)
+Swap names:
+
+>biom convert -i ./J1691_results/statistics/features_hdf5.biom  -o tmp.tsv --to-tsv --table-type="OTU table" --header-key taxonomy
+
+Update headers
+
+>biom convert -i  tmp.tsv -o sample_mouse_filtered_names.biom  --to-hdf5 --table-type="OTU table" --process-obs-metadata taxonomy 
+
+Add metadata
+
+>biom add-metadata -i sample_mouse_filtered_names.biom -o sample_mouse_filtered_names_meta.biom --sc-separated taxonomy -m qiime_map.tsv
+
+>biom summarize-table -i sample_mouse_filtered_names_meta.biom
+Num samples: 4
+Num observations: 555
+Total count: 25080
+Table density (fraction of non-zero values): 0.463
+
+Counts/sample summary:
+ Min: 3908.0
+ Max: 8531.0
+ Median: 6320.500
+ Mean: 6270.000
+ Std. dev.: 1658.642
+ Sample Metadata Categories: LinkerPrimerSequence; Description; R_ID; TID_control; BarcodeSequence; Group Description
+ Observation Metadata Categories: taxonomy
+
+Counts/sample detail:
+Lung1T1D: 3908.0
+Lung1Ctrl: 5928.0
+Lung2T1D: 6713.0
+Lung2Ctrl: 8531.0
+
+#Generate graphs:
+>summarize_taxa_through_plots.py -i otu_final.biom -m qiime_map.txt -o taxa
+>multiple_rarefactions.py -i otu_final.biom -m 10 -x 6320 -s 631 -o alpha/rarefaction/ 
+>alpha_diversity.py -i alpha/rarefaction/ -o alpha/alpha_div/ -m chao1,observed_otus
+>collate_alpha.py -i alpha/alpha_div/ -o alpha/alpha_div_collated/ 
+>rm -Rf alpha/rarefaction/ alpha/alpha_div/
+>make_rarefaction_plots.py -i alpha/alpha_div_collated/ -m qiime_map.txt -o alpha/alpha_rarefaction_plots/
+>beta_diversity.py -i beta/otu_final_even300.biom -o beta --metrics euclidean
+>mv beta/euclidean_otu_final_even300.txt beta/euclidean_dm.txt
+>principal_coordinates.py -i beta/euclidean_dm.txt -o beta/euclidean_pc.txt
+>make_emperor.py -i beta/euclidean_pc.txt -o beta/euclidean_emperor_pcoa_plot/ -m qiime_map.txt
+>make_2d_plots.py -i beta/euclidean_pc.txt -m qiime_map.txt --scree  -o  euc_type_tissue 
+
+./pairs.pl

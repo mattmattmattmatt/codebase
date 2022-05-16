@@ -1,0 +1,70 @@
+Torres <- read.csv("CytokineAnalyses.csv",header=TRUE)
+Torres.mat <- data.matrix(Torres)
+indx <- which(is.na(Torres.mat), arr.ind = TRUE)
+Torres.mat[indx] <- matrixStats::colMedians(Torres.mat, na.rm = TRUE)[indx[, 2]]
+Torres.df <- data.frame(Torres.mat)
+Torres.PCA <- prcomp(Torres.df,retx=TRUE,scale=TRUE,center=TRUE)
+print(Torres.PCA)
+
+Do in batch mode for each variable:
+
+Visually find largest pair for each discrete variable
+1) st_site: PC3/PC4
+> plot(Torres.PCA$x[,3:4],col=factor(Torres.df$st_site),pch=16)
+> legend(x="topright", title="Site", legend = levels(factor(Torres.df$st_site)), col=c("black","red"), pch=16)
+> title("PC3 vs PC4 st_site")
+
+2) Age_cat3: PC2/PC4
+> plot(Torres.PCA$x[,2],Torres.PCA$x[,4] ,xlab="PCA2",ylab="PCA4",col=factor(Torres.df$age_cat3),pch=16,xlim=c(-5,6),ylim=c(-5,6))
+> legend(x="topright", title="Age cat3", legend = levels(factor(Torres.df$age_cat3)), col=c("black","red","green"), pch=16)
+> title("PC2_vs_PC4 age_cat3")
+> text(Torres.PCA$x[,2],Torres.PCA$x[,4],labels=factor(Torres.df$age),cex=0.7)
+
+3) diabetes: PC1/PC2
+> plot(Torres.PCA$x[,1],Torres.PCA$x[,2] ,xlab="PCA1",ylab="PCA2",col=factor(Torres.df$diabetes),pch=16,xlim=c(-5,6),ylim=c(-5,6))
+> legend(x="topright", title="Diabetes", legend = levels(factor(Torres.df$diabetes)), col=c("black","red"), pch=16)
+> title("PC1_vs_PC2 diabetes")
+
+4) BMI_cat
+plot(Torres.PCA$x[,2:3],col=factor(Torres.df$bmi_cat),xlim=(c(-5,6)),ylim=(c(-5,6)),pch=16)
+text(Torres.PCA$x[,2:3],labels=factor(round(Torres.df$bmi)),cex=0.7,adj=c(0,1.5))
+legend(x="topright", title="BMI Cat", legend = levels(factor(Torres.df$bmi_cat)), col=c("black","red","green","blue"), pch=16)
+title("PC2_vs_PC3 BMI_cat")
+
+5) Waist_cat
+> plot(Torres.PCA$x[,1:2],col=factor(Torres.df$waist_cat),xlim=(c(-5,6)),ylim=(c(-5,6)),pch=16)
+> text(Torres.PCA$x[,1:2],labels=factor(Torres.df$waist),cex=0.7,adj=c(0,1.5))
+> legend(x="topright", title="Waist Cat", legend = levels(factor(Torres.df$waist_cat)), col=c("black","red","green","blue"), pch=16)
+title("PC1_vs_PC2 Waist_cat")
+
+Plot continuous variables:
+ii <- cut(Torres.df$TNFalpha,breaks=seq(min(Torres.df$TNFalpha), max(Torres.df$TNFalpha), len = 100),include.lowest = TRUE,lenth=10)
+colors <- colorRampPalette(c("yellow","black"))(5)[ii]
+plot(Torres.PCA$x[,1:2],col=colors,xlim=(c(-5,6)),ylim=(c(-5,6)),pch=16)
+title("PC1_vs_PC2 TNF_alpha")
+
+Same for IL1beta,Il12p70
+
+Find portion of each variable to PCA:
+
+aload <- abs(Torres.PCA$rotation)
+tmp <- sweep(aload,2,colSums(aload),"/")
+print(tmp[,1:10])
+
+
+#Simplify analysis by combining data into:
+1) metadata (LBP PUFA_EstimatedOmega3Index age age_cat3  bmi bmi_cat diabetes gender hypertension path_Albumin path_HDLChol path_HbA1cNGSP path_LDLChol path_Triglycerides st_site SampleID takeaway_freq_cat2 waist waist_cat wc_risk)
+
+2) pro-inflammatory markers (CRP IFN.gamma IL.12p40 IL.18 IL.6 MCP.1 MIP.1alpha TNF.alpha)
+
+3) anti-inflammatory markers (IL.10 IL.4 path_Eosin_percent)
+
+Markers need a weighted mean:
+meta <- read.csv("meta.csv",header=TRUE,stringsAsFactors=FALSE)
+meta_num <- as.data.frame(sapply(meta,as.numeric))
+
+anti <- read.csv....
+anti_weight <- c(0.25, 0.25, 0.25)
+anti_weight_data <- apply(anti[1:3], 1, weighted.mean, anti_weight)
+meta_num$anti <- anti_weight_data
+#Same for pro

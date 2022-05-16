@@ -1,0 +1,37 @@
+grep ^2010 R_201008_MANSIN_LIBX10_M001.csv | cut -d',' -f1,4 | sed -e 's/201016_//' | tr "," "\t" | sort > ../mapping_info.tsv
+
+while read -r fd sample;  do echo ln -s `'ls' *$fd*R1*` ${sample}_R1.fastq.gz; done < ../mapping_info.tsv  |bash
+while read -r fd sample;  do echo ln -s `'ls' *$fd*R2*` ${sample}_R2.fastq.gz; done < ../mapping_info.tsv  |bash
+
+
+#Change template to run up until bam_md
+~/g/variantdb/trunk/utils/quick_gatk_qsub.pl -readdir reads/ -outdir output/ -qsubdir  qsub -sample_list sample_list -template template_38.qsub
+
+#Change template to run last steps with single thread
+~/g/variantdb/trunk/utils/quick_gatk_qsub.pl -readdir reads/ -outdir output/ -qsubdir  qsub -sample_list sample_list -template template_38.qsub
+
+source /drive2/variantdb/v2.38/conf/export_env.txt /drive2/variantdb/v2.38
+
+grep "^#\|^[0-9X]" joint_calls.vcf | grep -v _random > joint_calls_chr.vcf
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf_in joint_calls_chr.vcf -outdir results/
+
+#Raijin
+source /g/data/u86/variantdb/v2.38/conf/export_env.txt /g/data/u86/variantdb/v2.38
+~/g/variantdb/v2.38/utils/vep_wrapper.pl -vep_in vep.in -vep_bin /g/data/u86/software/vep/ensembl-vep/vep > joint_calls.txt.vep.exon
+~/g/variantdb/v2.38/utils/vep_wrapper.pl -vep_in vep.in -vep_bin /g/data/u86/software/vep/ensembl-vep/vep -all > joint_calls.txt.vep.all
+
+#Slow so speed up by chr
+cd /g/data/u86/mxf221/Goodnow/ss/WGS3/vep_by_chr
+for f in {1..22} X; do cat vep_template.qsub | sed -e "s/CHR/${f}/g" > vep.${f}.qsub; done
+
+#Too big for summary step so split by chr and then concat
+for f in {1..22} X; do /drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf_in joint_calls_chr.vcf -outdir results/ -skip_vep -outfile ss_2011_all.${f}.tsv -no_run -chr $f; done
+head -2  results/ss_2011_all.1.tsv > ss_2011_all.tsv
+for f in {1..22} X; do cat ss_2011_all.${f}.tsv >> ss_2011_all.tsv; done
+
+for f in {1..22} X; do /drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf_in joint_calls_chr.vcf -outdir results/ -skip_vep -outfile results/ss_2011_bluesomatic_2samples.${f}.tsv -no_run -chr $f -control_file sample_control -sample_file blue_samples -min_sample_count 2; done
+
+for f in {1..22} X; do /drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf_in joint_calls_chr.vcf -outdir results/ -skip_vep -outfile results/ss_2011_orangesomatic_2samples.${f}.tsv -no_run -chr $f -control_file sample_control -sample_file orange_samples -min_sample_count 2; done
+
+for f in bluesomatic blueunique orangesomatic orangeunique; do head -2 ss_2011_all.1.tsv > ss_2011_${f}_2samples.all.tsv; for g in {1..22} X; do cat ss_2011_${f}_2samples.${g}.tsv | grep -v ^chr >> ss_2011_${f}_2samples.all.tsv; done; done

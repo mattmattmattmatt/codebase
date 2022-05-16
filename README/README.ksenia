@@ -1,0 +1,45 @@
+Clara:
+
+Ksenia is hoping to start up a project looking at X linked epigenetic gene expression control in the B cell rogue clones, which she presented at lab meeting a few weeks back. We are hoping to get your insight for getting this project up and running.
+
+Ksenia was hoping to use my four HepC rogue clones for her analysis, as there is both RNA-seq data (from Smart-seq2) and corresponding genomic data (from the WGS), which can be used to establish a reference for allele specific SNP calling (maternal vs paternal alleles) on the X chromosome. Two of the patients are female (MOLE and BAMU), and two the males (ROBR and KRSC) will be used as controls.
+
+For this project, we were hoping to get your insight on two aspects.
+
+Firstly, we were hoping to see if we can align the WGS data to hg38 (since the RNA seq data is aligned to hg38). You have already done this for one of the patient’s (ROBR) (thankyou!), and I actually have it already aligned to hg38 for another patient (MOLE), but we would be hoping this could also be done with the other 2 patients. I believe re-alignment can be done from the Bam files but I also have the raw FastQ for these 2 patients, if that is better. However, they not all currently on NCI but can have them transferred.
+
+Secondly, we wondering if you had any experience in allele specific variant calling? Ksenia has looked into this a little bit, but she was hoping to discuss setting up a pipeline for allele specific analysis and how it might be approached bioinformatically, if you had some experience with this. Ksenia can contact you about this with more detail (hopefully what I have said makes sense!), but first wanted to see if you had any initial thoughts on this type of analysis and whether you would be available to help.
+
+Ksenia:
+
+My main aim is to look at allele-specific gene expression on X chromosome - and identify genes that escape X inactivation in control and rogue memory B cells.
+Let’s say - gene A is normally expressed only from the active X (parent 1) and not from the inactive X (parent 2). 
+But in disease - gene A gets subtly reactivated from the inactive X (parent 2). If we don’t do allele-specific gene expression analysis, we are likely to miss such an event due to the subtle reactivation of the parent 2 allele. 
+
+Clara’s dataset is really nice and suitable for that, because we could identify SNPs from WGS data and use them to analyse Smart-seq2 gene expression for parent 1 and parent 2 alleles separately (I’d love to call them maternal or paternal but I guess since we don’t have parents’ WGS data, we can’t tell which allele comes which parent :)
+
+I was gonna use this papers as an example of a pipeline to calculate allelic expression levels (as I am also interested in inferring transcriptional kinetics):
+
+https://www.nature.com/articles/s41586-018-0836-1
+
+https://genomebiology.biomedcentral.com/articles/10.1186/s13059-017-1200-8 (https://github.com/yuchaojiang/SCALE/blob/master/bioinfo/bulk_SNP.sh)
+
+
+Ran MOLE and BAMU through WGS pipeline
+Generated somatic mutations for each for clara
+
+~/g/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf_in joint_calls_chr.vcf  -outdir results/ -no_run -skip_vep -control_file bamu_normal -sample_file bamu_rogue -chr X -outfile Ksenia_bamu_somatic_chrX.tsv
+
+Ksenia:
+Could you also share with us the germline heterozygous variants please (with read counts supporting either of the variants)? 
+
+cat Ksenia_all_chrX.tsv | grep "^chr\|BAMU_normal_l1" > Ksenia_all_chrX_bamu_germline.tsv
+cat Ksenia_all_chrX_bamu_germline.tsv | extract -delim "\t" -t "_36 eq 'het'" > Ksenia_all_chrX_bamu_germline_het.tsv
+cat Ksenia_all_chrX_mole_germline.tsv | extract -delim "\t" -t "_38 eq 'het'" > Ksenia_all_chrX_mole_germline_het.tsv
+cat Ksenia_all_chrX_bamu_germline_het.tsv | awk '{if ($10 == "DEL") {print $1,$2-1} else {print $1,$2} }'  > bamu_germline_pileupcoord.txt
+
+On gadi:
+samtools mpileup -A -E -f  /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -l pileup/bamu_germline_pileupcoord.txt output/BAMU_normal_md_realign_recal.bam > pileup/bamu_germline_pileupstr.txt
+
+
+

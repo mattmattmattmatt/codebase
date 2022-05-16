@@ -1,0 +1,62 @@
+#Combine reads with Pear:
+for f in *XX/*_R1.fastq.gz; do echo $f; ~/software/vdj/pear-0.9.10-bin-64/pear-0.9.10-bin-64 -j 4 -y 24G -f $f -r `echo $f | sed -e 's/_R1/_R2/'` -o pear/`echo $f | cut -d'/' -f2 | cut -d'_' -f1,2`.fastq; done
+
+#Align with bt2:
+for f in pear/*; do echo $f; bowtie2 -x ~/software/aligner/bowtie2/hs37d5 -p 4 -U $f -S bowtie2/`echo $f | cut -d'/' -f2 | sed -e 's/.fastq.gz/_full.sam/'`; done
+
+#Create BAM:
+for f in *sam; do echo $f; samtools view -bS $f > `echo $f | sed -e 's/.sam/.bam/'`; done
+
+#Get unmapped reads (-f 12 for paired reads)
+for f in *.bam; do echo $f; samtools view -b -f 4 -F 256 $f > `echo $f | sed -e 's/_full/_unmapped/'`; done
+
+#Sort by name (not needed as not paired)
+
+#Generate fastq of unmapped reads
+for f in *unmapped.bam; do echo $f; bedtools bamtofastq -i $f -fq `echo $f | sed -e 's/.bam/.fastq/'`; done
+
+#Run against kraken on raijin (need to include human)
+export KRAKEN_DB_PATH=/g/data/u86/software/kraken/
+for f in *gz; do echo $f; ~/g/software/kraken/kraken --preload --threads 16 --fastq-input --gzip-compressed --db standard_human_db $f --output `echo $f | sed -e 's/_unmapped.fastq.gz/.kraken/'`; done
+
+#Generate kraken reports
+for f in *kraken; do echo $f; ~/g/software/kraken/kraken-report --db ~/g/software/kraken/standard_human_db/ $f  >$f.tsv; done
+
+PhiX control (NC_001422.1 (Enterobacteria phage phiX174 sensu lato))
+
+#Filter out human and PhiX
+for f in 14c_C5*/*kraken 27_C5BU8ACXX/*kraken; do echo $f; grep -v sapiens $f.labels | grep -v phiX174 > $f.labels_nohuman; done
+
+TRY TO IMPROVE:
+
+1) Try kraken on raw paired end: (
+~/g/software/kraken/kraken --threads 16 --preload --fastq-input --gzip-compressed --db standard_human_db --paired --output 10_S1_L008.kraken 10_S1_L008_R1_001.fastq.gz 10_S1_L008_R2_001.fastq.gz
+
+2) Try metaspades on paired then kraken:
+~/software/microbiome/SPAdes-3.10.1-Linux/bin/spades.py -1 ../1.C5BU8ACXX/10_S1_L008_R1_001.fastq.gz -2 ../1.C5BU8ACXX/10_S1_L008_R2_001.fastq.gz -m 24 -t 4 --meta -o spades/
+
+~/g/software/kraken/kraken --threads 16 --preload --fasta-input  --db standard_human_db   --output 10_S1_L008_spades.kraken contigs.fasta
+
+3) Try kneaddata on paired then kraken:
+kneaddata --input 10_S1_L008_R1_001.fastq.gz --input 10_S1_L008_R2_001.fastq.gz --reference-db ~/software/aligner/bowtie2/hs37d5 -t 4 --output 10_S1_knead
+
+4) Try kneaddata on paired then metaspades then kraken:
+~/software/microbiome/SPAdes-3.10.1-Linux/bin/spades.py -1 10_S1_L008_R1_001_kneaddata_paired_1.fastq -2 10_S1_L008_R1_001_kneaddata_paired_2.fastq -m 24 -t 4 --meta -o spades/
+
+5) Try kneaddata on single (pear) then kraken:
+
+6) Try kneaddata on single (pear) then then metaspades then kraken:
+
+
+Permutations:
+
+1) Pear -> kraken (DONE)
+2) Pear -> spades -> kraken (DONE)
+3) Pear -> kneaddata -> kraken (DONE)
+4) Pear -> kneaddata -> spades -> kraken (DONE)
+5) Paired -> kraken (DONE)
+6) Paired -> spades -> kraken (DONE)
+7) Paired -> kneaddata -> kraken (DONE)
+8) Paired -> kneaddata -> spades -> kraken (DONE)
+
+

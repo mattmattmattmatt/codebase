@@ -1,0 +1,29 @@
+#Gliph for A2 plus/minus
+#
+#Run for alpha and beta cdr3 for FLC and IMN
+
+{matt@matt-linux /drive3/work/tcr/A2/simple}
+>for f in *txt; do ~/software/vdj/gliph/gliph/bin/gliph-group-discovery.pl --tcr $f --discontinuous=1 > `echo $f |sed  -e "s/txt/out/"`; done
+
+
+#Then get full input to try
+head -84 FLC_Total.csv | shrinkwrap | sort | uniq  | grep -v ^HLA | awk '{print $6"\t"$5"\t"$7"\t"$3"\t"$2"\t"$4"\t"$1}' | sed -e 's/\/DV[0-9]//' > full/FLC_plus.tsv
+cat FLC_Total.csv | tail -96 | shrinkwrap | sort | uniq  | grep -v ^HLA | awk '{print $6"\t"$5"\t"$7"\t"$3"\t"$2"\t"$4"\t"$1}' | sed -e 's/\/DV[0-9]//' > full/FLC_minus.tsv
+
+#Doesn't seem to do more than the simple analysis so flipped with alpha/beta to try
+
+#Then try scoring
+
+~/software/vdj/gliph/gliph/bin/gliph-group-scoring.pl --convergence_file=FLC_plus_flip.tsv-convergence-groups.txt --clone_annotations=FLC_plus_flip.tsv --motif_pval_file=FLC_plus_flip.tsv-clone-network.txt --p_depth=10000 --hla_file=Donor_HLA.tsv
+
+#Sum up minus and plus
+cat *plus*ove10.txt | cut -d$'\t' -f1,2 | awk 'NR == 1 { print; next }
+  { a[$1] += $2 }
+  END {
+    for (i in a) {
+      printf "%-15s\t%s\n", i, a[i];
+    }
+  }
+' > sum_plus_motif.txt
+
+cat sum_* | cut -d'    ' -f1 | sort | uniq > all_motifs

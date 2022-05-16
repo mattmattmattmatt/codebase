@@ -1,0 +1,78 @@
+Want to get ORFs for worm proteins:
+
+See README.collaborator from collaborator on how pacbio reads were obtained for 16 ESTs (9 of which we are interested in)
+See Part5_TNBS_Proteins.xlsx for summary of categories of sequences:
+
+Category 1: We have PacBio_fastq data of Signficantly Protective Proteins (9 proteins)
+
+To do here:
+1) Generate consensus sequence
+2) Determine if signal peptides are present
+2) Determine ORF
+
+Category 2: We don't have PacBio_fasq files but these proteins were deemed signficant hits (9 proteins)
+
+To do here:
+1) Determine if signal peptides are present in any reading frame
+2) Examine reading frames for ORFs and see if same as signal peptide if found above
+
+Category 3: Non protective proteins  - not deemed statistically significant therapeutic hits
+
+Ignore these for now as they weren't statistically significant
+
+
+WORK:
+
+Category 1:
+1) First align fastq to reference genome with STAR:
+
+~/software/aligner/STAR/bin/Linux_x86_64/STAR --runThreadN 4 --runMode genomeGenerate --genomeDir /drive3/work/cellfree/star --genomeFastaFiles Reference/ancylostoma_caninum.PRJNA72585.WBPS8.genomic.fa --sjdbGTFfile Reference/ancylostoma_caninum.PRJNA72585.WBPS8.annotations.gff3 --sjdbGTFtagExonParentTranscript Parent
+
+#Need to generate STAR binary specific for ling reads
+cd ~/software/aligner/STAR/source
+make STARlong
+
+for f in PacBio_fastq/EST_gi_*; do echo $f; ~/software/aligner/STAR/source/STARlong --runThreadN 4  --genomeDir star/ --outFileNamePrefix `echo $f | sed -e 's/__mapping_RoI.fastq//'` --outSAMtype BAM SortedByCoordinate --readFilesIn $f --quantMode TranscriptomeSAM --outFilterMultimapScoreRange 20   --outFilterScoreMinOverLread 0   --outFilterMatchNminOverLread 0.66   --outFilterMismatchNmax 1000   --winAnchorMultimapNmax 200   --seedSearchLmax 30   --seedSearchStartLmax 12   --seedPerReadNmax 100000   --seedPerWindowNmax 100   --alignTranscriptsPerReadNmax 100000   --alignTranscriptsPerWindowNmax 10000; done
+
+1) For EST_gi_12727575_gb_BG232400.1___GENE_ANCCAN_07727__mapping_RoI.fastq:
+
+First off, I noticed the PacBio reads are not the same (i.e. no consensus possible) so I aligned them to the reference genome using a transcriptome aligner and passing in the gene model from wormbase. The first thing I noticed was the PacBio reads are from the same genomic region but different proteins so I needed to identify only the reads from the protein of interest.  Once I did this I realised that the alignments are of variable length (none of them capture the full length transcript) and that they roughly match the gene model (there is one exon shorter in PacBio than in the gene model and another single exon in the gene model is split into two exons in PacBio). 
+
+To see which gene model I should trust I blasted the full length gene from wormbase first (89% identity) and the top hit matched the pacbio exon model instead. Then I blasted the pacbio read  (98% identity) and was almost a prefect match except for the first and last exons which are incomplete. So in this case I think you should create a hybrid protein using the middle exons from pacbio reads and the first and last exon from the gene model.
+
+Get full length transcript
+grep -A18  ANCCAN_07727 ancylostoma_caninum.PRJNA72585.WBPS8.mRNA_transcripts.fa | grep -v ANCCAN | tr "\n" " " | sed -e 's/ //g'
+
+Get gene coordinates:
+grep ANCCAN_07727 ../Reference/ancylostoma_caninum.PRJNA72585.WBPS8.annotations.gff3 | grep ID=gene | cut -d'TAB' -f1,4,5 | sed  -e 's/\t/:/' -e 's/\t/-/'
+
+Get read sequence, get best read and get cigar string
+samtools view bam/EST_gi_12727575_gb_BG232400.1___GENE_ANCCAN_07727Aligned.sortedByCoord.out.bam | grep 54S84M1D107M67N123M79N156M54N108M56N102M384N117M196N147M1011N92M14S
+
+Load all in IGV and see how well model matches pacbio reads
+
+
+Now work on cases without pacbio reads:
+#Get sequence from model and also longest read from file from Steph (either lysate or makedonka sequence) -> no_prot_seq.fa
+
+for f in `cat no_prot_seq_list`; do grep -A70 $f Reference/ancylostoma_caninum.PRJNA72585.WBPS8.mRNA_transcripts.fa |tr "\n" " " | sed -e 's/ //g' | tr ">" "\n"; done
+
+Find signalp's
+-Translate into all six frames (translate.pl)
+-Run through signalp
+~/software/prediction/signalp-4.1/signalp  -T /drive3/work/cellfree/signalp/ -k -f summary -v no_prot_seq.translate.fa >  signalp/no_prot_signalp.summary
+
+Find signalp's
+./signalp.pl -ref_in signalp_pacbio.fa -prot_in signalp_pacbio.translate.fa -signalp_in signalp_pacbio.summary
+-Get seqs from files and add brackets around signalp part
+
+
+Now get all sequences for alignment -> This is essentially the sequence from the gene model
+for f in `cat all_seq_list`; do grep $f Matt_summary.csv | cut -d',' -f3,6 | sed -e 's/,/_ref,/' | tr "," "\n" | sed -e 's/ANC/>ANC/' >> steph_ref.fa; done
+
+Same for lys and make and nt (each column from file)
+
+
+
+
+

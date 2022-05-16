@@ -1,0 +1,8 @@
+>bs list dataset | grep 201907xx_MANSIN_1 |  cut -d '|' -f2 | sed -e 's/ //g' > 201907xx_MANSIN_1_samples
+>for f in `cat 201907xx_MANSIN_1_samples`; do echo $f; bs download dataset -n $f -o 201907xx_MANSIN_1_${f}; done
+
+#Same for mansin2
+#Uncompress them all
+#Create sample_list from attached file
+
+for f in `cat ../sample_list`; do echo $f; cat  *${f}_*R1* >> $f_R1.fastq.gz;done

@@ -1,0 +1,71 @@
+To summarise the project again;
+
+MAG neuropathy is a peripheral neuropathy characterised by pathogenic IgM antibodies targetting Myelin Associated Glycoprotein (MAG) on peripheral nerves, particularly its CD57 epitope. Almost always the patients will have an underlying IgMK paraprotein.
+
+
+We have recruited three patients; 2103, 2104, 2105 to the project.
+
+
+2103 has both WGS and sc gDNA data.
+
+
+For WGS there was a MYD88 L265P mutation in the clone population (gated on IgMK B cells) vs control (IgG Memory B cells).
+
+However this was not unexpected as many (?all) patients with an IgM paraprotein have such a mutation but most patient with a IgMK paraprotein don't get MAG neuropathy.
+
+
+Smart Seq2 data from single cell sorting showed four clones ("clone", "subclone1" ,"subclone2", "subclone3") all sharing the same V(D)J gene usage and three of the four had an identical VL CDR3. However Katherine thinks these are more likely to be convergent rather than divergent clones. (However for simplicity we haven't renamed these.)  All four clones have been processed for sc gDNA along with single cell IgM lambda controls. In total there are 72 cells sequenced in three pools of 24 ("A, B, C").
+
+
+Only one of the clones ("clone") bind MAG and CD57 and this clone and "subclone1" (both IgMK med to high) in retrospect sat in the gate for WGS. ("subclone2" which is MK dim would have sat outside this gate).
+
+
+It's likely the money will be on the MAG/CD57 binding clone "clone", and perhaps we didn't see anything (else) on the bulk WGS because it was drowned out by other IgMK+ non-MAG binding cells. It's also possible "subclone2" the MK dim clone will have something given that pathogenic B cells often down regulate their surface Ig expression.
+
+
+Also, there might well be something else on the WGS you find as only Manu, Clara and I have looked at it.
+
+
+Here are the links
+
+
+sc gDNA
+
+
+Pool A
+
+https://basespace.illumina.com/s/Hb4Evkf0JCZI
+https://basespace.illumina.com/s/Cvt95cSKsNr2
+
+Pool B
+https://basespace.illumina.com/s/15pTWKqNRykU
+https://basespace.illumina.com/s/WBXZP360Kni6
+
+Pool C
+https://basespace.illumina.com/s/wLtf45kvUdaE
+https://basespace.illumina.com/s/2tICSwyDQ2RJ
+
+WGS
+Seave file
+200813-FD09254648_200813-FD09254649.hard-filtered.vep.db
+Hippo address
+NCI_Immunogenomics/Shane/R_200805_SHAKEL_LIBX10_M001 folder
+
+Thanks for your analysis. Please let me know if you have need more any information.
+
+#ANALYSIS
+Want to know somatic for each subclone/clone group
+for f in clones subclones1 subclones2 subclones3; do /g/data/u86/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf_in joint_calls_chr.vcf -outdir results -min_sample_count 2 -sample_file sample_${f} -control_file sample_controls -skip_vep -no_run -outfile MAG_somatic_2samples_${f}.tsv; done
+
+#Generate all somatic variants
+/g/data/u86/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf_in joint_calls_chr.vcf -outdir results -min_sample_count 2 -sample_file sample_noncontrols -somatic -skip_vep -no_run -outfile MAG_somatic_2samples_all.tsv
+
+
+#WGS info
+Given hs37 bam files -> get fastq
+samtools sort -@ 16 -n /g/data/u86/mxf221/Goodnow/MAG/WGS/200813-FD09254648_normal.bam | samtools bam2fq -@ 16 -1 /g/data/u86/mxf221/Goodnow/MAG/WGS/MAG_normal_R1.fastq.gz -2 /g/data/u86/mxf221/Goodnow/MAG/WGS/MAG_normal_R2.fastq.gz --reference ~/g/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -s /dev/null -0 /dev/null -
+
+
+
+#investigate deeply
+for f in *recal.bam; do for g in `cat coords`; do echo $f >> ${g}.mpileup; samtools mpileup --fasta-ref /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -r $g $f >> ${g}.mpileup; done; done

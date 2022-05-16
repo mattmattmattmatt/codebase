@@ -1,0 +1,84 @@
+Download reference from genbank
+https://www.ncbi.nlm.nih.gov/assembly/GCF_002099425.1/ -> download genbank version to match contig names in BAM
+
+Project documented here
+https://github.com/awgg-lab/australasiangenomes/blob/main/species/Phascolartus_cinereus.md
+
+Download BAMs using aws
+>~/g/software/aws/aws s3 sync s3://koalagenomes/NSW_Campbelltown/bam/ . --no-sign-request
+
+In batch:
+>for f in `cat koala_regions`; do ~/g/software/aws/aws s3 sync s3://koalagenomes/${f}/bam/ . --no-sign-request; done -> 15Tb
+
+Check BAM provided are similar to what I would generate:
+Ran single sample from fastq to markdup BAM to comapre (generated vs provided)
+Stats with samtools flagstat and bbmap
+
+Very close and difference possibly to inclusion of ecoli Illumina vector including in first assembly downloaded (done before noticed contig name difference)
+
+#Generated flagstats
+755725673 + 0 in total (QC-passed reads + QC-failed reads)
+2619083 + 0 secondary
+0 + 0 supplementary
+0 + 0 duplicates
+743811296 + 0 mapped (98.42% : N/A)
+753106590 + 0 paired in sequencing
+376553295 + 0 read1
+376553295 + 0 read2
+722481600 + 0 properly paired (95.93% : N/A)
+731731576 + 0 with itself and mate mapped
+9460637 + 0 singletons (1.26% : N/A)
+8056534 + 0 with mate mapped to a different chr
+4308021 + 0 with mate mapped to a different chr (mapQ>=5)
+
+#Provided flagstats
+754672764 + 0 in total (QC-passed reads + QC-failed reads)
+0 + 0 secondary
+1566174 + 0 supplementary
+76371903 + 0 duplicates
+742300397 + 0 mapped (98.36% : N/A)
+753106590 + 0 paired in sequencing
+376553295 + 0 read1
+376553295 + 0 read2
+715045418 + 0 properly paired (94.95% : N/A)
+729549296 + 0 with itself and mate mapped
+11184927 + 0 singletons (1.49% : N/A)
+12290836 + 0 with mate mapped to a different chr
+4982186 + 0 with mate mapped to a different chr (mapQ>=5)
+
+#Generated bbmap
+Reads:                               	755725673
+Mapped reads:                        	743811296
+Mapped bases:                        	108367412488
+Ref scaffolds:                       	1907
+Ref bases:                           	3192581492
+
+Percent mapped:                      	98.423
+Percent proper pairs:                	95.770
+Average coverage:                    	33.944
+Average coverage with deletions:     	33.938
+Standard deviation:                    	76.671
+Percent scaffolds with any coverage: 	100.00
+Percent of reference bases covered:  	99.69
+
+#Provided bbmap
+Reads:                               	754672764
+Mapped reads:                        	742300397
+Mapped bases:                        	108088206078
+Ref scaffolds:                       	1906
+Ref bases:                           	3192565135
+
+Percent mapped:                      	98.361
+Percent proper pairs:                	94.749
+Average coverage:                    	33.856
+Average coverage with deletions:     	33.850
+Standard deviation:                    	67.339
+Percent scaffolds with any coverage: 	100.00
+Percent of reference bases covered:  	99.73
+
+
+Generate gvcfs
+>for f in `cat koala_samples`; do cat koala_vcf_template.qsub | sed -e "s/SAMPLE/${f}/g" > qsub/${f}_vcf.qsub; done
+
+Merge vcfs
+

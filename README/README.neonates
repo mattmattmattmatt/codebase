@@ -1,0 +1,17 @@
+1) Download cookies.txt to Desktop (Tools -> Export cookies)
+
+2) Copy ftp page to file tmp
+
+3) cat tmp | cut -d' ' -f3 | awk '{print "wget --load-cookies ~/Desktop/cookies.txt --http-user=severinenavarro --http-password=2325_Jujubean https://data.ace.uq.edu.au/users/severinenavarro/data/P75/J672/"$1}' | bash
+
+4) Remove samples with <1000 observations
+filter_samples_from_otu_table.py -i otu_neonates_final.biom -o otu_neonates_lowremoved.biom -n 1000
+
+NEW STUFF:
+
+gg_tree <- read_tree_greengenes("/home/matt/software/microbiome/qiime/gg_13_8_otus/trees/97_otus.tree")
+lung_phy <- merge_phyloseq(lung_small,lung_small_map,gg_tree)
+
+lung_phy_proteo <- subset_taxa(lung_phy,Phylum == "p__Proteobacteria")
+plot_tree(lung_phy_proteo,label.tips="Order",color="Protein",size="abundance")
+

@@ -1,0 +1,48 @@
+#Generate single BAM
+
+samtools depth -a -b Lymphoma_2019_regions_cons_nochr.bed -f celiac_bams -d 100000 > celiac2.depth
+
+#Split back up (\x27 for single quote); skips first, not sure why....
+cat celiac2.depth | cut -d$'\t' -f 1,2,3 > Bcells_bulk_PBMCs.depth
+while read -r f; do awk '{A++;print "cat celiac2.depth | cut -d$\x27\\t\x27 -f 1,2,"A+3 "> "$f".depth"; next}'; done < celiac_samples | bash
+
+#Total reads
+for f in `cat ../celiac2_samples`; do zcat ${f}_R1.fastq.gz |wc -l | awk '{print $1/4}'; done
+
+#Get panel size
+cat Lymphoma_2019_regions_cons_nochr.bed | awk '{print $2,$3}' | grep -v CHROM | awk '{print $2-$1}'  | sums -> 3344125bp
+
+#Get het variants
+#First columns; try singly, in one or in both
+cat Celiac2_all_variants.tsv | fields -delim "\t"
+cat Celiac2_all_variants.tsv | cut -d$'\t' -f 37 | grep het |wc -> 3896
+cat Celiac2_all_variants.tsv | cut -d$'\t' -f 38 | grep het |wc -> 6088
+cat Celiac2_all_variants.tsv | cut -d$'\t' -f 37,38 | grep het |wc -> 6285
+cat Celiac2_all_variants.tsv | cut -d$'\t' -f 37,38 | grep 'het        het' |wc -> 3699
+
+Total reads
+for f in `cat celiac_samples`; do cat ${f}.mapstat | grep ^Reads | sed -e 's/^Reads://' -e 's/ //g' -e 's/       //g'; done
+
+Mean cover
+for f in `cat celiac_samples`; do cat ${f}.depth | cut -d$'\t' -f3 | stats | cut -d' ' -f 4; done
+
+>1 read bases
+for f in `cat celiac_samples`; do cat ${f}.depth | extract -t "_2 > 1" | wc -l | awk '{print $1/3344125*100"%"}'; done
+
+>15 bases
+for f in `cat celiac_samples`; do cat ${f}.depth | extract -t "_2 > 15" | wc -l | awk '{print $1/3344125*100"%"}'; done
+
+#Get hom/ref variant counts first
+for f in {39..83}; do echo "cat ../Celiac2_all_variants.tsv | extract -t \"_${f} eq 'ref' || _${f} eq 'hom'\" | wc -l"; done | bash >> hom_ref_counts
+
+#Get variants also het in control
+for f in {39..83}; do echo "cat ../Celiac2_all_variants.tsv | extract -t \"_${f} eq 'ref' || _${f} eq 'hom'\" | extract -t \"_38 eq 'het'\" | wc -l"; done | bash >> hom_ref_controlhet_counts
+
+#Get percent
+paste hom_ref_controlhet_counts hom_ref_counts | awk '{print $1/$2*100"%"}'
+
+
+
+To get template from bam file list
+
+while read -r f1; do echo ${f1}; cat template_stats.qsub | sed -e "s:BAM:${f1}:g" -e "s:SAMPLE:`echo ${f1} | cut -d'/' -f10 | sed -e 's/.bam//' -e 's/_md_realign_recal//'`:g" > `echo ${f1} | cut -d'/' -f10 | sed -e 's/.bam//' -e 's/_md_realign_recal//'`_depth.qsub; done < ../depth/ss_bams

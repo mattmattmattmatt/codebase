@@ -1,0 +1,23 @@
+Great! I’ve put all the BAM files for this analysis into the folder BAM/Rogue_1_TJ_capture_seq/Single_cells on NCI
+
+I’ve attached which samples are rogue and which samples are memory. I’ve also labeled which subclone branch the rogue cells belong too (orange, blue or red)- we also want to know if there are additional mutations unique to these subclones.
+
+Would you be able to analyse the data first in the same way for the previous Rogue 2 sample producing a list of variants found in the rogue single cells but not the memory cells.
+
+Would you also be able to produce a list of variants that are only found in the Red subclone of Rogue but not memory, Orange or Blue Rogue cells. And a list of variants only found in the Orange subclone but not memory, red or blue.
+
+Generate gvcf
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -nt 1 -ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000 --minPruning 3 --maxNumHaplotypesInPopulation 200 --max_alternate_alleles 3 -contamination 0.0 -R /g/data/u86/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -I /g/data2/u86/mxf221/Goodnow/ss/ss_clone_subtypes/A10-1.bam -o /g/data2/u86/mxf221/Goodnow/ss/ss_clone_subtypes/A10-1.g.vcf
+
+etc
+
+Joint call /g/data/u86/mxf221/Goodnow/ss/ss_clone_subtypes/joint.qsub
+
+Parse script:
+
+Get sample lists:
+grep Rogue ROGUE1-single_cell-clonetype.csv | cut -d'  ' -f1 | awk '{print $1"_l1"}' > all_rogue_samples
+grep Red ROGUE1-single_cell-clonetype.csv | cut -d'	' -f1 | awk '{print $1"_l1"}' > red_rogue_samples 
+grep Orange ROGUE1-single_cell-clonetype.csv | cut -d'	' -f1 | awk '{print $1"_l1"}' > orange_rogue_samples
+
+

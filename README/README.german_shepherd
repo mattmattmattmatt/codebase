@@ -1,0 +1,172 @@
+Nala.recalled.contigs.fasta.gz -> original PacBio
+Nala.recalled.contigs.arrow1.fasta.gz -> arrow round 1
+Nala.recalled.contigs.arrow2.fasta.gz -> arrow round 2
+10x_gsd_arrow2_scaffolds.fasta.gz -> 10X reads scaffolding
+
+#GS reads from previous study
+#https://www.ncbi.nlm.nih.gov/sra/?term=SRR1124304
+#https://www.ncbi.nlm.nih.gov/sra/?term= SRR1130247
+>/g/data/u86/software/sratoolkit.2.9.6-1-centos_linux64/bin/fastq-dump --gzip --split-3 SRR1130247
+>/g/data/u86/software/sratoolkit.2.9.6-1-centos_linux64/bin/fastq-dump --gzip --split-3 SRR1124304
+
+#Align 10X reads from Andre (from https://nci.space/_projects/dingo_153klh/scaffolding/) -> needed for polishing
+~/g/software/bwa-0.7.15/bwa mem -o 10X_bwa_align.sam -t 16 -M 10x_gsd_arrow2_scaffolds.fasta H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R1.fastq.gz H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R2.fastq.gz
+
+#pilon needs 2.4Tb memory so try racon
+cat H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R1.fastq.gz H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R2.fastq.gz >> 10X_reads_combined.fastq.gz
+/g/data/u86/software/racon/build/bin/racon -t 28 /g/data/u86/mxf221/german_shepherd/10X_reads_combined.fastq.gz /g/data/u86/mxf221/german_shepherd/10X_bwa_align.sam /g/data/u86/mxf221/german_shepherd/10x_gsd_arrow2_scaffolds.fasta /g/data/u86/mxf221/german_shepherd/10x_gsd_arrow2_scaffolds_racon_polished.fasta
+
+#ERROR: racon needs reads to be different before whitespace (treat as single ended) while bwa can't handle diff read names in pairs so use single concat file with index added. Also need to remove secondary alignments
+zcat H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R1.fastq.gz | sed -e 's/ 1:N:0:0/:1 1:N:0:0/' > H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R1.fastq
+zcat H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R2.fastq.gz | sed -e 's/ 2:N:0:0/:2 2:N:0:0/' > H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R2.fastq
+cat H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R1.fastq H7JJYCCXY_1_171130_FD01116923_Other__R_171129_RICMEL_CHROMIUMDNA_M001_R2.fastq | pigz -p 16 > 10X_combined.fastq.gz
+#Concat single 10X file and also no secondary alignments
+~/g/software/bwa-0.7.15/bwa mem -t 16 -M 10x_gsd_arrow2_scaffolds.fasta 10X_combined.fastq.gz | samtools view -F 256 -o 10X_bwa_align_fixed_reads_no_secondary.sam
+/g/data/u86/software/racon/build/bin/racon -t 28 /g/data/u86/mxf221/german_shepherd/10X_reads_combined.fastq.gz /g/data/u86/mxf221/german_shepherd/10X_bwa_align_fixed_reads_no_secondary_alignments.sam /g/data/u86/mxf221/german_shepherd/10x_gsd_arrow2_scaffolds.fasta -u > /g/data/u86/mxf221/german_shepherd/10x_gsd_arrow2_scaffolds_racon_polished.fasta 
+
+#Need -u to include unpolished
+#To long to rerun so I added the unpolished to the polished build
+diff 10X_contigs_racon 10X_contigs | grep '>' | sed -e 's/> >//'
+#paste into file (otherwise diff colors copied)
+./extract_fasta.pl unpolished_contig_list 10x_gsd_arrow2_scaffolds.fasta > unpolished_contigs.fasta
+cat 10x_gsd_arrow2_scaffolds_racon_polished.fasta unpolished_contigs.fasta >> 10x_gsd_arrow2_scaffolds_racon_with_unpolished.fasta
+
+#Pilon does run actually and uses paired end reads
+java -Xmx1000G -jar ~/g/software/pilon/pilon-1.23.jar --threads 28 --genome /g/data/u86/mxf221/german_shepherd/10x_gsd_arrow2_scaffolds.fasta --frags /g/data/u86/mxf221/german_shepherd/10x_gsd_paired_aligned.bam --outdir /g/data/u86/mxf221/german_shepherd/pilon --output 10x_gsd_arrow2_scaffolds_pilon_polished --fix all --changes
+
+
+To generate stats for new build
+~/g/software/bwa-0.7.15/bwa index -a bwtsw  10x_gsd_arrow2_scaffolds_pilon_polished.fasta; ~/g/software/bwa-0.7.15/bwa mem -M -t 16 10x_gsd_arrow2_scaffolds_pilon_polished.fasta SRR1130247_1.fastq.gz SRR1130247_2.fastq.gz |  samtools view -u -S - | ~/g/software/novocraft/novosort --md --kt -c 8 -x 6 -m 10G -t /g/data/u86/mxf221/german_shepherd/tmp -i -o 10x_gsd_arrow2_scaffolds_pilon_polished_SRR1130247.bam -; samtools view 10x_gsd_arrow2_scaffolds_pilon_polished_SRR1130247.bam | ./cigar.pl > 10x_gsd_arrow2_scaffolds_pilon_polished_SRR1130247.bamstats 
+
+#Using short reads so use bwa mem for assembly alignments
+~/g/software/bwa-0.7.15/bwa index -a bwtsw Nala.recalled.contigs.arrow2.fasta
+~/g/software/bwa-0.7.15/bwa index -a bwtsw Nala.recalled.contigs.arrow1.fasta
+~/g/software/bwa-0.7.15/bwa index -a bwtsw Nala.recalled.contigs.fasta
+~/g/software/bwa-0.7.15/bwa index -a bwtsw 10x_gsd_arrow2_scaffolds.fasta
+
+for f in SRR1130247 SRR1124304; do ~/g/software/bwa-0.7.15/bwa mem -M -t 16 10x_gsd_arrow2_scaffolds.fasta ${f}_1.fastq.gz ${f}_2.fastq.gz |  samtools view -u -S - | ~/g/software/novocraft/novosort --md --kt -c 8 -x 6 -m 10G -t /g/data/u86/mxf221/german_shepherd/tmp -i -o 10x_gsd_arrow2_scaffolds_${f}.bam -; done
+for f in SRR1130247 SRR1124304; do ~/g/software/bwa-0.7.15/bwa mem -M -t 16 Nala.recalled.contigs.arrow2.fasta ${f}_1.fastq.gz ${f}_2.fastq.gz |  samtools view -u -S - | ~/g/software/novocraft/novosort --md --kt -c 8 -x 6 -m 10G -t /g/data/u86/mxf221/german_shepherd/tmp -i -o Nala.recalled.contigs.arrow2_${f}.bam -; done
+
+#Bam stats for reads and bases (via cigar strings)
+for f in *bam; do samtools view $f | ./cigar.pl > $f.bamstats; done
+
+#Assembly stats
+for f in *gz; do echo $f; zcat $f | ./assembly_stats.pl > `echo $f | sed -e 's/.fasta.gz/.assemblystats/'`; done
+
+Run busco:
+>export AUGUSTUS_CONFIG_PATH=/g/data/u86/software/Augustus/config/
+>export PATH=/g/data/u86/software/Augustus/bin:$PATH
+>module load python/2.7.15
+#Use euarchontoglires_odb9 -> lowest resolution (5 groups including rodents, primates, etc)
+>/apps/python/2.7.15/bin/python /g/data/u86/software/busco/scripts/run_BUSCO.py -i 10x_gsd_arrow2_scaffolds_racon_polished.fasta -c 16 -l /g/data2/u86/software/busco/lineages/mammalia_odb9 -m geno -t /g/data/u86/mxf221/german_shepherd/tmp -o 10x_gsd_arrow2_scaffolds_racon_polished_busco
+
+Failed submission so need to remove some sequence:
+grep ^NALA RemainingContamination.txt | grep -v mito | awk '{print "-header",$1,"-range",$3}' | sed -e 's/\.\./-/g'
+#Still need to spread out commas
+
+
+#Then replace embedded sequence
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta ../final_build/Nala_canu_arrow2_10x_racon_bionano_HiC_pbjelly_pilon_tidy_canfam.fasta -range 71705513-71708194 -header NALACHR1.01 -out_file Nala_fix1.fasta -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix1.fasta -out_file Nala_fix2.fasta -header NALACHR10.01 -range 70899205-70902512 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix2.fasta -out_file Nala_fix3.fasta -header NALACHR14.01 -range 5273012-5276402 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix3.fasta -out_file Nala_fix4.fasta -header NALACHR16.01 -range 41022433-41025585 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix4.fasta -out_file Nala_fix5.fasta -header NALACHR19.01 -range 17632141-17635532 -save_removed -replaceNs 
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix5.fasta -out_file Nala_fix6.fasta -header NALACHR19.05 -range 47021-53965 -save_removed -replaceNs 
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix6.fasta -out_file Nala_fix7.fasta -header NALACHR2.13 -range 8223-8252 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix7.fasta -out_file Nala_fix8.fasta -header NALACHR21.01 -range 22874487-22877926 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix8.fasta -out_file Nala_fix9.fasta -header NALACHR25.01 -range 36085981-36089352 -save_removed -replaceNs 
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix9.fasta -out_file Nala_fix10.fasta -header NALACHR27.01 -range 4875341-4878673 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix10.fasta -out_file Nala_fix11.fasta -header NALACHR3.01 -range 40675362-40678680 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix11.fasta -out_file Nala_fix12.fasta -header NALACHR34.01 -range 1520243-1523656 -save_removed -replaceNs 
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix12.fasta -out_file Nala_fix13.fasta -header NALACHR38.01 -range 18917297-18919760 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix13.fasta -out_file Nala_fix14.fasta -header NALACHR7.01 -range 45544954-45548357 -save_removed -replaceNs 
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix14.fasta -out_file Nala_fix15.fasta -header NALACHRX.01 -range 27887419-27890328 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix15.fasta -out_file Nala_fix16.fasta -header NALACHRX.01 -range 53806953-53809723 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix16.fasta -out_file Nala_fix17.fasta -header NALACHRX.01 -range 57772018-57775303 -save_removed -replaceNs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix17.fasta -out_file Nala_fix_internal_final.fasta -header NALACHRX.06 -range 25545-28480 -save_removed -replaceNs
+cp  Nala_fix_internal_final.fasta Nala_canu_arrow2_10x_racon_bionano_HiC_pbjelly_pilon_tidy_canfam_contig_fixed.fasta
+
+#Remove all contam contigs
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_fix_internal_final.fasta -out_file Nala_remove1.fasta -save_removed -header NALASCAFF006
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove1.fasta -out_file Nala_remove2.fasta -save_removed -header NALASCAFF011
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove2.fasta -out_file Nala_remove3.fasta -save_removed -header NALASCAFF019
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove3.fasta -out_file Nala_remove4.fasta -save_removed -header NALASCAFF025
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove4.fasta -out_file Nala_remove5.fasta -save_removed -header NALASCAFF027
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove5.fasta -out_file Nala_remove6.fasta -save_removed -header NALASCAFF043
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove6.fasta -out_file Nala_remove7.fasta -save_removed -header NALASCAFF055
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove7.fasta -out_file Nala_remove8.fasta -save_removed -header NALASCAFF058
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove8.fasta -out_file Nala_remove9.fasta -save_removed -header NALASCAFF086
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove9.fasta -out_file Nala_remove10.fasta -save_removed -header NALASCAFF092
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove10.fasta -out_file Nala_remove11.fasta -save_removed -header NALASCAFF128
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove11.fasta -out_file Nala_remove12.fasta -save_removed -header NALASCAFF134
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove12.fasta -out_file Nala_remove13.fasta -save_removed -header NALASCAFF143
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove13.fasta -out_file Nala_remove14.fasta -save_removed -header NALASCAFF144
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove14.fasta -out_file Nala_remove15.fasta -save_removed -header NALASCAFF161
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove15.fasta -out_file Nala_remove16.fasta -save_removed -header NALASCAFF180
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove16.fasta -out_file Nala_remove17.fasta -save_removed -header NALASCAFF193
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove17.fasta -out_file Nala_remove18.fasta -save_removed -header NALASCAFF207
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_remove18.fasta -out_file Nala_remove_final.fasta -save_removed -header NALASCAFF212
+cp Nala_remove_final.fasta Nala_canu_arrow2_10x_racon_bionano_HiC_pbjelly_pilon_tidy_canfam_contig_fixed_and_removed.fasta
+
+
+#Run mummer
+for f in {1..38} X; do echo $f; ~/g/software/mummer/nucmer -t 16 -p nucmer${f} Canis_familiaris.CanFam3.1.dna.chromosome.${f}.fa gs.${f}.fasta; ~/g/software/mummer/show-coords -r -c -l nucmer${f}.delta > nucmer${f}.coords; ~/g/software/mummer/show-snps -C nucmer${f}.delta > nucmer${f}.snps; ~/g/software/mummer/mummer -b -c Canis_familiaris.CanFam3.1.dna.chromosome.${f}.fa gs.${f}.fasta > mummer${f}.mums; done
+
+~/software/aligner/mummer-4.0.0beta2/mummerplot  -postscript  -p mummer30 --filter nucmer30.delta
+
+#on raijin (path hard coded in delta file so can't transfer)
+>for f in {2..38} X; do ~/g/software/mummer-4.0.0beta2/mummerplot  -postscript  -p mummerplot${f} --filter nucmer${f}.delta; done
+#Dies on one step so need to change '{ set mouse clipboardformat "[%.0f, %.0f]" }' to 'set mouse clipboardformat "[%.0f, %.0f]"' then run
+/usr/bin/gnuplot mummerplot1.gp
+#Or copy all mummerplot files are run locally
+
+
+
+#Lastz to generate MAF
+/g/data/u86/software/lastz-1.04/lastz-1.04.00 /g/data/u86/mxf221/german_shepherd/lastz/Canis_familiaris.CanFam3.1.dna.chromosome.38.fa /g/data/u86/mxf221/german_shepherd/lastz/gs.38.fasta --format=maf   --notransition --step=20 --nogapped
+#Files are huge so leave on raijin
+
+
+#Count snps and small indels:
+
+grep ' \. ' nucmer38.snps  | grep -v ' N '  | awk '{print $1,$4}' | tr " " "\n" | sort | uniq |wc
+grep '[ATGC] [ATCG]'' nucmer38.snps  |wc
+
+
+#Pairwise chr by chr comparison accounts for 98.3% of sequence so generate SNP stats from here
+>for f in {1..38} X; do grep ' \. ' nucmer${f}.snps  | grep -v ' N '  | awk '{print $1,$4}' | tr " " "\n" | sort | uniq |wc -l  >> indels_counts.tsv; done
+>for f in {1..38} X; do grep '[ATGC] [ATCG]' nucmer${f}.snps | wc -l >> snps_counts.tsv; done
+paste snps_counts.tsv indels_counts.tsv >> variant_counts.tsv #Add chr row
+
+Total
+3137227 snvs
+5111356 small indels
+
+Need to generate vcf:
+for f in {1..38} X; do echo $f; python3 vcf.py --input-header -s nucmer${f}.snps2 -g /drive3/work/DNASeq/german_shepherd/CanFam/Canis_familiaris.CanFam3.1.dna.chromosome.${f}.fa >> mummer_show_snps.vcf; done
+
+#Get the headers to add in
+for f in {1..38} X; do echo $f; python3 vcf.py --input-header -s nucmer${f}.snps2 --output-header -g /drive3/work/DNASeq/german_shepherd/CanFam/Canis_familiaris.CanFam3.1.dna.chromosome.${f}.fa > nucmer${f}.vcf; done
+
+
+BUSCO:
+Rich used laurasiatheria.tgz
+
+Found one more PacBio contam:
+NALASCAFF052
+
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_canu_arrow2_10x_racon_bionano_HiC_pbjelly_pilon_tidy_canfam_contig_fixed_and_removed_nucl.fasta -header NALASCAFF052 -out Nala_final_nucl.fasta -save_removed
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta Nala_canu_arrow2_10x_racon_bionano_HiC_pbjelly_pilon_tidy_canfam_contig_fixed_and_removed.fasta -header NALASCAFF052 -out Nala_final.fasta -save_removed
+
+To upload, aspera not working via firefox so preload:
+
+~/.aspera/connect/bin/ascp i ~/.ssh/aspera.openssh -QT -l100m -k1 -d /drive3/work/DNASeq/german_shepherd/ncbi_submission/final_build/upload_folder/ subasp@upload.ncbi.nlm.nih.gov:uploads/matt.field@anu.edu.au_4s7MsQHw
+
+
+
+Need new ctg_to_chr file
+grep '>' upload_folder/Nala_final_nucl.fasta  | cut -d' ' -f1 | sed -e 's/>//' | grep '\.01' |  grep NALACHR | awk '{print $1","$1",1"}' | sed -e 's/NALACHR/CANFAM_/2' > ctg_to_chr.csv
+
+grep '>' upload_folder/Nala_final_nucl.fasta  | cut -d' ' -f1 | sed -e 's/>//' | grep -v '\.01' | grep NALACHR | awk '{print $1","$1}' |sed -e 's/NALACHR/CANFAM_/2' >> ctg_to_chr.csv
+
+grep '>' upload_folder/Nala_final_nucl.fasta  | cut -d' ' -f1 | sed -e 's/>//'  | grep NALASCAFF | awk '{print $1","$1}' >> ctg_to_chr.csv

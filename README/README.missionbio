@@ -1,0 +1,99 @@
+Mission bio data:
+
+Files generated:
+/drive3/work/Goodnow/MissionBio/Designer -> contains genes and amplicon IDs
+
+Total-Seq_D_custom_panel_2022.csv and totalseq-d-heme-oncology.csv -> contains immune marker info linking to barcodes (these don't seem to be in barcode info anywhere)
+
+1912.all.barcode.distribution.merged.tsv -> where barcodes are distributed across amplicons (low frequency barcodes removed)
+
+missionbio_gatk.out and err -> shows splitBAMByBarcode and Haplotype caller are run (HC ran on each 'sample' separately)
+
+part1.tube1.progress.csv and part2.progress.csv -> High level log file
+
+missionbio_part2.out/err and missionbio_part1_tube1.out/err -> Commands run for making vcf, picard fixmate, gatk GenomicsDBImport (import gvcf into db), 'samtools view -R' to merge readgroups
+
+1912.report.html -> contains lots of stats including cell number, coverage per cell, amplicon coverage, etc
+
+1912-fastp.html -> fastq qc (contains adapters, etc)
+
+1912.tube1.mapped.bam -> no index, loads of RG (~150k) likely preprocessed BAM
+
+1912.tube1.cells.bam -> Final BAM I think, contains 1 RG per cell (cover ~800,000 per base so 800,000/5000 = 16X per cell)
+
+1912.cells.vcf -> Contains all amplicon bases which are variant (most have mutliple mutations)
+
+protein.log -> protein fastq qc
+
+./parse_vcf.pl -vcf_in 1912.cells.vcf -keep_zyg > 1912.cell.txt (takes 25Gb memory)
+
+#Convert to hg38
+CrossMap.py vcf --chrom s hg19ToHg38.over.chain.gz 1912/output/1912.cells.vcf /drive2/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa 1912/output/1912.cells.hg38.vcf
+
+#Convert BAM to hg38 (pip3 install puts in ~/.local/bin so change path)
+CrossMap.py bam -a hg19ToHg38.over.chain.gz --chromid s 1912/output/1912.tube1.cells.bam 1912/output/1912.tube1.cells.hg38.bam
+
+#We can generate split BAMs for closer inspection
+samtools view -H 1912.tube1.cells.hg38.sorted.bam | grep @RG | cut -d$'\t' -f2 | sed -e 's/ID://' > barcode_names
+for f in `cat barcode_names`; do echo $f; samtools view -@24 -b -r $f 1912.tube1.cells.hg38.sorted.bam >  split_bams/${f}.bam; samtools index split_bams/${f}.bam; done
+
+
+2547.bed -> contains amplicon coordinates
+#Convert to hg38
+CrossMap.py bed --chrom s hg19ToHg38.over.chain.gz 2547.bed 2547.hg38.bed 
+
+
+
+
+
+
+
+
+conda activate mosaic
+
+python -> challenging for images, etc so use jupyter notebook instead
+>>>import missionbio.mosaic.io as mio
+>>>sample = mio.load("/drive3/work/Goodnow/MissionBio/1912/output/1912.dna+protein.h5")
+>>>filtered_variants = list(sample.dna.filter_variants())
+
+Try jupyter notebook
+cd ~/jupyter
+virtualenv MissionBio
+source MissionBio/bin/activate
+#Had to add mosiac environment
+(mosaic) {matt@matt-linux ~/jupyter}
+>python -m ipykernel install --user --name=mosaic
+
+jupyter notebook -> then New->mosiac
+
+#Then follow tutorial
+import missionbio.mosaic.io as mio
+sample=mio.load("/drive3/work/MissionBio/sample.h5")
+sample.protein.normalize_reads()
+sample.protein.run_pca(attribute='normalized_counts', components=5)
+sample.protein.run_umap(attribute='pca')
+sample.protein.cluster(attribute='pca', method='graph-community', k=100)
+filtered_variants = list(sample.dna.filter_variants())
+sample.dna = sample.dna[:, filtered_variants[0:2]]
+sample.heatmap(
+    clusterby='protein',
+    sortby='dna',
+    drop='cnv',
+    flatten=False
+)
+sample.heatmap(
+    clusterby='protein',
+    sortby='dna',
+    drop='cnv',
+    flatten=True
+)
+
+help(sample.dna.filter_variants)
+whitelist = ['chr1:115256513:G/A', 'chr21:44514718:C/T']
+final_vars = whitelist + list(dna_vars)
+sample=mio.load("/drive3/work/MissionBio/sample.h5")
+sample.dna = sample.dna[sample.dna.barcodes(), final_vars]
+sample.dna.heatmap(attribute='AF')
+
+ETC from tutorial
+https://missionbio.github.io/mosaic/examples/index.html

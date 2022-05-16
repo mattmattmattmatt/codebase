@@ -1,0 +1,182 @@
+rsync -avh -e ssh MarthaCooper@agrf-data.agrf.org.au:files/AGRF_CAGRF19034_HGY22DSXX ./
+
+U/N: MarthaCooper
+P/W: 64330M4rl3y
+
+/g/data/u86/software/STAR/bin/Linux_x86_64/STAR   --runMode genomeGenerate   --runThreadN 16   --limitGenomeGenerateRAM=90000000000 --genomeDir .   --genomeFastaFiles Mus_musculus.GRCm38.dna_rm.toplevel.fa     --outFileNamePrefix mm10Star  --sjdbGTFfile Mus_musculus.GRCm38.94.gtf --sjdbOverhang 149
+
+for f in *fastq.gz; do ln -s $f `echo $f | cut -d'_' -f1,2,6`; done
+
+/g/data/u86/software/TrimGalore/trim_galore --paired --path_to_cutadapt /g/data/u86/software/cutadapt-1.9.1/bin/cutadapt /g/data/u86/mxf221/ParaGen/fastq/1_1_R1.fastq.gz  /g/data/u86/mxf221/ParaGen/fastq/1_1_R2.fastq.gz 
+
+/g/data/u86/software/STAR/bin/Linux_x86_64/STAR --runThreadN 16 --readFilesCommand zcat  --genomeDir /g/data/u86/mxf221/mm10_star/ --outFileNamePrefix /g/data/u86/mxf221/ParaGen/bam/1_1_ --readFilesIn /g/data/u86/mxf221/ParaGen/fastq/1_1_R1_val_1.fq.gz /g/data/u86/mxf221/ParaGen/fastq/1_1_R2_val_2.fq.gz --outSAMtype BAM SortedByCoordinate  --quantMode GeneCounts --sjdbGTFfile /g/data/u86/mxf221/mm10_star/Mus_musculus.GRCm38.94.gtf --outFilterScoreMinOverLread 0.5 --outFilterMatchNminOverLread 0.5
+
+'ls' ../fastq/ | cut -d'_' -f1,2,3 | sed -e 's/HGY22DSXX//' | sort | uniq > sample_list
+
+for f in `cat sample_list`; do cat 1_1_star.qsub | sed -e "s/1_1_/${f}/g" > ${f}star.qsub; done
+
+for f in *bam; do ln -s /g/data/u86/mxf221/ParaGen/bam/$f `echo $f | sed -e 's/_Aligned.sortedByCoord.out//'` ; done
+
+Installed consensusDE on raijin
+#issues with missing modules:
+module load intel-cc/17.0.0.098
+module load intel-fc/17.0.0.098
+module load libtool/2.4.6
+
+
+
+module load R/3.5.1
+
+export R_LIBS_USER="/g/data/u86/mxf221/R"
+
+R
+
+library(consensusDE)
+
+#library(GenomicFeatures)
+
+setwd("/g/data2/u86/mxf221/ParaGen/bam/")
+
+file_list <- list.files(path=getwd(),pattern = "[0-9].bam$",full=TRUE)
+
+sample_table<-data.frame("file"=basename(file_list),"group"=c("aIL12","aIL12","aIL12","aIL12","aIL12","aIL12","aIL12","aIL12","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NoTcells","NoTcells","PBS","PBS","PBS","PBS","PBS","PBS","PBS","PBS","TNA","TNA","TNA","TNA","TNA","TNA","TNA","TNA"),pairs=c("10","10","11","11","12","12","13","13","14","14","15","15","16","16","17","17","1","1","2","2","3","3","4","4","5","5","6","6","7","7","8","8","9","9"))
+
+txdb <- makeTxDbFromGFF("/g/data/u86/mxf221/mm10_star/Mus_musculus.GRCm38.94.gtf", format="gtf")
+
+bam_dir <- as.character(gsub(basename(file_list)[1], "", file_list[1]))
+
+#First time run this 
+#summarized_dm3 <- buildSummarized(sample_table = sample_table, bam_dir = bam_dir,tx_db = txdb,read_format = "paired",output_log="/g/data/u86/mxf221/ParaGen/output/")
+gtf=""
+#Second time run this
+summarized_dm3 <- buildSummarized(sample_table = sample_table, output_log="/g/data/u86/mxf221/ParaGen/output/", summarized="/g/data/u86/mxf221/ParaGen/output/se.R")
+
+#Hack to fix column name pairing
+#colnames(colData(summarized_dm3)) <- c("file","group","pairs")
+#Until pairing fixed need to remove pairing
+#colData(summarized_dm3)[3] <- NULL
+
+
+#Ensembl doesn't work
+#multi_de_pairs(summarized = summarized_dm3,  ruv_correct = TRUE, plot_dir="/g/data/u86/mxf221/ParaGen/output/",output_combined="/g/data/u86/mxf221/ParaGen/output/",output_voom="/g/data/u86/mxf221/ParaGen/output/",output_edger="/g/data/u86/mxf221/ParaGen/output/",output_deseq="/g/data/u86/mxf221/ParaGen/output/",paired="paired",ensembl_annotate = TRUE, tx_db=txdb)
+
+#Without ensembl
+multi_de_pairs(summarized = summarized_dm3,  ruv_correct = TRUE, plot_dir="/g/data/u86/mxf221/ParaGen/output/",output_combined="/g/data/u86/mxf221/ParaGen/output/",output_voom="/g/data/u86/mxf221/ParaGen/output/",output_edger="/g/data/u86/mxf221/ParaGen/output/",output_deseq="/g/data/u86/mxf221/ParaGen/output/",paired="paired")
+
+
+#New corrected commands
+#First for just groups
+
+library(consensusDE)
+
+setwd("/g/data2/u86/mxf221/ParaGen/bam/")
+
+file_list <- list.files(path=getwd(),pattern = "[0-9].bam$",full=TRUE)
+
+sample_table<-data.frame("file"=basename(file_list),"group"=c("aIL12","aIL12","aIL12","aIL12","aIL12","aIL12","aIL12","aIL12","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NoTcells","NoTcells","PBS","PBS","PBS","PBS","PBS","PBS","PBS","PBS","TNA","TNA","TNA","TNA","TNA","TNA","TNA","TNA"))
+
+bam_dir <- as.character(gsub(basename(file_list)[1], "", file_list[1]))
+
+summarized_dm3 <- buildSummarized(sample_table = sample_table, bam_dir = bam_dir,gtf="/g/data/u86/mxf221/mm10_star/Mus_musculus.GRCm38.94.gtf",read_format = "paired",output_log="/g/data/u86/mxf221/ParaGen/output_group/")
+
+multi_de_pairs(summarized = summarized_dm3,  ruv_correct = TRUE, plot_dir="/g/data/u86/mxf221/ParaGen/output_group/",output_combined="/g/data/u86/mxf221/ParaGen/output_group/",output_voom="/g/data/u86/mxf221/ParaGen/output_group/",output_edger="/g/data/u86/mxf221/ParaGen/output_group/",output_deseq="/g/data/u86/mxf221/ParaGen/output_group/")
+
+#Now for time also
+
+library(consensusDE)
+
+setwd("/g/data2/u86/mxf221/ParaGen/bam/")
+
+file_list <- list.files(path=getwd(),pattern = "[0-9].bam$",full=TRUE)
+
+sample_table<-data.frame("file"=basename(file_list),"group"=c("aIL12_T1","aIL12_T2","aIL12_T1","aIL12_T2","aIL12_T1","aIL12_T2","aIL12_T1","aIL12_T2","NaAIP_T1","NaAIP_T2","NaAIP_T1","NaAIP_T2","NaAIP_T1","NaAIP_T2","NaAIP_T1","NaAIP_T2","NoTcells","NoTcells","PBS_T1","PBS_T2","PBS_T1","PBS_T2","PBS_T1","PBS_T2","PBS_T1","PBS_T2","TNA_T1","TNA_T2","TNA_T1","TNA_T2","TNA_T1","TNA_T2","TNA_T1","TNA_T2"))
+
+#Hack for single case with existing se that has single NoTcells_T1
+#
+
+bam_dir <- as.character(gsub(basename(file_list)[1], "", file_list[1]))
+
+summarized_dm3 <- buildSummarized(sample_table = sample_table, bam_dir = bam_dir,gtf="/g/data/u86/mxf221/mm10_star/Mus_musculus.GRCm38.94.gtf",read_format = "paired",output_log="/g/data/u86/mxf221/ParaGen/output_time/")
+
+multi_de_pairs(summarized = summarized_dm3,  ruv_correct = TRUE, plot_dir="/g/data/u86/mxf221/ParaGen/output_time/",output_combined="/g/data/u86/mxf221/ParaGen/output_time/",output_voom="/g/data/u86/mxf221/ParaGen/output_time/",output_edger="/g/data/u86/mxf221/ParaGen/output_time/",output_deseq="/g/data/u86/mxf221/ParaGen/output_time/")
+
+ Receipt #: 75686479801 
+
+#Final on local machine with existing se.R 
+
+library(SummarizedExperiment)
+library(org.Mm.eg.db)
+library(consensusDE)
+
+de_time <- buildSummarized(summarized = "/drive3/work/paragen/output_time/se.R")
+
+colData(de_time)[[2]] <- as.factor(c("aIL12_T1","aIL12_T2","aIL12_T1","aIL12_T2","aIL12_T1","aIL12_T2","aIL12_T1","aIL12_T2","NaAIP_T1","NaAIP_T2","NaAIP_T1","NaAIP_T2","NaAIP_T1","NaAIP_T2","NaAIP_T1","NaAIP_T2","NoTcells","NoTcells","PBS_T1","PBS_T2","PBS_T1","PBS_T2","PBS_T1","PBS_T2","PBS_T1","PBS_T2","TNA_T1","TNA_T2","TNA_T1","TNA_T2","TNA_T1","TNA_T2","TNA_T1","TNA_T2"))
+
+multi_de_pairs(summarized = de_time,  ruv_correct = TRUE, plot_dir="/drive3/work/paragen/output_time/",output_combined="/drive3/work/paragen/output_time/",output_voom="/drive3/work/paragen/output_time/",output_edger="/drive3/work/paragen/output_time/",output_deseq="/drive3/work/paragen/output_time/", ensembl_annotate = org.Mm.eg.db)
+
+de_time_filter <- buildSummarized(summarized = "/drive3/work/paragen/output_time/se.R", filter=TRUE)
+
+colData(de_time_filter)[[2]] <- as.factor(c("aIL12_T1","aIL12_T2","aIL12_T1","aIL12_T2","aIL12_T1","aIL12_T2","aIL12_T1","aIL12_T2","NaAIP_T1","NaAIP_T2","NaAIP_T1","NaAIP_T2","NaAIP_T1","NaAIP_T2","NaAIP_T1","NaAIP_T2","NoTcells","NoTcells","PBS_T1","PBS_T2","PBS_T1","PBS_T2","PBS_T1","PBS_T2","PBS_T1","PBS_T2","TNA_T1","TNA_T2","TNA_T1","TNA_T2","TNA_T1","TNA_T2","TNA_T1","TNA_T2"))
+
+multi_de_pairs(summarized = de_time_filter,  ruv_correct = TRUE, plot_dir="/drive3/work/paragen/output_time_filter/",output_combined="/drive3/work/paragen/output_time_filter/",output_voom="/drive3/work/paragen/output_time_filter/",output_edger="/drive3/work/paragen/output_time_filter/",output_deseq="/drive3/work/paragen/output_time_filter/", ensembl_annotate = org.Mm.eg.db)
+
+de_group <- buildSummarized(summarized = "/drive3/work/paragen/output_group/se.R")
+
+multi_de_pairs(summarized = de_group,  ruv_correct = TRUE, plot_dir="/drive3/work/paragen/output_group/",output_combined="/drive3/work/paragen/output_group/",output_voom="/drive3/work/paragen/output_group/",output_edger="/drive3/work/paragen/output_group/",output_deseq="/drive3/work/paragen/output_group/", ensembl_annotate = org.Mm.eg.db)
+
+de_group_filter <- buildSummarized(summarized = "/drive3/work/paragen/output_group/se.R", filter=TRUE)
+
+multi_de_pairs(summarized = de_group_filter,  ruv_correct = TRUE, plot_dir="/drive3/work/paragen/output_group_filter/",output_combined="/drive3/work/paragen/output_group_filter/",output_voom="/drive3/work/paragen/output_group_filter/",output_edger="/drive3/work/paragen/output_group_filter/",output_deseq="/drive3/work/paragen/output_group_filter/", ensembl_annotate = org.Mm.eg.db)
+
+
+#Mouse annotation
+/drive3/work/RNASeq/annotate_consensus.pl -anno /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/mm10_anno.gene -dir /drive3/work/paragen/output_group_filter
+/drive3/work/RNASeq/annotate_consensus.pl -anno /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/mm10_anno.gene -dir /drive3/work/paragen/output_group
+/drive3/work/RNASeq/annotate_consensus.pl -anno /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/mm10_anno.gene -dir /drive3/work/paragen/output_time_filter
+/drive3/work/RNASeq/annotate_consensus.pl -anno /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/mm10_anno.gene -dir /drive3/work/paragen/output_time
+
+
+#Troubleshoot
+1) Remove Tcells (only 2 samples) -> didn't work
+de_group_noTcells <- de_group[,grep("^1_",colnames(de_group),inv=T)]
+colData(de_group_noTcells)[[2]] <- as.factor(c("aIL12","aIL12","aIL12","aIL12","aIL12","aIL12","aIL12","aIL12","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","NaAIP","PBS","PBS","PBS","PBS","PBS","PBS","PBS","PBS","TNA","TNA","TNA","TNA","TNA","TNA","TNA","TNA"))
+
+OR
+
+keep <- colnames(de_group) == c("T6_PBS_3_S6Aligned.sortedByCoord.out.bam", "T24_GRN_1_S31Aligned.sortedByCoord.out.bam")
+summarized_in <- subset(de_group, select=keep)
+
+2) More aggresive filtering (this worked)
+keep <- filterByExpr(assays(de_group)$counts, group=colData(de_group)$group,min.count = 100)
+de_group_filter <- de_group[rownames(de_group)[keep] ,]
+
+
+3) Get rid of NA genes (this worked better;start with 54532 genes) -> output_group_noNA
+de_group <- buildSummarized(summarized = "/drive3/work/paragen/output_group_nofilter/se.R")
+short_ens <- gsub("\\..*","",rownames(de_group))
+rowData(de_group)$go <- mapIds(org.Mm.eg.db,keys=short_ens,column="GO",keytype="ENSEMBL",mutliVals="first")
+keep <- !isNA(rowData(de_group)$go)
+de_group_noNA <- de_group[rownames(de_group)[keep],] -> Leaves 21808 genes)
+
+
+-> Run without filtering 
+multi_de_pairs(summarized = de_group_noNA,output_combined="/drive3/work/paragen/output_group_nofilter/",plot_dir="/drive3/work/paragen/output_group_nofilter/",ensembl_annotate = org.Mm.eg.db, ruv_correct = TRUE)
+
+
+-> Now filter (16244 genes left)
+group_filter <- filterByExpr(assays(de_group_noNA)$counts, group=colData(de_group_noNA)$group)
+de_group_noNA_filter <- de_group_noNA[rownames(de_group_noNA)[group_filter],]
+
+multi_de_pairs(summarized = de_group_noNA_filter,output_combined="/drive3/work/paragen/output_group_filter/",plot_dir="/drive3/work/paragen/output_group_filter/",ensembl_annotate = org.Mm.eg.db, ruv_correct = TRUE)
+
+
+-> Try filter 100 (13546 genes)
+group_filter100 <- filterByExpr(assays(de_group_noNA)$counts, group=colData(de_group_noNA)$group,min.count = 100)
+de_group_noNA_filter100 <- de_group_noNA[rownames(de_group_noNA)[group_filter100],]
+
+multi_de_pairs(summarized = de_group_noNA_filter100,output_combined="/drive3/work/paragen/output_group_filter100/",plot_dir="/drive3/work/paragen/output_group_filter100/",ensembl_annotate = org.Mm.eg.db, ruv_correct = TRUE)
+
+In the end, the PBS/NaIP1 comparison didn't work due to signal of NA genes (possibly polyA issues). After removing the NA genes it works.
+
+
+

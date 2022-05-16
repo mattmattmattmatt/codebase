@@ -1,0 +1,261 @@
+ntm <- read.csv("NTM.csv",header=TRUE)
+ntm.ts <- ts(ntm$Cases,start=2012,end=2019)
+auto.arima(ntm.ts) -> gave 0,1,0 but don't use
+From http://people.duke.edu/~rnau/411arim2.htm
+Recommend 0,2,0 if the data isn't stationary meaning it likely hasn't peaked despite the plateauing observed for the last 2-3 years
+
+ntm_model <- arima(ntm.ts, order=c(0,2,0))
+plot(forecast(ntm_model,h=21,level=c(5,10,25)),ylab = "Annual Queensland NTM Cases", xlab = "Year", main = "Annual NTM Cases in Queensland Predicted until 2040",showgap=FALSE)
+
+
+#PCA analysis for Champa's paper
+> CD4_Nano <- read.csv2("CD4_Nano.csv",header=TRUE,sep="\t",stringsAsFactors = FALSE)
+> CD4_Nano[] <- lapply(CD4_Nano,as.double)
+> CD4_Nano.PCA <- prcomp(CD4_Nano,retx=TRUE,scale=TRUE,center=TRUE)
+> CD4_Nano.PCA
+> screeplot(CD4_Nano.PCA)
+> plot(CD4_Nano.PCA$x[,1],CD4_Nano.PCA$x[,2],col=factor(CD4_Nano$Category))
+> plot(CD4_Nano.PCA$x[,1],CD4_Nano.PCA$x[,3],col=factor(CD4_Nano$Category))
+> plot(CD4_Nano.PCA$x[,2],CD4_Nano.PCA$x[,3],col=factor(CD4_Nano$Category))
+> aload_Nano_CD4 <- abs(CD4_Nano.PCA$rotation)
+> Nano_CD4 <- sweep(aload_Nano_CD4,2,colSums(aload_Nano_CD4),"/")
+> print(Nano_CD4[,1:4]) #4 b/c top four dim >10% contribution; copy/paste and run
+> cat CD4_Nano_PCA_contr.csv  | awk '{print $1,$2+$3+$4+$5}' | sort +1nr -2 > CD4_Nano_PCA_contr_sum.csv
+
+
+#Same for PMA file -> have to change na's to 0
+> CD4_PMA[is.na(CD4_PMA)] <- 0
+> aload_PMA_CD4 <- abs(CD4_PMA.PCA$rotation)
+> PMA_CD4 <- sweep(aload_PMA_CD4,2,colSums(aload_PMA_CD4),"/")
+> print(PMA_CD4[,1:3]) -> First 3 dimensions
+> cat CD4_PMA_PCA_contr.csv  | awk '{print $1,$2+$3+$4}' | sort +1nr -2 > CD4_PMA_PCA_contr_sum.csv
+
+#Use template file
+cat R_template  | sed -e 's/CD4/CD8/g' -e 's/Nano/PMA/g'
+
+
+#Random forest
+> CD4_Nano_factor <- CD4_Nano
+> CD4_Nano_factor[57:64,1] <- 2 #Convert to simply COPD or control (remove MACS MABS)
+> CD4_Nano_factor$Category <- as.character(CD4_Nano_factor$Category)
+> CD4_Nano_factor$Category <- as.factor(CD4_Nano_factor$Category)
+> CD4_Nano_factor <- droplevels(CD4_Nano_factor) 
+> randomForest(formula = Category ~ .,data = CD4_Nano_factor, ntree=1000, proximity=TRUE)
+
+Call:
+ randomForest(formula = Category ~ ., data = CD4_Nano_factor,      ntree = 1000, proximity = TRUE) 
+               Type of random forest: classification
+                     Number of trees: 1000
+No. of variables tried at each split: 11
+
+        OOB estimate of  error rate: 15.62%
+Confusion matrix:
+   0  2 class.error
+0 29  4   0.1212121
+2  6 25   0.1935484
+
+
+#Run 100 times varying mtry
+set.seed(859403)
+mtry = 1:100
+oob = data.frame()
+
+for (i in mtry) {
+
+  rf1 <- randomForest(Category ~ ., data=CD4_Nano_factor, ntree=2000, mtry=i) 
+
+  result = data.frame(mtry=i, 
+                      OOB=rf1[["err.rate"]][nrow(rf1[["err.rate"]]),"OOB"])
+  oob = rbind(oob, result)
+}
+
+mean(oob$OOB) -> 16.9% error
+
+
+oob = data.frame()
+
+#Run without mtry 100 times
+for (i in 100 ) {
+
+  rf1 <- randomForest(Category ~ ., data=CD4_Nano_factor, ntree=2000) 
+
+  result = data.frame(i, 
+                      OOB=rf1[["err.rate"]],"OOB")
+  oob = rbind(oob, result)
+}
+
+mean(oob$OOB.OBB) -> 18.27%
+
+
+#For CD8s
+CD8_Nano_factor[24:31,1] <- 2
+oob2 = data.frame()
+
+for (i in mtry) {
+
+  rf1 <- randomForest(Category ~ ., data=CD8_Nano_factor, ntree=2000, mtry=i) 
+
+  result = data.frame(mtry=i, 
+                      OOB=rf1[["err.rate"]][nrow(rf1[["err.rate"]]),"OOB"])
+  oob2 = rbind(oob2, result)
+}
+
+mean(oob2$OOB) -> 22.84% error
+
+
+
+oob2 = data.frame()
+
+#Run without mtry 100 times
+for (i in 100 ) {
+
+  rf1 <- randomForest(Category ~ ., data=CD8_Nano_factor, ntree=2000) 
+
+  result = data.frame(i, 
+                      OOB=rf1[["err.rate"]],"OOB")
+  oob2 = rbind(oob2, result)
+}
+
+mean(oob2$OOB.OBB) -> 24.75%
+
+
+#Combined FACS and NS
+./combine.pl (change filenames)
+CD4_combined_inf.csv -> infected/unaffected status
+CD4_combined_MACMAB.csv -> only MAC/MAB status (1 -> MAB, 2 -> MAC)
+
+
+> CD4_combined_inf <- read.csv2("CD4_combined_inf.csv",header=TRUE,sep="\t",stringsAsFactors = FALSE)
+> CD4_combined_inf[] <- lapply(CD4_combined_inf,as.double)
+> CD4_combined_inf$Infected <- as.character(CD4_combined_inf$Infected)
+> CD4_combined_inf$Infected <- as.factor(CD4_combined_inf$Infected)
+> randomForest(formula = Infected ~ .,data = CD4_combined_inf, ntree=2000, proximity=TRUE)
+
+oob <- data.frame()
+for (i in 100 ) {
+  rf1 <- randomForest(Infected ~ ., data=CD4_combined_inf, ntree=2000, mtry=100) 
+  result = data.frame(i, OOB=rf1[["err.rate"]],"OOB")
+  oob = rbind(oob, result)
+}
+
+mean(oob$OOB.OOB) -> 10.1%
+
+oob2 <- data.frame()
+mtry <- 50:150 #Best performing range
+for (i in mtry) {
+  rf1 <- randomForest(Infected ~ ., data=CD4_combined_inf, ntree=2000, mtry=i) 
+  result = data.frame(mtry=i, OOB=rf1[["err.rate"]][nrow(rf1[["err.rate"]]),"OOB"])
+  oob2 = rbind(oob2, result)
+}
+
+mean(oob2$OOB) -> 11.2%
+
+
+
+
+> CD8_combined_inf <- read.csv2("CD8_combined_inf.csv",header=TRUE,sep="\t",stringsAsFactors = FALSE)
+> CD8_combined_inf[] <- lapply(CD8_combined_inf,as.double)
+> CD8_combined_inf$Infected <- as.character(CD8_combined_inf$Infected)
+> CD8_combined_inf$Infected <- as.factor(CD8_combined_inf$Infected)
+> randomForest(formula = Infected ~ .,data = CD8_combined_inf, ntree=2000, proximity=TRUE)
+
+> for (i in 100 ) {
++     rf1 <- randomForest(Infected ~ ., data=CD8_combined_inf, ntree=2000, mtry=100) 
++     result = data.frame(i, OOB=rf1[["err.rate"]],"OOB")
++     oob = rbind(oob, result)
++ }
+> mean(oob$OOB.OOB)
+[1] 0.2545535 -> doesn't improve over mtry values really
+
+#MACMAB
+> CD4_combined_macmab <- read.csv2("CD4_combined_MACMAB.csv",header=TRUE,sep="\t",stringsAsFactors = FALSE)
+> CD4_combined_macmab[] <- lapply(CD4_combined_macmab,as.double)
+> CD4_combined_macmab$Category <- as.character(CD4_combined_macmab$Category)
+> CD4_combined_macmab$Category <- as.factor(CD4_combined_macmab$Category)
+> randomForest(Category ~ ., data=CD4_combined_macmab,ntree=2000)
+
+oob2 <- data.frame()
+mtry <- 50:150 #Best performing range
+for (i in mtry) {
+    rf1 <- randomForest(Infected ~ ., data=CD4_combined_inf, ntree=2000, mtry=i) 
+    result = data.frame(mtry=i, OOB=rf1[["err.rate"]][nrow(rf1[["err.rate"]]),"OOB"])
+    oob2 = rbind(oob2, result)
+}
+
+mean(oob2$OOB) -> 11.7%
+
+> for (i in 100 ) {
+     rf1 <- randomForest(Category ~ ., data=CD4_combined_macmab, ntree=2000, mtry=100) 
+     result = data.frame(i, OOB=rf1[["err.rate"]],"OOB")
+     oob = rbind(oob, result)
+ }
+> mean(oob$OOB.OOB)
+[1] 0.07841067
+[1] 0.04298844
+[1] 0.04104025
+[1] 0.05914271
+
+> oob <- data.frame()
+> for (i in 100 ) {
++     rf1 <- randomForest(Category ~ ., data=CD8_combined_macmab, ntree=2000, mtry=100) 
++     result = data.frame(i, OOB=rf1[["err.rate"]],"OOB")
++     oob = rbind(oob, result)
++ }
+> mean(oob$OOB.OOB)
+[1] 0.07750784
+[1] 0.06729562
+[1] 0.07757352
+[1] 0.0786544
+
+
+#Generate AUC
+library(ROCR)
+CD4_combined_macmab <- read.csv2("CD4_combined_MACMAB.csv",header=TRUE,sep="\t",stringsAsFactors = FALSE)
+CD4_combined_macmab[] <- lapply(CD4_combined_macmab,as.double)
+CD4_combined_macmab$Category <- as.character(CD4_combined_macmab$Category)
+CD4_combined_macmab$Category <- as.factor(CD4_combined_macmab$Category)
+library(randomForest)
+rf1 <- randomForest(Category ~ ., data=CD4_combined_macmab, ntree=2000, mtry=100) 
+pred1=predict(rf1,type = "prob")
+perf = prediction(pred1[,2], CD4_combined_macmab$Category)
+auc = performance(perf, "auc")
+auc@y.values[[1]] -> 0.942029
+
+
+For CD8
+auc@y.values[[1]] -> 0.9772727
+
+#split into train/test
+CD8_combined_macmab_train <- CD8_combined_macmab[2:20,]
+CD8_combined_macmab_test <- CD8_combined_macmab[c("1","21","22","23","24","25","26"),]
+
+
+#To few MABS for this with combined set; instead use NANO set (8 MABS)
+cat CD4_Nano.csv | grep -v ^0 > CD4_Nano_macmab.csv
+cat CD8_Nano.csv | grep -v ^0 > CD8_Nano_macmab.csv
+
+library(caret)
+library(randomForest)
+CD8_macmab <- read.csv2("CD8_Nano_macmab.csv",header=TRUE,sep="\t",stringsAsFactors = FALSE)
+CD4_macmab <- read.csv2("CD4_Nano_macmab.csv",header=TRUE,sep="\t",stringsAsFactors = FALSE)
+CD4_macmab[] <- lapply(CD4_macmab,as.double)
+CD8_macmab[] <- lapply(CD8_macmab,as.double)
+CD4_macmab$Category <- as.character(CD4_macmab$Category)
+CD4_macmab$Category <- as.factor(CD4_macmab$Category)
+CD8_macmab$Category <- as.character(CD8_macmab$Category)
+CD8_macmab$Category <- as.factor(CD8_macmab$Category)
+CD4_macmab_training <- CD4_macmab[8:29,]
+CD8_macmab_training <- CD8_macmab[8:29,]
+CD8_macmab_test <- CD8_macmab[c("1","2","3","4","5","6","7","30","31"),]
+CD4_macmab_test <- CD4_macmab[c("1","2","3","4","5","6","7","30","31"),]
+CD4_macmab_rf <- randomForest(Category ~ ., data=CD4_macmab_training, ntree=2000, mtry=100) 
+CD8_macmab_rf <- randomForest(Category ~ ., data=CD8_macmab_training, ntree=2000, mtry=100)
+CD4_pred <- predict(CD4_macmab_rf,CD4_macmab_test)
+CD8_pred <- predict(CD8_macmab_rf,CD8_macmab_test)
+confusionMatrix(CD4_pred,CD4_macmab_test$Category)
+confusionMatrix(CD8_pred,CD8_macmab_test$Category)
+
+varImpPlot(CD4_macmab_rf)
+varImpPlot(CD8_macmab_rf)
+
+

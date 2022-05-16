@@ -1,0 +1,54 @@
+From Ramon:
+I would be happy if you could process the data similar to the Trichuris muris approach. This time I have triplicates.
+
+Here’s the link to download the data:
+
+https://basespace.illumina.com/s/Tu0zJt886H7F
+
+ - Most related parasite in miRBASE are Haemonchus contortus and the Caenorhabditis sp.; but it’s probably better to use the whole combined nematode group, as we have done for Trichuris?
+
+- The reference genome is Nippostrongylus brasiliensis (http://parasite.wormbase.org/Nippostrongylus_brasiliensis_prjeb511/Info/Index/)
+
+- Probably try to use the approach like for Trichuris muris? See below the commands you send to me the last time.
+
+Combine three samples
+cat Nb-miRNA-1* >> sample1.fastq.gz
+cat Nb-miRNA-2-4_S2_L00* >> sample2.fastq.gz
+cat Nb-miRNA-3* >> sample3.fastq.gz
+
+No adaptor contamination this time (fastqc run)
+Not sure how to get miRNA?
+
+Make mirdeep work (need to add to PATH)
+export PATH="/home/matt/software/miRNA/mirdeep2/bin":$PATH
+
+>bowtie-build nippo.fa nippo
+>mapper.pl sample1.fastq -e -h -m -p nippo -s nippo_aligned_sample1.fa -t nippo_reads_vs_genome_sample1.arf -v
+
+Poor mapping:
+Sample1: seq: 39943975	35388	39908587	0.001	0.999
+Sample2: seq: 50411527	36891	50374636	0.001	0.999
+Sample3: seq: 50152195	144422	50007773	0.003	0.997
+
+mirdeep2 fails after this point....
+
+
+
+
+After contacting QIAGEN was told:
+***
+5’ adapter: GTTCAGAGTTCTACAGTCCGACGATC
+3’ adapter: AACTGTAGGCACCATCAAT
+***
+
+So run:
+>cutadapt -b GTTCAGAGTTCTACAGTCCGACGATC  -a AACTGTAGGCACCATCAAT -O 3 -m 17 -f fastq -q 20 sample1.fastq -o sample1.cutadapt.fastq --too-short-output=sample1.tooshort.fastq
+
+>mapper.pl sample3.cutadapt.fastq -e -h -m -p nippo -s nippo_aligned_sample3.fa -t nippo_reads_vs_genome_sample3.arf -v
+
+Better mapping:
+Sample1: seq: 24824677	4380561	20444116	0.176	0.824
+Sample2: seq: 20745038	7167146	13577892	0.345	0.655
+Sample3: seq: 42877129	21235203 21641926	0.495	0.505
+
+miRDeep2.pl /drive3/work/miRNA/nippostrongylus/nippo_aligned_sample2.fa /drive3/work/miRNA/nippostrongylus/nippo_mirdeep.fa /drive3/work/miRNA/nippostrongylus/nippo_reads_vs_genome_sample2.arf none /drive3/work/miRNA/nippostrongylus/mature_related_nippo.fa none

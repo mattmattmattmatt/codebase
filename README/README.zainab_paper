@@ -1,0 +1,93 @@
+conda activate qiime2-2018.4
+
+#Need to merge zainab 1 and 2 into experiment for paper.  Using calypso files for sample info, exclusion, etc.
+
+#Take calypso biom and create tsv
+biom convert -i otu_table_filtered.biom -o otu_table_filtered.tsv --to-tsv --table-type="OTU table"
+
+
+#Create new mapping file with consistent syntax and experiment column
+cat qiime1_map.tsv  qiime2_map.tsv >> qiime_map.tsv
+
+#remove four low count sample (delete columns)
+
+
+./merge_biom.pl > otu_table_filtered_renamed.tsv
+
+cat ../../zainab1/qiime_obs.txt ../../zainab2/qiime_obs.txt >> qiime_obs.txt (edit to remove duplicate header)
+
+cat qiime_obs.txt | sort | uniq > qiime_obs_uniq.txt (put #OTU at top)
+
+biom add-metadata -i otu_table_filtered_renamed.tsv -o otu_table_filtered_renamed_meta.biom --observation-metadata-fp qiime_obs_uniq.txt --sc-separated taxonomy -m qiime_map_filtered.tsv
+
+conda activate qiime1
+{matt@matt-linux ~/miniconda2/envs/qiime1/lib/python2.7/site-packages}
+>ln -s /home/matt/miniconda2/lib/python2.7/site-packages/numpy .
+
+~/miniconda2/bin/summarize_taxa_through_plots.py -i
+
+#Failed miserably, move on to use phyloseq
+#Loading same as Andreas full set
+
+#Diet had big impact
+p = plot_bar(phylo,x="Diet",fill="Family")
+p+geom_bar(aes(color=Genus, fill=Genus), stat="identity", position="stack")+ggtitle("Bacterial Abundance by Diet")
+
+
+#No much difference so supplemental
+p = plot_bar(phylo,x="Naive_TX",fill="Family")
+p+geom_bar(aes(color=Family, fill=Family), stat="identity", position="stack")+ggtitle("Bacterial Abundance Differences by Nippo Treatment")
+
+#Diversity by Diet
+p = plot_richness(phylo,measures=c("Shannon"),color="Diet",x="Diet")+ylim(0,4)
+p + geom_point(sizes=5,alpha=0.7) + ggtitle("Shannon Diversity by Diet")
+
+#Not much impact for nippo again
+p = plot_richness(phylo,measures=c("Shannon"),color="Diet",x="Naive_TX")+ylim(0,4)
+p + geom_point(size=5,alpha=0.7) + ggtitle("Shannon Diversity by Nippo Treatment")
+
+
+#Do DESeq2 for diet and nippo and group
+
+NaiveTX_phy_deseq <- phyloseq_to_deseq2(phylo, ~Naive_TX)
+NaiveTX_phy_deseq <- DESeq(NaiveTX_phy_deseq, test="Wald", fitType="parametric",sfType="poscounts")
+res_Naive_TX <- results(NaiveTX_phy_deseq,cooksCutoff = FALSE, contrast=c("Naive_TX","Naive","TX"))
+res_Naive_TX <- res_Naive_TX[which(res_Naive_TX$padj<0.1),]
+res_Naive_TX <- res_Naive_TX[order(res_Naive_TX$padj,decreasing = FALSE),]
+res_Naive_TX <- cbind(as(res_Naive_TX,"data.frame"), as(tax_table(phylo)[rownames(res_Naive_TX), ], "matrix"))
+write.table(res_Naive_TX,file="./TX_vs_Naive.tsv",sep="\t")
+
+
+Diet_phy_deseq <- phyloseq_to_deseq2(phylo, ~Diet)
+Diet_phy_deseq <- DESeq(Diet_phy_deseq, test="Wald", fitType="parametric",sfType="poscounts")
+
+res_diet_norm_GI <- results(Diet_phy_deseq,cooksCutoff = FALSE, contrast=c("Diet","Normal","HighGI"))
+res_diet_norm_GI <- res_diet_norm_GI[which(res_diet_norm_GI$padj<0.1),]
+res_diet_norm_GI <- res_diet_norm_GI[order(res_diet_norm_GI$padj,decreasing = FALSE),]
+res_diet_norm_GI <- cbind(as(res_diet_norm_GI,"data.frame"), as(tax_table(phylo)[rownames(res_diet_norm_GI), ], "matrix"))
+write.table(res_diet_norm_GI,file="./diet_norm_vs_GI.tsv",sep="\t")
+
+res_diet_norm_HF <- results(Diet_phy_deseq,cooksCutoff = FALSE, contrast=c("Diet","Normal","HighFat"))
+res_diet_norm_HF <- res_diet_norm_HF[which(res_diet_norm_HF$padj<0.1),]
+res_diet_norm_HF <- res_diet_norm_HF[order(res_diet_norm_HF$padj,decreasing = FALSE),]
+res_diet_norm_HF <- cbind(as(res_diet_norm_HF,"data.frame"), as(tax_table(phylo)[rownames(res_diet_norm_HF), ], "matrix"))
+write.table(res_diet_norm_HF,file="./diet_norm_vs_HF.tsv",sep="\t")
+
+res_diet_GI_HF <- results(Diet_phy_deseq,cooksCutoff = FALSE, contrast=c("Diet","HighGI","HighFat"))
+res_diet_GI_HF <- res_diet_GI_HF[which(res_diet_GI_HF$padj<0.1),]
+res_diet_GI_HF <- res_diet_GI_HF[order(res_diet_GI_HF$padj,decreasing = FALSE),]
+res_diet_GI_HF <- cbind(as(res_diet_GI_HF,"data.frame"), as(tax_table(phylo)[rownames(res_diet_GI_HF), ], "matrix"))
+write.table(res_diet_GI_HF,file="./diet_GI_vs_HF.tsv",sep="\t")
+
+
+> res_group_norm <- results(Group_phy_deseq,cooksCutoff = FALSE,contrast = c("Group","NaiveNorm","NippoNorm"))
+> res_group_hgi <- results(Group_phy_deseq,cooksCutoff = FALSE,contrast = c("Group","NaiveHGI","NippoHGI"))
+> res_group_hfd <- results(Group_phy_deseq,cooksCutoff = FALSE,contrast = c("Group","NaiveHFD","NippoHFD"))
+
+#Generate symmetric plots
+
+plot_ly(x = res_Naive_TX$log2FoldChange, y=res_Naive_TX$Family,orientation='h', type='bar', color=res_Naive_TX$Order,colors="Dark2") %>% layout(barmode = 'stack', title="Differential Abundant Families in Naive vs Treated Mice") 
+
+Make pie chart
+
+

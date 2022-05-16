@@ -1,0 +1,18 @@
+Tim Peters in our group has offered to try out some clustering/phylogenetic tools designed for noisy single cell data on the WGS orange vs blue dataset. This is to see if the orange and blue cells cluster from mutations genome-wide like they do with VDJ-mutations. Would you be able to send him some of this data so he can try it out?
+
+The data we need is a matrix of variants x cells with the following entries: 0 for reference, 1 for mutation (either HET or HOM) and 3 for no call. See: https://github.com/cbg-ethz/BnpC#Usage. For this analysis we would also need somatic variants that are also common to both branches in addition to those unique to either orange and blue – so basically just variants that are mut in any of the rogue cells and ref in the memory pools.  Also don’t include a cell number cut-off so also include variants present in one cell too as the tool probably needs to include this to model errors. I imagine this matrix will be quite large!
+
+For consistency to the analysis I presented at lab meeting I was wondering if you could filter the samples in the same way that I did for the combined 2011 and 2013 dataset:
+
+Variants need to be “REF” in both memory pools (i.e. can’t have a variant that is “no call” in one pool and “ref” in the other, both need to be “ref”)
+    I removed variants that had a rs number in the “dbsnp” column
+    I removed variants with > 0.001 in the “gnomad” column
+    I removed any variants that had a no_data entry present in 30 or more cells.
+
+If you could generate a matrix for the combined 2013 and 2011 dataset but also individually for the 2011 and 2013 that would be great!
+
+Run matrix.pl
+
+Wanted regular report for both branches in at least two samples.
+>cat 2011_2013_somatic_both_branches_full.tsv | extract -t '_4 !~ /^1/' > 2011_2013_somatic_both_branches_2samples.tsv
+

@@ -1,0 +1,4 @@
+sample_table <- read.csv2("~/g/mxf221/TB_RNASeq/TB_file_metadata.csv",sep="\t",header=T)
+TB_SE <- buildSummarized(sample_table = sample_table, bam_dir="/g/data/u86/mxf221/TB_RNASeq/output/", gtf="/g/data/u86/mxf221/ref_genomes/GRCh38/GRCh38.gtf",strand_mode=2,n_cores=16,BamFileList_yieldsize=2000000) ; i
+save(TB_SE,file="/g/data/u86/mxf221/TB_RNASeq/consensusDE/TB_SE.r")
+

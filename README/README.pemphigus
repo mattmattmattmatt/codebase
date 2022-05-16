@@ -1,0 +1,50 @@
+If you recall from when you came to visit Garvan in February I mentioned there was some capture-sequencing data from antigen-specific B cells from a patient with pemphigus vulgaris  on the way. I’ve just got that data now, would you be able to take a look at it?
+
+ 
+
+The data is similar to the previous rogue G&T-seq capture sequencing data. There are two groups of cells sorted by flow cytometry: rogue B cells specific for DSG3 (DSG3+), which is the autoantigen in pemphigus, and matched control cells (DSG3-). Unlike the previous rogue clones you analysed in Sjogren’s syndrome there are multiple expanded clones within the rogue DSG3+ population that vary in frequency from n=5 to n=2 cells so it will be interesting to see if somatic mutations have been acquired by these clones independently, or by a progenitor cell and therefore present in all the clones. It is going to be difficult to detect mutations in n=2 cells however, given the allelic dropout rate of ~50%.
+
+Would you be able to produce a table like previously of somatic variants found in DSG3+ cells but not DSG3- cells and a table of all variants?   
+
+Data was sequenced over 2 runs and is located at:
+
+Runs:
+https://basespace.illumina.com/s/mr3VUsFP5wJg
+https://basespace.illumina.com/s/itllMFzVvu8w
+
+Projects:
+https://basespace.illumina.com/s/lrYRvyx36NOx
+https://basespace.illumina.com/s/mISgcApUlOdO
+
+Get data
+>bs list dataset | grep Pemphigus | cut -d '|' -f2 | sed -e 's/ //g' > pemphigus_samples
+>for f in `cat pemphigus_samples`; do bs download dataset -n ${f} -o Pemphigus_${f}; done
+
+Concat data
+>for f in `cat ../pemphigus_samples`; do echo $f; cat ${f}*R1_001.fastq.gz >> ${f}_R1.fastq.gz; done 
+
+>for f in `cat ../pemphigus_samples`; do echo $f; cat ${f}*R2_001.fastq.gz >> ${f}_R2.fastq.gz; done 
+
+cd /g/data/u86/mxf221/Goodnow/pemphigus
+>~/g/variantdb/trunk/utils/quick_gatk_qsub.pl -readdir reads/ -outdir runs/ -qsubdir  qsub -sample_list pemphigus_samples -template template_38.qsub 
+
+>cat joint_calls.vcf | grep -v ^NC | grep -v ^Un | grep -v random  > joint_calls_chr.vcf
+
+#Generate vep.in
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls_chr.vcf -outdir results/ -outfile pemphigus_all_variants.tsv
+
+#Copy vep.in to raijin and start job
+qsub -I -P pq84 -q express -l walltime=24:00:00,jobfs=100GB,mem=64Gb,ncpus=4 -l storage=gdata/u86+scratch/u86+gdata/xx92
+
+~/g/variantdb/v2.38/utils/vep_wrapper.pl -vep_in vep.in -vep_bin /g/data/u86/software/vep/ensembl-vep/vep > joint_calls.txt.vep.exon
+
+~/g/variantdb/v2.38/utils/vep_wrapper.pl -vep_in vep.in -vep_bin /g/data/u86/software/vep/ensembl-vep/vep -all > joint_calls.txt.vep.all
+
+#Copy vep files back to results dir
+
+grep pos pemphigus_samples | awk '{print $0"_L1"}' > pemphigus_somatic_samples
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -outfile pemphigus_all_variants.tsv
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -somatic -sample_file pemphigus_somatic_samples -no_run -outfile pemphigus_somatic_variants.tsv
+

@@ -1,0 +1,195 @@
+10X data
+
+~/g/software/cellranger/cellranger count --id=Ascites_run --fastqs=/g/data/u86/mxf221/CarT/Ascites_Day548 --transcriptome=/g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/ --localcores=16 --localmem=128
+
+/g/data/u86/software/subset-bam/subset-bam_linux --bam possorted_genome_bam.bam --cores 16 --out-bam AAACCCAAGGAAAGAC.bam --cell-barcodes test_barcode.txt
+
+samtools view possorted_genome_bam.bam | perl -n -e'my @fields=split;/CB:Z:([A-Z]+-1)/ && print "$1\t$fields[0]\t$fields[2]\t$fields[3]\t$fields[5]\n"' > Ascites_tag_to_reads.txt
+
+#Simpler, create modified BAM with UID in tag
+samtools view possorted_genome_bam.bam | perl -n -e'my @fields=split;my ($tag) = $_ =~ /CB:Z:([A-Z]+)/; my $new_tag=$fields[0].":UID=".$tag; shift @fields; if ($new_tag =~ /UID=[ACTG]/) {print join("\t", $new_tag,@fields)."\n"}' | samtools view -@ 16 -b -T /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa -o uid_possorted_genome_bam.bam - 
+
+#Feed into DeepSNVMiner
+~/software/variantcall/DeepSNVMiner/run_deepseq.pl -start_command call_variants -filename_stub CarT -working_dir DeepSNVMiner_out/ -read1_fastq read1.fastq -read2_fastq read2.fastq -coord_bed GRCh38_exon_plus50.bed -ref_fasta genome.fa -no_adaptor -conf_file deepseq.conf
+
+#Issue that the single cell is not from a single genomic location so need change the cutoffs; don't worry about fraction, just require 2 reads variant and 100 in group
+perl -ne '@cols = split /\s/; print if $cols[6] >= 100 && $cols[5] > 1;' variant_summary.txt  > CarT.single_supermutants.txt
+/g/data/u86/software/DeepSNVMiner//scripts/final_summary.pl -sm_file CarT.single_supermutants.txt -filestub CarT -min_group 2
+cp CarT.pass_group_supermutants.tsv CarT.pass_group_supermutants_2groups.tsv
+/g/data/u86/software/DeepSNVMiner//scripts/final_summary.pl -sm_file CarT.single_supermutants.txt -filestub CarT -min_group 3
+cp CarT.pass_group_supermutants.tsv CarT.pass_group_supermutants_3groups.tsv
+
+
+#Try GATK pipe from BAM to simulate group calling
+java -jar -Djava.io.tmpdir=/g/data/u86/mxf221/tmp  /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T SplitNCigarReads -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa  -I /g/data/u86/mxf221/CarT/Ascites_Day548/CarT.bam -o /g/data/u86/mxf221/CarT/Ascites_Day548/CarT_fix.bam  -rf ReassignOneMappingQuality -RMQF 255 -RMQT 60 -U ALLOW_N_CIGAR_READS
+
+#Had to sync up known files and make dict file
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T BaseRecalibrator -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa -I /g/data/u86/mxf221/CarT/Ascites_Day548/CarT_fix.bam -knownSites /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/dbsnp138.vcf -knownSites /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/Mills.indels.hg38.vcf -o /g/data/u86/mxf221/CarT/Ascites_Day548/CarT.table
+
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T PrintReads -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa -I /g/data/u86/mxf221/CarT/Ascites_Day548/CarT_fix.bam -BQSR /g/data/u86/mxf221/CarT/Ascites_Day548/CarT.table -o /g/data/u86/mxf221/CarT/Ascites_Day548/CarT.recal.bam
+
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -ERC GVCF -dontUseSoftClippedBases -stand_call_conf 20.0 -stand_emit_conf 20.0 -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa -I /g/data/u86/mxf221/CarT/Ascites_Day548/CarT.recal.bam -o /g/data/u86/mxf221/CarT/Ascites_Day548/CarT.g.vcf.gz
+
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar  -T GenotypeGVCFs -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa -V /g/data/u86/mxf221/CarT/Ascites_Day548/CarT.g.vcf.gz -o /g/data/u86/mxf221/CarT/Ascites_Day548/CarT.vcf
+
+~/software/singlecell/vartrix_linux --bam possorted_genome_bam.bam --cell-barcodes barcodes.tsv --fasta genome.fa --vcf CarT_fix.vcf --threads 4 --out-variants vatrix_variants.txt
+
+#Try vartrix
+library(Seurat)
+library(Matrix)
+library(stringr)
+snv_matrix <- readMM("out_matrix.mtx")
+snv_matrix <- as.data.frame(as.matrix(snv_matrix))
+barcodes <- read.table("barcodes.tsv",header=F)
+snps <- read.table("SNV.loci.txt", header=F)
+colnames(snv_matrix) <- barcodes$V1
+row.names(snv_matrix) <- snps$V1
+write.table(snv_matrix,file="snv_matrix.tsv",sep="\t")
+gt_chr12_31090065 <- subset(snv_matrix, rownames(snv_matrix) %in% "chr12:31090065")
+gt_chr12_31090065_transpose <- data.frame(t(gt_chr12_31090065))
+gt_chr12_31090065_transpose$chr12.31090065 <- str_replace(as.character(gt_chr12_31090065_transpose$chr12.31090065),"1","ref/ref")
+gt_chr12_31090065_transpose$chr12.31090065 <- str_replace(as.character(gt_chr12_31090065_transpose$chr12.31090065),"2","alt/alt")
+gt_chr12_31090065_transpose$chr12.31090065 <- str_replace(as.character(gt_chr12_31090065_transpose$chr12.31090065),"3","alt/ref")
+
+
+#Else convert vatrix svn_matrix to similar to DSM
+cd /drive3/work/Goodnow/CarT/vatrix
+./vartrix_count.pl > vatrix_variant_count.tsv
+
+cat vatrix_variant_count.tsv  | awk '{if ($4+$5 >= 2) {print $0}}' > vatrix_variant_count_2groups.tsv
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf_in CarT_nochr.vcf -no_run -skip_vep -outdir gatk_results/ -outfile Pat2_Day548.tsv -vartrix_summary vartrix/vartrix_variant_count.tsv
+
+#Compare all from jonathan
+
+Reanalysed WGS and compared to 10X and GTSeq
+
+Variant totals:
+Day24 (donor)
+patient2_Day24_WGS_list.tsv 4835301
+patient2_Day24_10X_list.tsv 389676
+
+Overlap: 89210/389676 (22.9%)
+
+Day548 (Ascites)
+patient2_Day548_WGS_list.tsv 4784211
+patient2_Day548_10X_list.tsv 508654
+patient2_Day548_GTSeq_list.tsv 473326
+
+Overlap WGS/10X: 297423/508654 (58.5%)
+Overlap WGS/GT: 90200/473326 (19.1%)
+Overlap 10X/GT: 48262/473326 (10.2%)
+
+Somatic (Ascites but not donor)
+patient2_WGS_somatic_list.tsv 59931
+patient2_10X_somatic_list.tsv 81648
+
+Overalp WGS/10X: 164/59931 (0.27%)
+
+Filter based on vartrix output
+quick_annotate_vcf.pl -vcf_in CarT_nochr.vcf -no_run -skip_vep -outdir gatk_results/ -outfile patient2_test_v3t10p20.tsv -vartrix_summary vartrix/vartrix_variant_count.tsv -sc_min_portion 0.2 -sc_min_var 3 -sc_min_total 1
+
+#Upset plots#Generate key entries (diff allele column number due to vartrix)
+for f in patient2_Day548_WGS_report.tsv patient2_Day24_WGS_report.tsv patient2_Day548_GTseq_3samples_report.tsv; do echo $f; cat $f | grep ^[0-9XYM] | awk -F$'\t' '{print $1":"$2":"$11}' > `echo $f | sed -e 's/tsv/txt/'`; done
+
+for f in *10X*report.tsv; do echo $f; cat $f | grep ^[0-9XYM] | awk -F$'\t' '{print $1":"$2":"$14}' > `echo $f | sed -e 's/tsv/txt/'`; done
+
+> day548_10X <- read.csv("patient2_Day548_10X_v3t10p20_report.txt",header=F)
+> product_10X <- read.csv("patient2_Product_10X_v3t10p20_report.txt",header=F)
+> day548_GTSeq <- read.csv("patient2_Day548_GTseq_3samples_report.txt",header=F
+> day24_10X <- read.csv("patient2_Day24_10X_v3t10p20_report.txt",header=F)
+> single_cell_list = list(Day24_10X = day24_10X$V1,Day548_10X = day548_10X$V1, Day548 = day548_GTSeq$V1,Product = product_10X$V1)
+> upset(fromList(single_cell_list))
+
+#Get WGS overlaps only
+#First single cell varaints
+cat patient2_Day24_10X_v3t10p20_report.txt patient2_Day548_10X_v3t10p20_report.txt patient2_Day548_GTseq_3samples_report.txt patient2_Product_10X_v3t10p20_report.txt | sort | uniq > single_cell_variants
+
+cat patient2_Day24_WGS_report.txt | sort > patient2_Day24_WGS_report_sort.txt
+cat patient2_Day548_WGS_report.txt | sort > patient2_Day548_WGS_report_sort.txt
+join single_cell_variants patient2_Day24_WGS_report_sort.txt > patient2_Day24_WGS_report_overlap.txt
+join single_cell_variants patient2_Day548_WGS_report_sort.txt > patient2_Day548_WGS_report_overlap.txt
+
+#Add to upset
+> day24_WGS <- read.csv("patient2_Day24_WGS_report_overlap.txt",header=F)
+> day548_WGS <- read.csv("patient2_Day548_WGS_report_overlap.txt",header=F)
+> full_list = list(Day24_10X = day24_10X$V1,Day548_10X = day548_10X$V1, Product_10X = product_10X$V1, Day548_GTSeq = day548_GTSeq$V1, Day24_WGS = day24_WGS$V1, Day548_WGS = day548_WGS$V1)
+> upset(fromList(full_list))
+> noGT_list = list(Day24_10X = day24_10X$V1,Day548_10X = day548_10X$V1, Product_10X = product_10X$V1, Day24_WGS = day24_WGS$V1, Day548_WGS = day548_WGS$V1)
+> upset(fromList(noGT_list))
+
+
+#Insert piggybac
+grep \<INS\> somaticSV.vcf | cut -d '	' -f 1,2,8 | cut -d';' -f1,7,8 | sed -e 's/END=[[:digit:]]\+;//' -e 's/LEFT_SVINSSEQ=//' -e 's/;RIGHT_SVINSSEQ=/NNNNNNNNNN/' | awk '{print ">"$1":"$2,$3}' | tr " " "\n" > inserts.txt
+
+#Get somatic lists (can't use vartrix for > 1 sample) -> use 'diff' to avoid color and keys not matching
+'diff' patient2_Day24_10X_v3t10p20_report.txt patient2_Day548_10X_v3t10p20_report.txt | grep '>' | sed -e 's/> //' > somatic/10X_somatic_coords
+
+{matt@matt-linux /drive3/work/Goodnow/CarT/patient2/compare_all/somatic}
+>./make_report.pl
+
+#Day24_WGS is actually donor and Day548_GTSeq is Day24_GTSeq
+
+
+#new upset on 4 WGS
+matt@matt-linux /drive3/work/Goodnow/CarT/patient2/WGS/results_4samples/snvs}
+>cat patient2_WGS_all_variants.tsv | extract -delim "\t" -t "_36 eq 'het' | _36 eq 'hom'" |  grep ^[0-9XYM] | awk -F$'\t' '{print $1":"$2":"$11}' > ascites_all.txt
+>cat patient2_WGS_all_variants.tsv | extract -delim "\t" -t "_37 eq 'het' | _37 eq 'hom'" |  grep ^[0-9XYM] | awk -F$'\t' '{print $1":"$2":"$11}' > blood_all.txt
+#same for donor/product
+
+#Somatic
+cat patient2_WGS_all_variants.tsv | extract -delim "\t" -t "_36 eq 'het' | _36 eq 'hom'" |  extract -delim "\t" -t "_38 eq 'ref'" | grep ^[0-9XYM] | awk -F$'\t' '{print $1":"$2":"$11}' > ascites_somatic.txt
+cat patient2_WGS_all_variants_gene.tsv | extract -delim "\t" -t "_37 eq 'het' | _37 eq 'hom'" |  extract -delim "\t" -t "_38 eq 'ref'" | grep ^[0-9XYM] | awk -F$'\t' '{print $1":"$2":"$11}' > blood_somatic.txt
+cat patient2_WGS_all_variants_gene.tsv | extract -delim "\t" -t "_39 eq 'het' | _39 eq 'hom'" |  extract -delim "\t" -t "_38 eq 'ref'" | grep ^[0-9XYM] | awk -F$'\t' '{print $1":"$2":"$11}' > product_somatic.txt
+
+#Single cell -> remove no_data entries
+cat ../../../compare_all/somatic/full_lists/patient2_10X_somatic_report.tsv | extract -delim "\t" -t "_37 eq 'ref'" |  awk -F$'\t' '{print $1":"$2":"$11}' > ascites_sc_somatic.txt
+
+#upset for manta:
+cat results_joint/variants/diploidSV.vcf | grep -v ^# | grep -v Un_ | grep -v _random | grep -v Description | extract -t '_9 !~  /0\/0:/' | awk -F$'\t' '{print $1":"$2}' > ascites_manta.txt
+>cat results_joint/variants/diploidSV.vcf | grep -v ^# | grep -v Un_ | grep -v _random | grep -v Description | extract -t '_10 !~  /0\/0:/' | awk -F$'\t' '{print $1":"$2}' > blood_manta.txt
+>cat results_joint/variants/diploidSV.vcf | grep -v ^# | grep -v Un_ | grep -v _random | grep -v Description | extract -t '_11 !~  /0\/0:/' | awk -F$'\t' '{print $1":"$2}' > product_manta.txt
+>cat results_joint/variants/diploidSV.vcf | grep -v ^# | grep -v Un_ | grep -v _random | grep -v Description | extract -t '_12 !~  /0\/0:/' | awk -F$'\t' '{print $1":"$2}' > donor_manta.txt
+
+#somatic
+>cat results_joint/variants/diploidSV.vcf | grep -v ^# | grep -v Un_ | grep -v _random | grep -v Description | extract -t '_9 !~  /0\/0:/' | extract -t "_12 =~ /0\/0:/" | awk -F$'\t' '{print $1":"$2}' > ascites_manta_somatic.txt
+>cat results_joint/variants/diploidSV.vcf | grep -v ^# | grep -v Un_ | grep -v _random | grep -v Description | extract -t '_10 !~  /0\/0:/' | extract -t "_12 =~ /0\/0:/" | awk -F$'\t' '{print $1":"$2}' > blood_manta_somatic.txt
+>cat results_joint/variants/diploidSV.vcf | grep -v ^# | grep -v Un_ | grep -v _random | grep -v Description | extract -t '_11 !~  /0\/0:/' | extract -t "_12 =~ /0\/0:/" | awk -F$'\t' '{print $1":"$2}' > product_manta_somatic.txt
+
+> setwd("/drive3/work/Goodnow/CarT/patient2/WGS/results_4samples/snvs")
+> ascites_somatic <- read.csv2(file="ascites_somatic.txt",header=F)
+> blood_somatic <- read.csv2(file="blood_somatic.txt",header=F)
+> product_somatic <- read.csv2(file="product_somatic.txt",header=F)
+> somatic_list <- list(ascites = ascites_somatic$V1,product = product_somatic$V1, blood = blood_somatic$V1)
+> library(UpSetR)
+> upset(fromList(somatic_list))
+> ascites <- read.csv2(file="ascites_all.txt",header=F)
+> donor <- read.csv2(file="donor_all.txt",header=F)
+> blood <- read.csv2(file="blood_all.txt",header=F)
+> product <- read.csv2(file="product_all.txt",header=F)
+> full_list <- list(ascites_all = ascites$V1,blood_all = blood$V1, donor_all = donor$V1, product_all = product$V1)
+> upset(fromList(full_list))
+> sc_somatic <- read.csv2(file="sc_somatic.txt",header=F)
+> somatic_list <- list(ascites = ascites_somatic$V1,product = product_somatic$V1, blood = blood_somatic$V1, singlecell = sc_somatic$V1)
+> upset(fromList(somatic_list))
+> sc_somatic <- read.csv2(file="ascites_sc_somatic.txt",header=F)
+> somatic_list <- list(ascites = ascites_somatic$V1,product = product_somatic$V1, blood = blood_somatic$V1, singlecell = sc_somatic$V1)
+> upset(fromList(somatic_list))
+> sc_somatic <- read.csv2(file="tmp.txt",header=F)
+> somatic_list <- list(ascites = ascites_somatic$V1,product = product_somatic$V1, blood = blood_somatic$V1, singlecell = tmp$V1)
+> somatic_list <- list(ascites = ascites_somatic$V1,product = product_somatic$V1, blood = blood_somatic$V1, singlecell = sc_somatic$V1)
+> upset(fromList(somatic_list))
+> somatic_list <- list(ascites_WGS = ascites_somatic$V1,product_WGS = product_somatic$V1, blood_WGS = blood_somatic$V1, ascites_singlecell = sc_somatic$V1)
+> upset(fromList(somatic_list))
+> setwd("/drive3/work/Goodnow/CarT/patient2/WGS/results_4samples/manta")
+> ascites_sv <- read.csv2(file="ascites_manta.txt",header=F)
+> blood_sv <- read.csv2(file="blood_manta.txt",header=F)
+> donor_sv <- read.csv2(file="donor_manta.txt",header=F)
+> product_sv <- read.csv2(file="product_manta.txt",header=F)
+> sv_list <- list(ascites_SV = ascites_sv$V1,product_SV = product_sv$V1, blood_sv = blood_sv$V1, donor_sv = donor_sv$V1)
+> upset(fromList(sv_list))
+> product_sv_somatic <- read.csv2(file="product_manta_somatic.txt",header=F)
+> blood_sv_somatic <- read.csv2(file="blood_manta_somatic.txt",header=F)
+> ascites_sv_somatic <- read.csv2(file="ascites_manta_somatic.txt",header=F)
+> sv_somatic_list <- list(ascites_SV_somatic = ascites_sv_somatic$V1,product_sv_somatic = product_sv_somatic$V1, blood_sv_somatic = blood_sv_somatic$V1)
+> upset(fromList(sv_somatic_list))

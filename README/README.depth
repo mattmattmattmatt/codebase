@@ -1,0 +1,8 @@
+#Get all exonic bases with no cover or cover <10 bases
+1) Get exon coordinates of interest
+cat gene_list_ensembl | cut -d' ' -f1 | xargs -i grep {} hs37d5.exon.overlap.all >> hs37d5.exon.subset
+2) Total bases in all exons
+cat hs37d5.exon.subset | awk '{sum+=$3-$2} END {print sum}'
+457065
+3) Test S1 to see bases with no cover
+

@@ -1,0 +1,31 @@
+Data from Ramiciotti NovaSeq:
+>wget -O 180312_A00152_0027_AH2YVTDRXX_SOT4699_20180313.tar https://datasend.ramaciotti.unsw.edu.au/download.php?vid=0c0be593-4144-a088-4a6c-000078fd64b1
+>sesame  180312_A00152_0027_AH2YVTDRXX_SOT4699_20180313.tar
+
+>'ls' *gz | sed -e 's/_R1_001.fastq.gz//' > ../sample_names.tsv
+
+>for f in `cat ../sample_names.tsv`; do echo "/g/data/u86/software/STAR/bin/Linux_x86_64/STAR --sjdbGTFfile /g/data/u86/mxf221/GRCh37_star/gencode.v19.annotation.gtf --readFilesCommand zcat --runThreadN 16 --genomeDir /g/data/u86/mxf221/STAR --outFileNamePrefix /g/data/u86/mxf221/worm/opi_RNASeq/bams/${f} --outSAMtype BAM SortedByCoordinate --quantMode TranscriptomeSAM --readFilesIn /g/data/u86/mxf221/worm/opi_RNASeq/reads/${f}_R1_001.fastq.gz"; done >> ../qsub/star.qsub
+
+Complex queries required so just run each desired pair separately
+>head Pairs.csv
+T0_1,T24_Grapes
+T0_1,T24_GRN
+T0_1,T24_H69
+....
+T24_Grapes,T24_OvExos
+T24_Grapes,T24_Ovmicroves
+
+./RNASeq_pairs.pl -pair_file Pairs.tsv.csv -bamdir /drive3/work/RNASeq/opi_human/bams/ -run -> takes about 1 hour per pair
+
+Check result stats;
+for f in T*/T*tsv; do echo $f; cat $f | awk '{if ($7 < 0.05) {TOTAL += 1}} END {print "TOTAL:" TOTAL}'; cat $f | awk '{if ($7 < 0.05 && $3 > 0) {UP += 1} else if ($7 < 0.05 && $3 < 0) {DOWN += 1}} END {print "UP:" UP; print "DOWN:" DOWN}'; echo ; done
+
+Better batch effect correction found (RUVSeq) -> fixes all high and many low statistical cases
+./RNASeq_pairs.pl -pair_file Pairs.csv -bamdir bams/ -load_se -run
+
+Some failed for bonferroni correction so sort by p-value here:
+for f in T*/T*.tsv; do cat $f | sort -g -k 6 > `echo $f | sed -e 's/.tsv/_pvalue.tsv/'`; done 
+
+Annotate all
+cd ..
+for f in opi_human/T*/T*tsv; do ./annotate_DESeq2.pl -tsv_in $f -sample_info `echo $f | cut -d'/' -f1,2 | awk '{print $1"/sample_info.tsv"}'`; done

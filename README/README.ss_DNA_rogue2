@@ -1,0 +1,15 @@
+basemount basespace
+cd /drive3/work/basespace/Projects/NS_SIN3643_20160607_2015_Capture_pools_userprep/Samples
+scp SI*/Files/*gz mxf221@r-dm3.nci.org.au:/g/data/u86/mxf221/Goodnow/ss/ss_DNA_rogue2/fastq
+>cat Naive2-B1-1*R1* > Naive2-1_R1.fastq.gz
+>cat Naive2-B1-1*R2* > Naive2-1_R2.fastq.gz
+>cat Naive2-B1-2*R1* > Naive2-2_R1.fastq.gz
+>cat Naive2-B1-2*R2* > Naive2-2_R2.fastq.gz
+>cat Rogue2-A1-1*R1* > Rogue2-1_R1.fastq.gz
+>cat Rogue2-A1-1*R2* > Rogue2-1_R2.fastq.gz
+>cat Rogue2-A1-2*R1* > Rogue2-2_R1.fastq.gz
+>cat Rogue2-A1-2*R2* > Rogue2-2_R2.fastq.gz
+
+#Analyse on raijin to get vcfs (~/g/mxf221/Goodnow/ss/ss_DNA_rogue2/qsub)
+
+java -Xms6g -Xmx6g -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T GenotypeGVCFs -nt 1 -R /g/data/u86/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -V /home/221/mxf221/g/mxf221/Goodnow/ss/ss_DNA_rogue2/runs/Rogue2_1.g.vcf -V /home/221/mxf221/g/mxf221/Goodnow/ss/ss_DNA_rogue2/runs/Naive2_1.g.vcf  -o  /home/221/mxf221/g/mxf221/Goodnow/ss/ss_DNA_rogue2/runs/pair1_joint.vcf

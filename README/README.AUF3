@@ -1,0 +1,104 @@
+#Download taxonomy (archeae, fungi, bacteria, human, protozoa, viral, UniVec, UniVec_core
+kraken2-build --download-taxonomy --db krakenPlus/
+kraken2-build --download-library bacteria --db krakenPlus/
+
+kraken2-build --db krakenPlus/ --build
+
+module load python3-as-python
+~/g/software/Bracken/bracken-build -d /g/data/u86/software/kraken2/krakenPlus/ -x ~/g/software/kraken2/ -t 16
+
+for f in `cat ../sample_names`; do ~/g/software/kraken2/kraken2 --db /g/data/u86/software/kraken2/krakenPlus/  --threads 16 --report ${f}_krakenPlus_report --paired ../STAR/${f}_STAR_Unmapped.out.mate1 ../STAR/${f}_STAR_Unmapped.out.mate2  > ${f}_krakenPlus_table; ~/g/software/Bracken/bracken -d /g/data/u86/software/kraken2/krakenPlus -i ${f}_krakenPlus_report -r 100 -l S -t 10 -o ${f}_brackenPlus_report; done
+rename _krakenPlus_report_bracken _brackenPlus_table *_krakenPlus_report_bracken
+
+for f in `cat ../sample_names`; do ~/g/software/kraken2/kraken2 --db /g/data/u86/software/kraken2/krakenNCBI/  --threads 16 --report ${f}_krakenNCBI_report --paired ../STAR/${f}_STAR_Unmapped.out .mate1 ../STAR/${f}_STAR_Unmapped.out.mate2  > ${f}_krakenNCBI_table; ~/g/software/Bracken/bracken -d /g/data/u86/software/kraken2/krakenNCBI -i ${f}_krakenNCBI_report -r 100 -l S -t 10 -o ${f}_brackenNCBI_report; done
+rename _krakenNCBI_report_bracken _brackenNCBI_table *_krakenNCBI_report_bracken
+
+for f in *bracken_report; do echo $f; cat $f | sort -t$'\t' -k7,8nr | head; echo; done
+
+Download ncbi_nt prebuild
+
+for f in `cat sample_names`; do echo $f; ~/g/software/kma/kma -ipe ../STAR/${f}_STAR_Unmapped.out.mate1 ../STAR/${f}_STAR_Unmapped.out.mate2 -o ${f}_out_kma -t_db /g/data/u86/software/kma/compress_ncbi_nt/ncbi_nt -t 16 -1t1 -mem_mode -and -apm f; done
+
+export PYTHONPATH=/g/data/u86/variantdb/v2.3/ext/pythonlib/lib64/python3.6/site-packages/:/g/data/u86/variantdb/v2.3/ext/pythonlib/lib/python3.6/site-packages/
+export PATH=/g/data/u86/software/CCMetagen:/g/data/u86/software/KronaTools-2.7/bin/:$PATH
+
+~/g/software/CCMetagen/CCMetagen.py -i CNS005_out_kma.res -o CNS005_cc
+mkdir CNS005; mv CNS005_cc* CNS005
+~/g/software/CCMetagen/CCMetagen_merge.py  -i CNS005 -o CNS005_cc_species
+
+for f in `cat sample_names_short`; do echo $f; ~/g/software/CCMetagen/CCMetagen.py -i ${f}_out_kma.res -o ${f}_cc; mkdir $f; mv ${f}_cc* $f; ~/g/software/CCMetagen/CCMetagen_merge.py  -i $f -o ${f}_cc_species; done
+
+
+#Example remove primates
+~/g/software/CCMetagen/CCMetagen_merge.py -i CNS005/ -o CNS005_cc_nohuman -kr r -l Order -tlist Primates
+
+
+#Try pangia however errors with BAV.fa on taxonomy prevent from working: tried lots of soluions however unable to fix
+~/g/software/pangia/pangia.py -i ../STAR/CNS002_STAR_Unmapped.out.mate1 ../STAR/CNS002_STAR_Unmapped.out.mate2 -db ~/g/software/pangia/PanGIA/*fa -t 16 
+Traceback (most recent call last):
+  File "/usr/lib64/python3.6/multiprocessing/pool.py", line 119, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/221/mxf221/g/software/pangia/pangia.py", line 714, in worker
+    lcr_lvl, lcr_name, lcr_info = lineageLCR(taxids)
+  File "/home/221/mxf221/g/software/pangia/pangia.py", line 378, in lineageLCR
+    lng = t.taxid2lineageDICT(tid, 1, 1)
+  File "/g/data/u86/software/pangia/taxonomy.py", line 265, in taxid2lineageDICT
+    return _taxid2lineage( tid, print_all_rank, print_strain, replace_space2underscore, output_type )
+  File "/g/data/u86/software/pangia/taxonomy.py", line 291, in _taxid2lineage
+    name = _getTaxName(taxID)
+  File "/g/data/u86/software/pangia/taxonomy.py", line 366, in _getTaxName
+    return taxNames[taxID]
+KeyError: '643561.1'
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/221/mxf221/g/software/pangia/pangia.py", line 2316, in <module>
+    (res, mapped_r_cnt) = processSAMfile( os.path.abspath(samfile), argvs.threads, lines_per_process)
+  File "/home/221/mxf221/g/software/pangia/pangia.py", line 921, in processSAMfile
+    results.append( job.get() )
+  File "/usr/lib64/python3.6/multiprocessing/pool.py", line 644, in get
+    raise self._value
+KeyError: '643561.1'
+
+#Align reads to diagnosed pathogen
+bwa index ../ref_genomes/cytomegalovirus.fa
+bwa mem -M -R "@RG\tID:DRW001\tSM:DRW001_l1\tPL:ILLUMINA" -t 16  ../ref_genomes/cytomegalovirus.fa ../reads/DRW001_R1_val_1.fq.gz ../reads/DRW001_R2_val_2.fq.gz |  /g/data/u86/variantdb/v2.3/ext/bin/samtools view -u -S - | /g/data/u86/software/bin/novosort --md --kt -c 8 -x 6 -m 10G -t /g/data/u86/mxf221/mNGS/pilot_data/bwa/ -i -o DRW001_cyto.bam -
+
+
+#Extract reads for diagnosed pathogens
+#260 removes secondary and unmapped reads
+samtools view -F 260  DRW001_cyto.bam -o DRW001_cyto_reads.sam
+
+#Get depth
+samtools view -F 260 CNS009_MRSA.bam -b | samtools depth -a - > CNS009_MRSA.depth
+
+#Better to generate fastq directly
+samtools bam2fq -@ 16 -F 260 -1 CNS002_MSSA_reads_R1.fastq.gz -2 CNS002_MSSA_reads_R2.fastq.gz --reference ../ref_genomes/MSSA_ST228.fa CNS002_MSSA.bam
+
+#Get total aligned bases
+cut -d$'\t' -f3 CNS002_MSSA.depth  |sums
+
+#Genome sizes from first line of .ann bwa files
+MSSA: 5989303/2759883 = 2.17X
+MRSA: 50096846/3095697 = 16.18X
+HIV: 1919089/9181 = 209X
+CMV: 421583/226205 = 1.86X
+PF: 87957283/23292622 = 3.77X
+
+Plot coverage:
+CMV <- read.csv2("DRW001_cyto.depth",sep="\t")
+plot(CMV[,2],CMV[,3],type="h",main="CMV coverage",xlab = "Genome Coord",ylab = "Depth",ylim =c(0,100))
+
+For PF use chr1:
+
+PF_chr1 <- PF[PF[,1] == 1,]
+
+#Bigger genomes need sliding window averages (1000bp here)
+TBx <- c(0,cumsum(TB[,3])
+rsum <- (TBx[(1000+1):length(TBx)] - TBx[1:(length(TBx) - 1000)]) / 1000
+plot(rsum,ylim=c(0,50),type="l",ylab="BP coverage",xlab="Genomic Coordinate",main="TB coverage 1kb sliding window average")
+
+
+

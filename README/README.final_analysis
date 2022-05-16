@@ -1,0 +1,72 @@
+#Make sample mapping file:
+~/work/sev_ace/P64/map.pl -> makes final_mapping.tsv
+
+#Create qiime mapping file from the description name 
+>validate_mapping_file.py -m qiime_map_38.txt
+>validate_mapping_file.py -m qiime_map_asthma.txt
+
+cat qiime_map_asthma.txt | cut -d'     ' -f12 | grep R > qiime_asthma_samples
+
+>filter_samples_from_otu_table.py --sample_id_fp qiime_asthma_samples -i otu_2experiments.biom -o otu_asthma.biom
+
+biom convert -i otu_asthma.biom -o tmp.tsv --to-tsv --table-type="OTU table"
+
+
+cat qiime_map_asthma.txt  | cut -d '   ' -f1 | grep -v Sample | tr "\n" "\t" > new_headers
+->Update headers to #OTUID\ttaxonomy
+
+biom convert -i  tmp.tsv -o otu_asthma_newsample.biom  --to-hdf5 --table-type="OTU table"
+
+#Create observation file
+>cat ../analyses/otu_table_R1_count.annotated.tab | cut -d'	' -f1,86 > qiime_obs.txt
+
+biom add-metadata -i otu_asthma_newsample.biom -o otu_asthma_newsample_meta.biom --observation-metadata-fp ../../qiime/qiime_obs.txt --sc-separated taxonomy -m qiime_map_asthma.txt
+
+-> SAME FOR 38
+
+Load in phyloseq:
+> library("DESeq2")
+> library("phyloseq")
+> biom_asthma <- import_biom("/drive3/work/microbiome/AIP/final/asthma/otu_asthma_newsample_meta.biom")
+> tax_col <- c("None","Kingdom","Phylum","Class","Order","Family","Genus","Species")
+> asthma_map <- import_qiime_sample_data("qiime_map_asthma.txt")
+> AIP_asthma <- merge_phyloseq(biom_asthma,asthma_map)
+> colnames(tax_table(AIP_asthma)) <- tax_col
+> plot_richness(AIP_asthma,measures=c("Observed"),color="Protein",x="Trio")
+> plot_bar(AIP_asthma,x="Trio",facet_grid = ~Protein+Allergen,fill="Expected_Healthy")
+> plot_bar(AIP_asthma,x="Trio",facet_grid = ~Phylum, fill="Protein")
+> plot_bar(AIP_asthma,fill="Expected_Healthy",x="Trio",facet_grid = ~Phylum)
+> plot_net(AIP_asthma,point_label = "Trio", color = "Protein")
+> get_taxa_unique(AIP_asthma,"Phylum")
+> AIP_asthma.firm = subset_taxa(AIP_asthma,Phylum == "p__Firmicutes")
+repeat for AIP_asthma.firm
+
+Use DESeq2:
+phy_deseq <- phyloseq_to_deseq2(AIP_asthma,~Trio)
+phy_deseq <- DESeq(phy_deseq, test="Wald", fitType="parametric")
+
+For example
+res_test <- results(phy_deseq, cooksCutoff = FALSE, contrast = c("Trio","20AIP2Lung","20dAIP2Lung"))
+head(res_test)
+
+On CLI:
+>grep 4306262 ~/software/microbiome/qiime/gg_13_8_otus/taxonomy/97_otu_taxonomy.txt
+4306262	k__Bacteria; p__Verrucomicrobia; c__Verrucomicrobiae; o__Verrucomicrobiales; f__Verrucomicrobiaceae; g__Akkermansia; s__muciniphila
+
+Automate for all pairs:
+AIP_pairs.pl
+
+Back in R:
+>AIP_asthma.mucin = subset_taxa(AIP_asthma,Species == "s__muciniphila")
+>plot_bar(AIP_asthma.mucin,x="Trio",fill="Protein",facet_grid = ~Tissue)
+
+
+To methodically generate all pairwise samples 
+#Get the raw fa sequence
+cat ./UQ/P64/picked_otus_open/step4_otus/step4_rep_set.fna ./UQ/P65/picked_otus_open/step4_otus/step4_rep_set.fna >> final/unmapped_contigs.fa
+	    
+>group_significance.py -i otu_asthma_final.biom -m qiime_map_asthma.txt -c Expected_Healthy -o sign_healthy.tsv
+
+
+
+

@@ -1,0 +1,66 @@
+MANIFEST:
+=========
+PacBio RoI A.caninum transcript fastq (per-EST)-
+  PacBio_fastq/EST_gi_12727575_gb_BG232400.1___GENE_ANCCAN_07727__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_15028472__GENE_ANCCAN_03259__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_156183831_gb_EW742623.1___GENE_ANCCAN_22314__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_156184318_gb_EW743110.1__GENE_ANCCAN_20759__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_157996739_gb_EX543357.1___GENE_ANCCAN_11005__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_157997648_EX538267.1__GENE_ANCCAN_07322__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_158002778_gb_EX549396.1___GENE_ANCCAN_09057__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_158005927_gb_EX552545.1___GENE_ANCCAN_12564__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_158008599_gb_EX555217.1___GENE_ANCCAN_11519__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_158017414_gb_EX564032.1___GENE_ANCCAN_21666__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_16924887_gb_BM077851.1___GENE_ANCCAN_08034__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_59189474_gb_CZ200328.1___GENE_ANCCAN_12561__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_59254161_gb_CZ227136.1__GENE_ANCCAN_26187__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_59628717_gb_CZ243276.1__GENE_ANCCAN_13591__mapping_RoI.fastq
+  PacBio_fastq/EST_gi_x0002_158009159__GENE_ANCCAN_22177__mapping_RoI.fastq
+
+A.caninum reference used-
+  assembly fasta: Reference/ancylostoma_caninum.PRJNA72585.WBPS8.genomic.fa
+  annotation:     Reference/ancylostoma_caninum.PRJNA72585.WBPS8.annotations.gff3
+
+
+METHOD:
+=======
+1) The 21 unique ESTs were mapped against our A.caninum reference (PRJNA72585) using the
+   HiSat2 aligner and the results were used to identify the A.caninum genes associated 
+   with each EST.  15 of these mapped into gene regions.
+
+2) High quality 'Reads of Insert' (RoI) data was extracted from 6 SMRT cells worth of 
+   A.caninum transcript PacBio data using settings requiring each insert to be spanned
+   >= 2x and with an accuracy of 99%.
+
+3) The RoI reads were mapped against the A.caninum reference also using HiSat2.  Lists of
+   RoI reads mapping into the gene models for each identified gene were generated using 
+   samtools.
+
+4) For each unique EST mapping to an annotated A.caninum gene a fastq file was generated 
+   to contain all the PacBio RoI reads mapping to that gene.
+
+
+NOTES:
+======
+-- The EST 'gi|158005927|gb|EX552545.1|' appears twice in the original table we were given,
+   so while there are 22 rows in the provided table, they represent only 21 unique sequences.
+
+-- 15 of the 21 unique ESTs mapped into A.caninum genes.
+
+-- No minimum overlap was required for RoI reads mapping into the identified genes.  Any RoI
+   that 'touched' a gene (by even a single base) in its alignment was included in the fastq
+   for that EST.
+
+-- HiSat2 is a splice aware alignment tool, suitable for mapping transcript data against
+   genomic references.  Default arguments were used for the alignment.
+     https://ccb.jhu.edu/software/hisat2/index.shtml
+
+-- The A.caninum reference & annotation used in this analysis (PRJNA72585) was downloaded
+   from WormBase Parasite:
+     http://parasite.wormbase.org/Ancylostoma_caninum_prjna72585/Info/Index/
+
+
+PREPARED BY:
+============
+John Martin <jmartin@wustl.edu>
+on 2/6/2017

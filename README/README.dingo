@@ -1,0 +1,143 @@
+The Dingo RNAseq data is now available on BaseSpace.
+
+The login page is found at:
+
+https://login.illumina.com/platform-services-manager/?rURL=https://basespace.illumina.com&clientId=basespace&clientVars=aHR0cHM6Ly9iYXNlc3BhY2UuaWxsdW1pbmEuY29tL2Rhc2hib2FyZA&redirectMethod=GET#/
+
+This will log you into the account under Bill's name.
+
+There are three samples. When you click on the samples tab it takes you to the data files and identifies the tissue. For reference, the corresponding sample numbers and tissues are:
+
+MEL4407A01 = Ovary
+MEL4407A02 = Blood
+MEL4399A02 = Muscle
+
+1) First upgrade trinity to v2.6.5 -> needs Salmon, bowtie2, and jellyfish as well
+
+
+2) Sample prep:
+i) Create three single tissue sample for analysis as well as one single trinity run using three input files and sample.tsv
+
+Use trinity with guided assembly version to dog genome
+
+#Need to first run trimmomatic as the reads are used directly from BAM and can't be filtered otherwise
+zcatii)
+>java -jar ~/g/software/trinity/trinity-plugins/Trimmomatic/trimmomatic.jar PE -phred33 -threads 16 dingo1_R1.fastq.gz dingo1_R2.fastq.gz dingo1_R1_trim.fastq.gz dingo1_R1_unpaired.fastq.gz dingo1_R2_trim.fastq.gz dingo1_R2_unpaired.fastq.gz ILLUMINACLIP:TruSeq3-PE-2.fa:2:30:10 SLIDINGWINDOW:4:5 LEADING:5 TRAILING:5 MINLEN:25
+
+#Align using STAR and create sorted BAM
+iii) Align to dog and then dingo reference from group to compare
+>/g/data/u86/software/STAR/bin/Linux_x86_64/STAR --runMode genomeGenerate --runThreadN 16 --genomeDir . --genomeFastaFiles Canis_familiaris.CanFam3.1.dna.toplevel.fa --outFileNamePrefix dogStar --limitGenomeGenerateRAM=128000000000 --sjdbGTFfile Canis_familiaris.CanFam3.1.91.gff3 --sjdbGTFtagExonParentTranscript Parent
+
+>/g/data/u86/software/STAR/bin/Linux_x86_64/STAR   --runThreadN 16   --genomeDir /g/data/u86/mxf221/dingo/dog_ref --outFileNamePrefix /g/data/u86/mxf221/dingo/dingo1/dingo1 --readFilesCommand zcat --readFilesIn /g/data/u86/mxf221/dingo/reads/dingo1_R1_trim.fastq.gz /g/data/u86/mxf221/dingo/reads/dingo1_R2_trim.fastq.gz
+
+>samtools sort --threads 16 /g/data/u86/mxf221/dingo/dingo1/dingo1Aligned.out.sam -O BAM -m 8G -o /g/data/u86/mxf221/dingo/dingo1/dingo1.bam
+
+Dingo Ref (no gene model)
+>/g/data/u86/software/STAR/bin/Linux_x86_64/STAR --runMode genomeGenerate --runThreadN 16 --genomeDir . --genomeFastaFiles dingo_build.fasta --outFileNamePrefix dingoStar --limitGenomeGenerateRAM=128000000000 
+
+>/g/data/u86/software/STAR/bin/Linux_x86_64/STAR   --runThreadN 16   --genomeDir /g/data/u86/mxf221/dingo/dingo_ref/ --outFileNamePrefix /g/data/u86/mxf221/dingo/dingo1/dingo1Ref --readFilesCommand zcat --readFilesIn /g/data/u86/mxf221/dingo/reads/dingo1_R1_trim.fastq.gz /g/data/u86/mxf221/dingo/reads/dingo1_R2_trim.fastq.gz
+
+
+3) Run trinity guided and unguided
+#Run unguided assembly (Note trinity needs modules java/jdk1.8.0_60, samtools, and python/2.7.13)
+>/g/data/u86/software/trinity/Trinity  --SS_lib_type FR --seqType fq  --max_memory 110G --CPU 16 --left /g/data/u86/mxf221/dingo/reads/dingo1_R1_trim.fastq.gz --right /g/data/u86/mxf221/dingo/reads/dingo1_R2_trim.fastq.gz --normalize_reads --output /g/data/u86/mxf221/dingo/dingo1/trinity_noguide
+...
+>/g/data/u86/software/trinity/Trinity  --SS_lib_type FR --seqType fq  --max_memory 110G --CPU 16 --samples_file /g/data/u86/mxf221/dingo/dingo_all/sample.txt --normalize_reads --output /g/data/u86/mxf221/dingo/dingo1/trinity_noguide
+
+#Run guided assembly
+>/g/data/u86/software/trinity/Trinity --SS_lib_type FR --genome_guided_bam /g/data/u86/mxf221/dingo/dingo1/dingo1.bam --genome_guided_max_intron 100000 --max_memory 110G --CPU 16 --output /g/data/u86/mxf221/dingo/dingo1/trinity_guide
+....
+#for dingoall merge bams first
+>samtools merge --threads 16  /g/data/u86/mxf221/dingo/dingo_all/dingo_all.bam /g/data/u86/mxf221/dingo/dingo1/dingo1.bam /g/data/u86/mxf221/dingo/dingo2/dingo2.bam /g/data/u86/mxf221/dingo/dingo3/dingo3.bam
+
+>/g/data/u86/software/trinity/Trinity --SS_lib_type FR --genome_guided_bam /g/data/u86/mxf221/dingo/dingo_all/dingo_all.bam --genome_guided_max_intron 100000 --max_memory 110G --CPU 16 --output /g/data/u86/mxf221/dingo/dingo_all/trinity_guide
+
+### Transcriptome QC ###
+https://github.com/trinityrnaseq/trinityrnaseq/wiki/Transcriptome-Assembly-Quality-Assessment
+
+4) Generate stats on assemblies:
+>for f in dingo*/trinity*fasta; do echo $f; ~/g/software/trinity/util/TrinityStats.pl $f > `echo $f | sed -e 's/fasta/stats/'`; done 
+
+From now on use combined tissue assemblies as this seems standard -> try all three (no_guide, guided_dog, and guided_dingo)
+
+5) Look at quantification
+https://github.com/trinityrnaseq/trinityrnaseq/wiki/Trinity-Transcript-Quantification
+i) Prep reference
+~/g/software/trinity/util/align_and_estimate_abundance.pl --transcripts /g/data/u86/mxf221/dingo/dingo_all/trinity_guide/Trinity-GG.fasta  --thread_count 16 --est_method RSEM --prep_reference --trinity_mode --aln_method bowtie2
+ii) Run RSEM
+~/g/software/trinity/util/align_and_estimate_abundance.pl --seqType fq --samples_file /g/data/u86/mxf221/dingo/dingo_all/sample.txt --SS_lib_type FR --transcripts /g/data/u86/mxf221/dingo/dingo_all/trinity_guide_ref/Trinity-GG.fasta  --thread_count 16 --est_method RSEM --trinity_mode --aln_method bowtie2 --output_dir rsem
+
+
+6) Run busco:
+Find closest data set -> use laurasiatheria_odb9 
+>python ~/software/assembler/busco/scripts/run_BUSCO.py -i All_no_guide.fasta -c 4 -l ~/software/assembler/busco/lineages/laurasiatheria_odb9 -o All_no_guide_busco -m tran -t /drive3/work/RNASeq/dingo/trinity_assemblies/tmp
+
+#Symlink all output files (short_summary and full_table) in results dir
+python ~/software/assembler/busco/scripts/generate_plot.py -wd results/
+
+#View image created
+Shows combining three is way to go
+
+7) Counting full length transcripts:
+Create blastdb from ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz
+
+>makeblastdb -in uniprot_sprot.fasta -dbtype prot 
+>/g/data/u86/software/ncbi-blast-2.3.0+/bin/blastx -query /g/data/u86/mxf221/dingo/dingo_all/no_guide/trinity.fasta  -db uniprot_sprot.fasta  -max_target_seqs 1 -outfmt 6 -num_threads 16 > /g/data/u86/mxf221/dingo/dingo_all/no_guide/blastx_uniprot.outfmt6
+>~/g/software/trinity/util/analyze_blastPlus_topHit_coverage.pl  /g/data/u86/mxf221/dingo/dingo_all/no_guide/blastx_uniprot.outfmt6 /g/data/u86/mxf221/dingo/dingo_all/no_guide/trinity.fasta /g/data/u86/software/blastdb/uniprot_sprot.fasta
+
+#Downstream analysis
+
+8) Run transdecoder first step (local ok)
+For each no_guide, dog_guide, and dingo_guide
+>~/g/software/TransDecoder-TransDecoder-v5.0.2/TransDecoder.LongOrfs -t /g/data/u86/mxf221/dingo/dingo_all/dingo_guide/trinity.fasta
+
+Next part requires other steps so run these steps first
+
+a) Run pfam and hmmscan (too slow on whole file so need to split)
+split --lines 10000 longest_Orf.pep longest_orfs.split.
+Make 'aa' file first with below command
+
+"/g/data/u86/software/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmscan --cpu 16 --domtblout /g/data/u86/mxf221/dingo/dingo_all/no_guide/split/pfam.aa.domtblout -o /g/data/u86/mxf221/dingo/dingo_all/no_guide/split/hmmscan.aa.out /g/data/u86/software/pfam/Pfam-A.hmm /g/data/u86/mxf221/dingo/dingo_all/no_guide/split/longest_orfs.split.aa"
+
+>for f in a{b..z} b{a..p}; do cat pfam_aa.qsub | sed -e "s/\.aa/\.${f}/g" > pfam_${f}.qsub; done
+>for f in a{a..z} b{a..p}; do cat hmmscan.${f}.out >> hmmscan_orf.out; cat pfam.${f}.domtblout >> pfam_orf.domtblout; done
+
+b) Use updated copy of uniprot_sprot (uniref too long even in parallel)
+>export BLASTDB=/g/data/u86/software/blastdb
+>/g/data/u86/software/ncbi-blast-2.3.0+/bin/blastp -query /g/data/u86/mxf221/dingo/dingo_all/no_guide/longest_orfs.pep  -db uniprot_sprot.fasta  -max_target_seqs 1 -outfmt 6 -evalue 1e-5 -num_threads 16 > /g/data/u86/mxf221/dingo/dingo_all/no_guide/blastp_orf.outfmt6
+
+Run next transdecoder step
+>cd /g/data/u86/mxf221/dingo/dingo_all/no_guide/
+>/g/data/u86/software/TransDecoder/TransDecoder.Predict -t /g/data/u86/mxf221/dingo/dingo_all/no_guide/trinity.fasta --retain_pfam_hits /g/data/u86/mxf221/dingo/dingo_all/no_guide/pfam_orf.domtblout --retain_blastp_hits /g/data/u86/mxf221/dingo/dingo_all/no_guide/blastp_orf.outfmt6
+
+
+#Trinotate
+a) Run blastp on transdecoder output
+/g/data/u86/software/ncbi-blast-2.3.0+/bin/blastp -query /g/data/u86/mxf221/dingo/dingo_all/no_guide/transdecoder.pep  -db uniprot_sprot.fasta  -max_target_seqs 1 -outfmt 6 -num_threads 16 > /g/data/u86/mxf221/dingo/dingo_all/no_guide/blastp_trans.outfmt6
+b) blastx on trinity.fasta already done (blastx_uniprot.outfmt6)
+
+c) pfam/hmm on transdecoder output
+Full command below -> Split as above but multiline fasta so can't split on line number
+>awk 'BEGIN {n_seq=0;} /^>/ {if(n_seq%1000==0){file=sprintf("transdecoder%d.fa",n_seq);} print >> file; n_seq++; next;} { print >> file; }' < transdecoder.pep
+>rename 000.fa .fa *000.fa
+>rename transdecoder transdecoder. transdecoder*
+>for f in {1..71}; do cat pfam_trans_0.qsub | sed -e "s/\.0\./\.${f}\./g" > pfam_trans_${f}.qsub; done
+
+/g/data/u86/software/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmscan --cpu 16 --domtblout /g/data/u86/mxf221/dingo/dingo_all/no_guide/pfam_trans.domtblout -o /g/data/u86/mxf221/dingo/dingo_all/no_guide/hmmscan_trans.out /g/data/u86/software/pfam/Pfam-A.hmm /g/data/u86/mxf221/dingo/dingo_all/no_guide/transdecoder.pep
+
+d) Generate trans_map 
+~/g/software/trinityrnaseq-Trinity-v2.6.5/util/support_scripts/get_Trinity_gene_to_trans_map.pl trinity.fasta > trinity.fasta.gene_trans_map
+
+e) Generate trinotate DB
+>~/software/RNAseq/Trinotate-Trinotate-v3.1.1/Trinotate Trinotate.dog_guide.sqlite LOAD_swissprot_blastp blastp_trans.outfmt6
+>~/software/RNAseq/Trinotate-Trinotate-v3.1.1/Trinotate Trinotate.dog_guide.sqlite LOAD_swissprot_blastx blastx_uniprot.outfmt6
+>~/software/RNAseq/Trinotate-Trinotate-v3.1.1/Trinotate Trinotate.dog_guide.sqlite LOAD_pfam pfam_trans.domtblout
+>~/software/RNAseq/Trinotate-Trinotate-v3.1.1/Trinotate Trinotate.dog_guide.sqlite LOAD_tmhmm dog_guide.tmhmm.out 
+>~/software/RNAseq/Trinotate-Trinotate-v3.1.1/Trinotate Trinotate.dog_guide.sqlite LOAD_signalp dog_guide.signalp.out 
+>~/software/RNAseq/Trinotate-Trinotate-v3.1.1/Trinotate Trinotate.dog_guide.sqlite LOAD_rnammer trinity.fasta.rnammer.gff
+>~/software/RNAseq/Trinotate-Trinotate-v3.1.1/Trinotate Trinotate.dog_guide.sqlite report  --incl_pep --incl_trans > dog_guide_trinotate.xls
+
+
+
+
+

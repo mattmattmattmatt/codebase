@@ -1,0 +1,28 @@
+On raijin:
+
+for f in `cat sample_list`; do echo $f; /g/data/u86/software/TrimGalore/trim_galore --paired --output_dir /g/data/u86/mxf221/NOD_diabetes/RNASeq/reads --path_to_cutadapt /g/data/u86/software/cutadapt/cutadapt /g/data/u86/mxf221/NOD_diabetes/RNASeq/reads/${f}_R1_001.fastq.gz /g/data/u86/mxf221/NOD_diabetes/RNASeq/reads/${f}_R2_001.fastq.gz; /g/data/u86/software/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang 149 --readFilesCommand zcat --runThreadN 16 --genomeDir /g/data/u86/mxf221/ref_genomes/mm10/150bp/ --outFileNamePrefix /g/data/u86/mxf221/NOD_diabetes/RNASeq/bams/${f}_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn /g/data/u86/mxf221/NOD_diabetes/RNASeq/reads/${f}_R1_001_val_1.fq.gz /g/data/u86/mxf221/NOD_diabetes/RNASeq/reads/${f}_R2_001_val_2.fq.gz; done
+
+
+sample_table <- read.csv("sample_table.csv",sep="\t")
+
+bam_dir <- "/g/data/u86/mxf221/NOD_diabetes/RNASeq/bams/"
+
+summarized_NOD <- buildSummarized(sample_table = sample_table, bam_dir = bam_dir,read_format = "paired",strand_mode = 2,output_log="/g/data/u86/mxf221/NOD_diabetes/RNASeq/",gtf="/g/data/u86/mxf221/ref_genomes/mm10/mm10.gtf",n_cores=16,BamFileList_yieldsize=2000000)
+
+#Copy to local
+load(file="/drive3/work/anu/NOD_diabetes/RNASeq/se_nod.R")
+se_nod <- se
+all_dir <- "/drive3/work/anu/NOD_diabetes/RNASeq/consensusDE/"
+multi_de_pairs(summarized = se_nod, ruv_correct = TRUE, plot_dir=all_dir, output_combined = all_dir, output_voom = all_dir, output_edger = all_dir,output_deseq = all_dir, ensembl_annotate = org.Mm.eg.db)
+
+#Build new lib for STAR-Fusion
+Download
+wget https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/__genome_libs_StarFv1.8/Mouse_gencode_M23_CTAT_lib_Dec062019.source.tar.gz
+cd Mouse_gencode_M23_CTAT_lib_Dec062019.source
+
+#Needed to muck around with PATH and PERL5LIB
+../ctat-genome-lib-builder/prep_genome_lib.pl --genome_fa GRCm38.p6.genome.fa --gtf gencode.vM23.annotation.gtf  --pfam_db current --dfam_db mouse --CPU 16
+
+/g/software/STAR-Fusion-v1.8.1/STAR-Fusion  --left_fq N5F7_24_S10_R1_001_val_1.fq.gz --right_fq N5F7_24_S10_R2_001_val_2.fq.gz --genome_lib_dir /g/data/u86/software/STAR-Fusion-v1.8.1/Mouse_gencode_M23_CTAT_lib_Dec062019.source/ctat_genome_lib_build_dir/ --output_dir ../fusion10/ --CPU 16
+
+

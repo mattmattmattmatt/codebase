@@ -1,0 +1,174 @@
+Run Nanopore and Illumina:
+
+
+1) Try SURPHI install first:
+
+a) AMOS (assembly)
+wget "http://iweb.dl.sourceforge.net/project/amos/amos/3.1.0/amos-3.1.0.tar.gz"
+sudo apt-get install g++-4.8
+./configure CXXFLAGS="-g -O2 -fPIC -Wno-narrowing"  CXX="g++-4.8"
+./make
+./make install
+
+b) FastQValidator (need local libstatgen)
+git clone https://github.com/statgen/libStatGen.git
+make
+
+wget "http://genome.sph.umich.edu/w/images/2/20/FastQValidatorLibStatGen.0.1.1a.tgz"
+rm -Rf fastQValidator_0.1.1a/libStatGen
+mv libStatGen fastQValidator_0.1.1a/libStatGen
+
+c) Abyss (v1.5.2)
+wget https://sourceforge.net/projects/boost/files/boost/1.57.0/boost_1_57_0.tar.gz
+sudo apt-get install -y openmpi-bin libsparsehash-dev libopenmpi-dev
+wget https://sourceforge.net/projects/boost/files/boost/1.57.0/boost_1_57_0.tar.gz
+cd abyss-1.5.2
+ln -s boost_1_57_0/boost .
+>./configure --with-mpi=/usr/lib/x86_64-linux-gnu/openmpi CPPFLAGS=-I/usr/include/google
+
+d) gcc source/dropcache.c -o dropcache
+
+e) wget http://apt-mirror.front.sepia.ceph.com/pypi/packages/source/c/cutadapt/cutadapt-1.2.1.tar.gz
+python setup.py build
+
+f) prinseq-lite -> just chmod
+
+g) snap -> download binary
+
+h)fqextract
+wget https://raw.github.com/attractivechaos/klib/master/khash.h
+Get from https://github.com/lpryszcz/bin/blob/master/fqextract.c
+vim fqextract.c
+gcc fqextract.c -o fqextract
+
+i) Genome tools:  edit Makefile  
+
+In the end after huge struggle, looks unusable so skip -> use methods described in earlier publication https://onlinelibrary.wiley.com/doi/full/10.1111/ajt.14058
+
+From the manuscript:
+First, all paired‐end reads were aligned to the human reference genome 38 (hg38) and the Pan troglodytes genome (panTro4, 2011, UCSC), using the Spliced Transcripts Alignment to a Reference aligner (v2.5.1b) 17. Unaligned (i.e. nonhuman) reads were quality filtered using PriceSeqFilter 18 with the “‐rnf 90” and “‐rqf 85 0.98” settings. Quality filtered reads were then compressed by cd‐hit‐dup (v4.6.1) if they were more than 95% identical 19. Paired‐end reads were then assessed for complexity by compression with the Lempel‐Ziv‐Welch algorithm 20. Read‐pairs with a compression score less than 0.45 were removed. Next, a second phase of human removal was conducted using the “–very‐sensitive‐local” mode of Bowtie2 (v2.2.4) with the same hg38 and PanTro4 reference as described above 21. The remaining nonhuman read pairs were processed with GSNAPL (v2015‐12‐31) 22, which was used to align the reads to the NCBI nt database (downloaded July 2015, indexed with k = 16mers), and preprocessed to remove known repetitive sequences with RepeatMasker (vOpen‐4.0) (www.repeatmasker.org). The same reads were also aligned to the NCBI nonredundant protein database (July 2015) using the Rapsearch2 algorithm 23. The resulting sequence hits identified at both the nucleotide and protein (translated) level from the control sample were subtracted from each patient sample by matching genus level taxonomic identifications. To further control for rare spurious sequence reads, a minimum read count per taxonomic category of two unique reads per million (rpm) reads mapped was further imposed. 
+
+Download panTro6 (ftp://hgdownload.cse.ucsc.edu/goldenPath/panTro6/bigZips/panTro6.fa.gz)
+Generate bowtie2 and bwa indices
+
+Generate HumanChimp.fa for simplicity (single alignment step)
+cat GRCh38d1p12.fa panTro6.fa >> HumanChimp.fa
+#Try bowtie2
+for f in `cat ../sample_names`; do echo $f; bowtie2  -x ../../ref_genomes/HumanChimp/HumanChimp -p 16 --very-sensitive-local -1 ../reads/${f}_R1.fastq.gz -2 ../reads/${f}_R2.fastq.gz -S $f.sam; done;
+
+#Try bwa
+~/g/software/bwa-0.7.15/bwa index -b 500000000 -a bwtsw HumanChimp.fa
+for f in `cat ../sample_names`; do echo $f; ~/g/software/bwa-0.7.15/bwa mem -M -t 16 ../../ref_genomes/HumanChimp/HumanChimp.fa ../reads/${f}_R1.fastq.gz ../reads/${f}_R2.fastq.gz |  samtools view -u -S - | ~/g/software/novocraft/novosort --md --kt -c 8 -x 6 -m 10G -t /g/data/u86/mxf221/AUF/surphi_paper -i -o ${f}_bwa.bam -; done
+
+#STAR for RNA samples
+/g/data/u86/software/STAR/bin/Linux_x86_64_static/STAR   --runMode genomeGenerate   --runThreadN 16   --limitGenomeGenerateRAM=90000000000 --genomeDir 100bp --genomeFastaFiles HumanChimp.fa --outFileNamePrefix HumanChimpSTAR --sjdbGTFfile HumanChimp.gtf --sjdbOverhang 99
+
+#Only single threaded with --outReadsUnmapped Fastx -> likely bug
+for f in `cat ../sample_names`; do echo $f; /g/data/u86/software/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang 99 --readFilesCommand zcat --runThreadN 1 --genomeDir /g/data/u86/mxf221/ref_genomes/HumanChimp/100bp/ --outFileNamePrefix /g/data/u86/mxf221/AUF/surphi_paper/${f}_STAR --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn ../reads/${f}_R1.fastq.gz ../reads/${f}_R2.fastq.gz --outReadsUnmapped Fastx; done
+
+#Lots of 'too short' unmapped read so run with --outFilterScoreMinOverLread 0.3 --outFilterMatchNminOverLread 0.3
+#Also use samtools-1-3.1 for bam2fq as v1.9 crashes (malformed sam header?)
+for f in `cat ../sample_names`; do echo $f; /g/data/u86/software/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang 99 --readFilesCommand zcat --runThreadN 1 --genomeDir /g/data/u86/mxf221/ref_genomes/HumanChimp/100bp/ --outFileNamePrefix /g/data/u86/mxf221/AUF/surphi_paper/${f}_STAR --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --outFilterScoreMinOverLread 0.3 --outFilterMatchNminOverLread 0.3 --readFilesIn ../reads/${f}_R1.fastq.gz ../reads/${f}_R2.fastq.gz --outReadsUnmapped Fastx; done
+
+Three samples (17c1_C5BU8ACXX 17c1_C5C53ACXX 17c2_C5C53ACXX) died about 2/3 of way through so used partially unmapped read files
+
+#Get unmapped read pairs (neither mate mapped)
+for f in *_bwa.sam; do echo $f; samtools bam2fq --threads 15 -f 12 -F256 -1 `echo $f | sed -e 's/.sam/_R1.fq/'` -2 `echo $f | sed -e 's/.sam/_R2.fq/'` $f; done
+
+#Rename STAR unmapped files
+>rename 's/.out.mate2/_R2.fq/' *mate2
+
+#STAR leave a quality base off sporatically (adjust for read length)
+for f in *_Unmapped_R[12].fq; do cat $f | awk '{if (length($1) == 99) print $1"C"; else print $0}' > `echo $f | sed -e 's/_Unmapped/_STAR/'`; done
+
+
+#PriceSeqFilter
+for f in `cat ../../sample_names`; do echo $f; ~/software/qc/PriceSource140408/PriceSeqFilter -fp ${f}_STAR_R1.fq ${f}_STAR_R2.fq -op ${f}_STAR_Price_R1.fq ${f}_STAR_Price_R2.fq -rnf 90 -rqf 85 0.98; done
+-> both 2c2 samples had error but generated partial files so keep going
+-> Remove @DJTPB5M1:351:C5C53ACXX:1:2110:6575:47895 from 12_C5C53ACXX_STAR_Price_R2.fq -> only put in one file for some reason
+
+for f in `cat ../../sample_names`; do ~/software/meta/cdhit/cd-hit-auxtools/cd-hit-dup -i ${f}_bwa_Price_R1.fq -i2 ${f}_bwa_Price_R2.fq -o ${f}_bwa_Price_cdhit_R1.fq -o2 ${f}_bwa_Price_cdhit_R2.fq -e 0.05; done
+
+for f in `cat ../../sample_names`; do ~/software/meta/cdhit/cd-hit-auxtools/cd-hit-dup -i ${f}_STAR_Price_R1.fq -i2 ${f}_STAR_Price_R2.fq -o ${f}_STAR_Price_cdhit_R1.fq -o2 ${f}_STAR_Price_cdhit_R2.fq -e 0.05; done
+
+#implement LZW compression wrapper script
+for f in `cat ../../sample_names`; do /drive3/work/AUF/surphi_paper/LZW/lzw.pl -read1_in ${f}_bwa_Price_cdhit_R1.fq -read2_in ${f}_bwa_Price_cdhit_R2.fq -read1_out ${f}_bwa_Price_cdhit_lwz_R1.fq -read2_out ${f}_bwa_Price_cdhit_lwz_R2.fq; done
+
+for f in `cat ../../sample_names`; do /drive3/work/AUF/surphi_paper/LZW/lzw.pl -read1_in ${f}_STAR_Price_cdhit_R1.fq -read2_in ${f}_STAR_Price_cdhit_R2.fq -read1_out ${f}_STAR_Price_cdhit_lwz_R1.fq -read2_out ${f}_STAR_Price_cdhit_lwz_R2.fq; done
+
+#Realign using bowtie2 for second filter
+for f in `cat ../sample_names`; do echo $f; bowtie2  -x ../../ref_genomes/HumanChimp/HumanChimp -p 16 --very-sensitive-local -1 ${f}_bwa_Price_cdhit_lwz_R1.fq -2 ${f}_bwa_Price_cdhit_lwz_R2.fq -S $f_bwa_Price_cdhit_lwz_bowtie2.sam; done
+
+for f in *_bowtie2.sam; do echo $f; samtools bam2fq --threads 15 -f 12 -F256 -1 `echo $f | sed -e 's/_bowtie2.sam/_bowtie2_R1.fq/'` -2 `echo $f | sed -e 's/_bowtie2.sam/_bowtie2_R2.fq/'` $f; done
+
+Need nt.fa and nr.fa
+wget https://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nr.gz
+wget https://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz
+
+#Build RAPSearch2 index
+/g/data/u86/software/RAPSearch2/bin/prerapsearch -d nr -n rap_nr -f T
+
+#Run RAPSearch2
+
+#Convert to fasta (crashes with fastq)
+>for f in *fq; do echo $f; sed -n '1~4s/^@/>/p;2~4p' $f > `echo $f | sed -e 's/.fq/.fasta/'`; done
+
+>/g/data/u86/software/RAPSearch2/bin/rapsearch -q /g/data/u86/mxf221/AUF/surphi_paper/processed_reads/5c_C5C53ACXX_STAR_Price_cdhit_lwz_bowtie2_R1.fasta -d /g/data/u86/mxf221/BLAST/rap_nr -z 16 -o /g/data/u86/mxf221/AUF/surphi_paper/rap_align/5c_C5C53ACXX_STAR_Price_cdhit_lwz_bowtie2_R1 -v 10 -b 10
+
+#Run RepeatMasker on nr
+
+#Run gmap_build on nr_repeatmask
+~/g/software/gmap-2019-03-15/util/gmap_build -D ~/g/mxf221/BLAST -d gmap_nt -k 15 nt
+
+
+2) Install Kraken2/Bracken on raijin
+git clone --recursive https://github.com/DerrickWood/kraken2.git
+./install_kraken2.sh /g/data/u86/software/kraken2
+./kraken2-build --standard --db /g/data/u86/software/kraken2/krakenDB/krakenStandard
+
+#Can't run locally; >32Gb memory
+~/g/software/kraken2/kraken2 --db /g/data/u86/software/kraken2/krakenDB/krakenStandard/  --threads 16 --report 5c_kraken2_report --paired --gzip-compressed /g/data/u86/mxf221/AUF/reads/5c_C5BU8ACXX_AGTCAA_L008_R1.fastq.gz /g/data/u86/mxf221/AUF/reads/5c_C5BU8ACXX_AGTCAA_L008_R2.fastq.gz > 5c_kraken2_table
+
+./bracken-build -d  /g/data/u86/software/kraken2/krakenDB/krakenStandard  -threads 16 -k 35 -l 100 -x  /g/data/u86/software/kraken2/kraken2
+
+~/g/software/Bracken/bracken -d /g/data/u86/software/kraken2/krakenDB/krakenStandard -i 5c_kraken2_report -r 100 -l S -t 10 -o 5c_bracken_report
+
+#Batch
+for f in `cat ../sample_names`; do echo $f; ~/g/software/kraken2/kraken2 --db /g/data/u86/software/kraken2/krakenDB/krakenStandard/  --threads 16 --report ${f}_kraken2_report --paired --gzip-compressed /g/data/u86/mxf221/AUF/reads/${f}_R1.fastq.gz /g/data/u86/mxf221/AUF/reads/${f}_R2.fastq.gz > ${f}_kraken2_table; done
+
+for f in `cat ../sample_names`; do echo $f; ~/g/software/Bracken/bracken -d /g/data/u86/software/kraken2/krakenDB/krakenStandard -i ${f}_kraken2_report -r 100 -l S -t 10 -o ${f}_bracken_report; done
+
+#Now on processed reads:
+for f in `cat ../../sample_names`; do echo $f; ~/g/software/kraken2/kraken2 --db /g/data/u86/software/kraken2/krakenDB/krakenStandard/  --threads 16 --report ${f}_bwa_kraken2_report --paired /g/data/u86/mxf221/AUF/surphi_paper/processed_reads/${f}_bwa_Price_cdhit_lwz_bowtie2_R1.fq /g/data/u86/mxf221/AUF/surphi_paper/processed_reads/${f}_bwa_Price_cdhit_lwz_bowtie2_R2.fq > ${f}_bwa_kraken2_table; done
+
+#sort bracken reports
+for f in 2c*bracken_report; do echo $f; cat $f | sort -t$'\t' -k7,8nr | head; echo; done
+
+
+
+3) Clinical_pathoscope
+Generate all bowtie2 indices from kraken2 DB to serve as input (human, viral, etc)
+~/g/software/bowtie2/bowtie2-build --threads 28 library.fna bacteria
+
+Easy install, just download and tar
+
+>python ~/software/meta/Clinical_PathoScope/runClinicalPathoscope.py 5c_config.txt
+
+See /drive3/work/AUF/clinical_pathoscope/5c_config.txt for configuration options -> can't urn locally; uses > 32Gb memory
+
+#Batch
+#Uncompress
+for f in `'ls' *L00*gz`; do echo $f; pigz -d -k -p 16 $f; done
+for f in `'ls' *R2.fastq`; do echo $f; ln -s $f `echo $f | cut -d'_' -f1,2`_R2.fastq; done
+for f in `'ls' *R2.fastq`; do echo $f; ln -s $f `echo $f | cut -d'_' -f1,2`_R2.fastq; done
+
+>for f in `cat ../sample_names`; do cat pathoscope_template.txt | sed -e "s/SAMPLE/${f}/g" > ${f}_pathoscope_R1.txt; done
+
+#Check results
+grep -i Leptospira ../kraken2_map  | cut -d'   ' -f 1 | sort | uniq > lepto_taxid
+for f in `cat lepto_taxid`; do grep "taxid|${f}|" 10_C5C53ACXX_R1-sam-report.tsv; done
+
+
+
+
+

@@ -1,0 +1,14 @@
+UNSW samples from Susan Corley to test pipeline:
+
+Received 3 BAM files from three samples.
+
+1) Ran bam_to_fq.pl to generate fastq -> needed to change conversion to samtools samtofq instead of bedtools as it generated duplicate reads from multiple reads
+
+2) Sample mapping:
+UNSW_single1_sg1_humansingle1 -> SSXT1
+UNSW_single2_sg1_humansingle1 -> SSXT2
+UNSW_single3_sg1_humansingle1 -> SSXT3
+
+3) Ran nata_reports to generate pdf summaries
+
+4) Ran project_summary step to demonstrate variant summary step

@@ -1,0 +1,30 @@
+GEO submission
+
+Fill in seq_template.xlsx -> requires checksum, fastq, STAR genecounts and RNASeq groups for samples
+
+Put everything in GEO_VANGL1 directory (fastq, txt counts, md5sum.txt and seq_template)
+
+>lftp ftp://geoftp:rebUzyi1@ftp-private.ncbi.nlm.nih.gov
+>cd uploads/mattfield_wDApAuIY
+>mirror -R GEO_VANGL1
+
+#If need to fix things, move, delete, etc
+>ftp ftp-private.ncbi.nlm.nih.gov
+Enter username/password
+>cd uploads/mattfield_wDApAuIY/GEO_VANGL1
+>delete md5sum.txt
+>put md5sum.txt
+etc
+
+
+SRA submission -> get 'map' from ACE
+#Populate SRA_metadata.xlsx
+{matt@matt-linux /drive3/work/microbiome/zainab/zainab_all_secondpaper/fastq}
+>cat map | cut -d' ' -f3 -> first column
+>cat map | cut -d' ' -f1 -> second column
+>cat map | cut -d' ' -f3 | awk '{print $1"_R1_001.fastq.gz"}' -> read1
+>cat map | cut -d' ' -f3 | awk '{print $1"_R2_001.fastq.gz"}' -> read2
+
+Biosample type -> MIMARKS Survey related (host-associated)
+Biosample attributes -> populate file (remember to add biorep column)
+SRA info -> populate file

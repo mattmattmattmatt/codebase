@@ -1,0 +1,184 @@
+First analysis (Feb 2020)
+
+SJ_001; APO27 (Hom del)
+SJ_002; APO46 (Hom WT)
+SJ_003; APO92 (hom del)
+SJ_004; APO100 (Hom WT)
+SJ_005; GEM108- before treatment- 14.03.18
+SJ_006; GEM108-after treatment-10.01.19
+
+Samples SJ_001 to SJ_004 belong to the vangl1 CNV project.
+
+Samples SJ_005 and SJ_006 are the patient (ITK mutation) samples before and after treatment respectively.
+
+### ITK first ###
+
+
+We have been successful in treating a patient with complex, undiagnosed autoimmunity based off of his flow cytometry profile. He has a mutation in the gene ITK, which in mice leads to enhanced responses to IL2 and then a peripheral immune  cell phenotype similar to that seen in the patient. We blocked T cell activation (and IL-2 action) with a drug called tacro, and his autoimmunity has essentially resolved.
+
+I haven't been able to prove his ITK SNV is damaging, but was hoping the RNA seq may show increased IL-2 gene responsive mRNA compared to the other samples - and in this way suggest loss of ITK function.
+
+
+/g/data/u86/software/TrimGalore/trim_galore --paired --output_dir /g/data/u86/mxf221/Simon/ITK/reads/ --path_to_cutadapt /g/data/u86/software/cutadapt/cutadapt /g/data/u86/mxf221/Simon/ITK/reads//SJ_006_S6_R1.fastq.gz /g/data/u86/mxf221/Simon/ITK/reads//SJ_006_S6_R2.fastq.gz 
+
+/g/data/u86/software/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang 74 --readFilesCommand zcat --runThreadN 16 --genomeDir /g/data/u86/mxf221/ref_genomes//GRCh38/75bp --outFileNamePrefix /g/data/u86/mxf221/Simon/ITK/outdir//SJ_006_S6_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn /g/data/u86/mxf221/Simon/ITK/reads//SJ_006_S6_R1_val_1.fq.gz /g/data/u86/mxf221/Simon/ITK/reads//SJ_006_S6_R2_val_2.fq.gz
+
+samtools index /g/data/u86/mxf221/Simon/ITK/outdir//SJ_006_S6_Aligned.sortedByCoord.out.bam
+
+#Generate SE from BAM (se.R in /drive3/work/RNASeq/Simon_ITK)
+#original se had duplcates to try to get to work
+dds <- DESeqDataSet(summarised, design = ~ group)
+
+#Variance transformation, see https://support.bioconductor.org/p/119731/
+"I’d recommend that you compute the vst() of the dataset and look at the large LFCs (difference between the two VST samples). I don’t think the pvalues were useful at all, hence the deprecation. I think the best we can do is output shrunken LFC (which here you can get by looking at difference between VST samples)."
+
+
+se_subset <- subset(summarised,select=grepl("Aligned",colnames(summarised)))
+save(se_subset,file="/drive3/work/RNASeq/Simon_ITK/se.R")
+dds <- DESeqDataSet(se_subset, design = ~ 1)
+dds <- DESeq(dds)
+
+vsd <- vst(dds)
+write.table(assay(vsd),file='/drive3/work/RNASeq/Simon_ITK/vsd.tsv',sep="\t")
+
+ds_norm <- counts(dds, normalized=TRUE)
+write.table(dds_norm,file='/drive3/work/RNASeq/Simon_ITK/normalized_counts.tsv',sep="\t")
+#For single gene
+data <- plotCounts(dds, gene="ENSG00000285915", intgroup = c("group"), returnData = TRUE);ggplot(data, aes(x=group, y=count, color=group))  + geom_point(size=3) + geom_line()
+
+>cat vsd.tsv | grep -v "0"$'\t'"0" | awk '{if ($2+$3 > 10) {print $0}}' | awk '{if ($2>=$3) {print $1,$2,$3,"DOWN",$2/($3+0.1)} else {print $1,$2,$3,"UP",$3/($2+0.1)}}' | sort +4nr -5  > vsd_sorted.tsv
+
+#Same for normal
+
+#Then annotate
+./annotate.pl -tsv_in normalised_counts_sorted.tsv 
+
+
+### ITK second analysis (Dec 2020) ###
+
+I hope you are doing well. I am writing to you regarding the second batch of RNA sequencing data generated this week for one of the GEM patients. This individual's RNA has been sequenced from PBMCs collected across different timepoints from 2017 to 2020. Further details regarding these clinical samples will be forwarded to you by Simon.
+
+Please find below the OneDrive Link to download these files:
+
+RNA_seq_DGE_gem_SimonJiang_CGV_JCSMR_11122020
+
+The sample list is below:
+Sample_1 GEM108 - 23/10/2017
+Sample_2 GEM108 - 07/02/2018
+Sample_3 GEM108 - 08/05/2018
+Sample_4 GEM108 - 19/06/2018
+Sample_5 GEM108 - 30/10/2018
+Sample_6 GEM108 - 05/08/2019
+Sample_7 GEM108 - 17/03/2020
+Sample_8 GEM108 - 11/08/2020
+Sample_9 GEM108 - 19/10/2020
+Sample_10 HBD012
+Sample_11 HBD026
+Sample_12 HBD036
+Sample_13 HBD046
+
+Please Note: samples 10-13 are healthy blood donor controls. 
+setwd("/g/data/u86/mxf221/Simon/ITK/outdir/")
+> file_list <- list.files(path=getwd(),pattern = ".*Sample.*.bam$",full=TRUE)
+> file_list
+ [1] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_10_S10_Aligned.sortedByCoord.out.bam"
+ [2] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_11_S11_Aligned.sortedByCoord.out.bam"
+ [3] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_12_S12_Aligned.sortedByCoord.out.bam"
+ [4] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_13_S13_Aligned.sortedByCoord.out.bam"
+ [5] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_1_S1_Aligned.sortedByCoord.out.bam"  
+ [6] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_2_S2_Aligned.sortedByCoord.out.bam"  
+ [7] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_3_S3_Aligned.sortedByCoord.out.bam"  
+ [8] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_4_S4_Aligned.sortedByCoord.out.bam"  
+ [9] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_5_S5_Aligned.sortedByCoord.out.bam"  
+[10] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_6_S6_Aligned.sortedByCoord.out.bam"  
+[11] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_7_S7_Aligned.sortedByCoord.out.bam"  
+[12] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_8_S8_Aligned.sortedByCoord.out.bam"  
+[13] "/g/data/u86/mxf221/Simon/ITK/outdir/Sample_9_S9_Aligned.sortedByCoord.out.bam"  
+
+> sample_table<-data.frame("file"=basename(file_list),"group"=c("Healthy","Healthy","Healthy","Healthy","PreTreat","PreTreat","PostTreat","PostTreat","PostTreat","PostTreat","PostTreat","PostTreat","PostTreat"))
+> sample_table
+                                          file     group
+1  Sample_10_S10_Aligned.sortedByCoord.out.bam   Healthy
+2  Sample_11_S11_Aligned.sortedByCoord.out.bam   Healthy
+3  Sample_12_S12_Aligned.sortedByCoord.out.bam   Healthy
+4  Sample_13_S13_Aligned.sortedByCoord.out.bam   Healthy
+5    Sample_1_S1_Aligned.sortedByCoord.out.bam  PreTreat
+6    Sample_2_S2_Aligned.sortedByCoord.out.bam  PreTreat
+7    Sample_3_S3_Aligned.sortedByCoord.out.bam PostTreat
+8    Sample_4_S4_Aligned.sortedByCoord.out.bam PostTreat
+9    Sample_5_S5_Aligned.sortedByCoord.out.bam PostTreat
+10   Sample_6_S6_Aligned.sortedByCoord.out.bam PostTreat
+11   Sample_7_S7_Aligned.sortedByCoord.out.bam PostTreat
+12   Sample_8_S8_Aligned.sortedByCoord.out.bam PostTreat
+13   Sample_9_S9_Aligned.sortedByCoord.out.bam PostTreat
+
+> bam_dir <- as.character(gsub(basename(file_list)[1], "", file_list[1]))
+> summarized_dm3 <- buildSummarized(sample_table = sample_table, bam_dir = bam_dir,read_format = "paired",output_log="/g/data/u86/mxf221/Simon/ITK/outdir//",gtf="/g/data/u86/mxf221/ref_genomes//GRCh38/GRCh38.gtf",strand_mode = 1,n_cores=4,BamFileList_yieldsize=2000000); save(summarized_dm3,file="/g/data/u86/mxf221/Simon/ITK/SE.R")
+
+>all_dir <- "/drive3/work/RNASeq/Simon/VANGL1/ITK/consensusDE/"
+>multi_de_pairs(summarized = summarized_dm3, ruv_correct = TRUE, plot_dir=all_dir, output_combined = all_dir, output_voom = all_dir, output_edger = all_dir,output_deseq = all_dir, ensembl_annotate = org.Hs.eg.db)
+
+Generate genes_of_interest from papers
+
+ cat genes_of_interest | xargs -i  grep '       {}      ' pre_healthy.tsv >> pre_healthy_genes.tsv
+
+
+
+
+
+### VANGL1 first ###
+
+summarized_vangl1 <- buildSummarized(sample_table = sample_table, bam_dir = bam_dir,read_format = "paired",strand_mode = 2,output_log="/drive3/work/RNASeq/Simon/VANGL1",gtf="/drive3/work/RNASeq/GRCh38.gtf",n_cores=3,BamFileList_yieldsize=2000000)
+
+all_dir <- "/drive3/work/RNASeq/Simon/VANGL1/consensusDE/" 
+
+multi_de_pairs(summarized = summarized_vangl1, ruv_correct = TRUE, plot_dir=all_dir, output_combined = all_dir, output_voom = all_dir, output_edger = all_dir,output_deseq = all_dir, ensembl_annotate = org.Hs.eg.db)
+
+#Get DESeq2 for plotting
+vangl1_dds <-  DESeqDataSet(summarized_vangl1, design = ~ group)
+vangl1_dds <- DESeq(vangl1_dds)
+
+data <- plotCounts(vangl1_dds,gene="ENSG00000139193",returnData = TRUE, intgroup = c("group")); ggplot(data, aes(x=group, y=count, color=group))  + geom_point(size=3) + geom_line() + ylim(0,3000) + ggtitle("CD27")
+
+/drive2/variantdb/trunk/RNASeq/annotate_consensusDE.pl -dir /drive3/work/RNASeq/Simon/VANGL1/consensusDE/ -anno_file /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/GRCh38_anno.gene
+
+#Get depth for each BAM
+samtools depth -b ../VANGL1_exon_coords ../VANGL1_WT_Hom1.bam -a --reference /drive2/variantdb/v3.0/conf/human/GRCh38/fasta/single_file/GRCh38d1p12.fa > VANGL1_WT_Hom1.depth
+
+paste VANGL1_Del_Hom1.depth VANGL1_Del_Hom2.depth VANGL1_WT_Hom1.depth VANGL1_WT_Hom2.depth | awk '{print $1,$2,$3,$6,$9,$12}' > all_samples.depth
+
+./depth.pl > exon_depth_average.tsv
+
+### VANGL1 full analysis (Dec 2020) ####
+
+Six new samples to analyse
+
+Email:
+I hope you are doing well. I am writing to you on behalf of Dr. Simon Jiang regarding the Vangl1 RNA sequencing data files generated from the new sequencing run this month. I have uploaded the FASTQ files to my OneDrive ANU account as I was unable to upload them to CloudStor. Please find below a OneDrive link to access and download the zipped RNA seq raw files:
+
+The following are the sample names and corresponding patient codes:
+
+Sample_1; GEM097
+Sample_2; GEM137
+Sample_3; GEM144
+Sample_4; GEM151
+Sample_5; GEM155
+Sample_6; GEM167
+
+Ran same analysis and combined with original four samples and looked at every exon.
+
+Generated Sashimi plots for four original samples and six new samples.
+
+One for all exons and one for each exon.  Found following anomalies.
+
+Skipped exons:
+1) SJ_003 has two reads skipping exon 3 (exon 2 to exon 4)
+2) SJ_003 has single read skipping exon 5 (exon 4 to exon 6) and Sample 2 has two reads also skipping exon 5.
+
+Alt Splice:
+1) SJ_002 has read spanning alternative exon 1 to exon 2
+2) SJ_002 has a single read with an alternative splice site between exon 5/6
+3) Sample 2 has single read that has alternative splice site between exon 2/3 (extra 4 bp) 
+4) SJ_002 has single read that has alternative splice site between exon 6/7
+5) Sample has single read that has alternative splice site between exon 4/5
+6) Sample 5 has single read that has alternative splice site between exon 3/4

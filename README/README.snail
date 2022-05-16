@@ -1,0 +1,96 @@
+Sample info:
+
+Bithynia siamensis goniomphalos
+
+Sequencing: TruSeq Small RNA-seq. MiSeq v2 50bp SR run
+
+Samples: miRNA from the hemocytes of uninfected (time 0h) and infected (time 24h, 48h and 96h). Two replicates per timepoint as follows:
+
+Rep 3- 0h
+Rep 3- 24h
+Rep 3- 48h
+Rep 3- 96H
+
+Rep 5- 0h
+Rep 5- 24h
+Rep 5- 48h
+Rep 5- 96H
+
+Try Cap_mirna pipeline using lottia gigantia (owl limpet) as reference species (closest with ref genome and available miRNA at mirbase)
+
+Generate config files run_info.txt sample_info.txt and tool_info.txt
+>~/software/miRNA/CAP-miRSEQ/scripts/CAP-miRseq.sh run_info.txt
+
+Useful miRNA software overview:
+http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4306309/
+
+Failed as only 0.1% of the reads ended up aligning.
+
+The tool was useful for cleaning up the reads as about 33% had adaptor contamination. Tracked down the adaptor for the small RNA kit
+
+Concatenated the fq's together to create single file for each condition:
+
+-b TGGAATTCTCGGGTGCCAAGG -O 3 -m 17 -f fastq -q 20 /home/matt/work/snail/Rep3_0h.fq -o /home/matt/work/snail/cap_mirseq_output/fastqs//Rep3_0h.cutadapt.fastq --too-short-output=/home/matt/work/snail/cap_mirseq_output/fastqs//Rep3_0h.tooshort.fastq
+
+Read stats:
+1) For total reads:
+grep 'Total Sequences' */Rep5-96h*/fastqc_data.txt | shrinkwrap  | cut -d' ' -f3 |sums
+
+2) Cutadapt filter % (inside capseq):
+grep 'Too short' *log | cut -d' ' -f9
+
+3) Average quality
+grep -A36 90th */*Rep3-0h*/fastqc_data.txt  | shrinkwrap | cut -d' ' -f2 | grep ^[0-9] | stats
+
+The means we must try to use de novo tools however as the majority of miRNA prediction tools require a reference genome as input to enable the excision of miRNA hairpin sequences, whose RNA structures and signatures are considered as key features for miRNA prediction
+
+
+There are three tools that work on de novo sequences:
+
+1) miReader -> GUI
+Load fastq and c.elegans OR
+java -jar miReader_celegans.jar /home/matt/work/snail/mireader/Rep3_0h/Rep3_0h.cutadapt.fastq /home/matt/work/snail/mireader/Rep3_0h 1
+
+-> hangs and never appears to finish (3 days at least)
+
+
+2) mirpipe  
+cd ~/work/snail/mirpipe
+for f in Rep*; do echo $f; ~/software/miRNA/mirpipe/mirpipe.pl -ref $f/mirBase_21_mature.fa -file $f/${f}.cutadapt.fastq; mv mirpipe* $f; done
+
+-> runs ok
+
+3) mirplex
+Can't use velvet as causes bug
+java -Xmx24g -jar ~/software/miRNA/mirplex/Workbench.jar -verbose -tool mirplex -params config
+
+where config contains:
+srna_file=/home/matt/work/snail/mirplex/Rep3_48h/Rep3_48h.cutadapt.fasta 
+out_dir=/home/matt/work/snail/mirplex/Rep3_48h
+out_prefix=Rep3_48h
+build_duplexes=true
+contig_analysis=false
+mature_filter_params=/home/matt/work/snail/mirplex/default_filter_params.cfg
+star_filter_params=/home/matt/work/snail/mirplex/default_filter_params.cfg
+svm_model_file=/home/matt/software/miRNA/mirplex/data/svm_models/metazoa_model1/metazoa_model1.cfg
+svm_scaling_file=/home/matt/software/miRNA/mirplex/data/svm_models/metazoa_model1/out/metazoa_model1_scaling_params.dat
+
+-> never finished or runs out of memory even on supercomputer
+
+
+Ran mirpipe.pl to generate summary file and expression input file
+->mirpipe_summary.txt
+
+Ran DE using DESeq2 using mirpipe_expression.tsv
+ 
+library('DESeq2')
+setwd("~/work/snail/mirpipe")
+rawCountTable <- read.table(paste0(getwd(),"/mirpipe_expression.tsv"),header=TRUE,row.names=1)
+sampleInfo <- read.table(paste0(getwd(),"/sample_info.tsv"),row.names=1,header=TRUE)
+condition <- c("control","treated","treated","treated")
+ddsFull <- DESeqDataSetFromMatrix(as.matrix(rawCountTable),sampleInfo,formula(~condition))
+ddsFull <- DESeq(ddsFull)
+res <- results(ddsFull)
+res <- res[order(res$log2FoldChange,decreasing = TRUE),]
+write.table(res,file="Control_vs_Treated_DESeq2.tsv",sep="\t")
+

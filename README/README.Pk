@@ -1,0 +1,5 @@
+#Get sanger reads from ENA
+#See /g/data/u86/mxf221/malaria/Pk/Sanger_data/qsub
+for f in `cat ../samples`; do cat template_SRR.qsub | sed -e "s/FILE/${f}/" > ${f}.qsub; echo $f | awk '{match($0,"[0-9][0-9][0-9]",a)} {match($0,"[0-9]$",b)} END {print "wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR"a[0]"/00"b[0]"/"$0"/"$0"_1.fastq.gz"} {print "wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR"a[0]"/00"b[0]"/"$0"/"$0"_2.fastq.gz"}' >> ${f}.qsub; done 
+
+#Singapore from cloudstor

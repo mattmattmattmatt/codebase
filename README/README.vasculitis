@@ -1,0 +1,135 @@
+We have some more data from Rogue B cells from a patient with HCV- cryo vasculitis to look for somatic mutations in, which Clara and Dan have been working on together in Chris’s group – cc’d here. The rogue B cells are similar to the ones we looked at for the paper – expressing VH1-69 and presumably driving the cryoglobulin so will hopefully also carry somatic mutation in lymphoma driver genes.
+
+Would you be able to perform the same variant calling on this dataset that you did for the previous Rogue 1.2 sample? All the samples are single cells – Clara will send through a sample sheet explaining which cell is rogue and which is control. I believe there will be 3 groups based on their BCR usage – “Rogue” which is a large expanded VH1-69 clone, “Maybe-Rogue” which is a smaller clone of only 2 cells and “Control” which are polyclonal VH1-69- cells and will also include a pool of 50 T cells. If we could look at mutations in the Rogue and “maybe-rogue” cells but not the control cells as before that would be great!
+
+
+
+
+Downloaded bs from https://bintray.com/basespace/BaseSpaceCLI-EarlyAccess-BIN/latest/0.10.8
+
+Then runvar
+>bs auth (only initially)
+>bs list project -> find names
+#For each project run:
+>bs list dataset | grep MANSIN_MO_LE_AB_1906xx | cut -d '|' -f2 | sed -e 's/ //g' > MANSIN_MO_LE_AB_1906xx_samples
+>for f in `cat MANSIN_MO_LE_AB_1906xx_samples`; do echo $f; bs download dataset -n $f -o MANSIN_MO_LE_AB_1906xx_${f}; done
+
+'ls' *gz | cut -d'_' -f6,7 | sort | uniq > sample_list
+
+for f in `'ls' MANSIN_MO_LE_AB_1906xx_2_A* MANSIN_MO_LE_CD_1906xx_2_*`; do echo $f; tar xzvf $f; done
+
+rename 1-A 1_A 1-A*
+...
+rename 2-D 2_D 2-D*
+
+for f in `cat sample_list`; do echo $f; cat fastq/${f}-*R1*gz >> fastq/${f}_R1.fastq.gz; done
+for f in `cat sample_list`; do echo $f; cat fastq/${f}-*R2*gz >> fastq/${f}_R2.fastq.gz; done
+
+~/g/variantdb/trunk/utils/quick_gatk_qsub.pl -readdir vasculitis/fastq/ -sample_list vasculitis/sample_list -qsubdir vasculitis/qsub/ -outdir vasculitis/runs/
+for f in [12]*qsub; do qsub $f; done
+ 
+for f in [12]*qsub; do qsub $f; done
+
+#When done
+qsub joint_call.qsub
+
+Change to GRCh38
+-> Update quick_annotate_vcf.pl
+
+Run VEP on raijin for now (use release 94)
+~/g/variantdb/v2.38/utils/vep_wrapper.pl -vep_in vep.in -vep_bin /g/data/u86/software/vep/ensembl-vep/vep > joint_calls.txt.vep.exon
+~/g/variantdb/v2.38/utils/vep_wrapper.pl -vep_in vep.in -vep_bin /g/data/u86/software/vep/ensembl-vep/vep -all > joint_calls.txt.vep.all
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -outfile vasculitis_all_variants.tsv
+
+#Lots of no data so add feature
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -no_run -outfile vasculitis_all_variants_at_least_half_with_data.tsv -max_nocall_count 24
+
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -no_run -sample_file somatic_sample_list -somatic -outfile vasculitis_somatic_variants.tsv
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf joint_calls.vcf -outdir results/ -skip_vep -no_run -sample_file somatic_sample_list -somatic -outfile vasculitis_somatic_variants__at_least_half_with_data.tsv
+
+WGS See /g/data/u86/mxf221/Goodnow/vasculitis/wgs
+
+Three rogue samples and one normal.  Ran all four samples to gatk ready followed by mutect2 and manta.
+
+Took mutect2 vcf and ran for all and just passed
+Had to run VEP on raijin
+
+grep ^#  Vasculitis.all.vcf  > tmp1
+grep PASS  Vasculitis.all.vcf  > tmp2
+cat tmp1 tmp2 >> Vasculitis.pass.vcf
+
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf Vasculitis.pass.vcf -outdir results_pass/ -skip_vep
+
+/drive2/variantdb/trunk/utils/quick_annotate_vcf.pl -vcf Vasculitis.all.vcf -outdir results/ -skip_vep
+
+Run manta:
+~/g/software/manta-1.1.1.centos5_x86_64/bin/configManta.py  --normalBam=normal_gatk.bam --tumourBam=rogue_gatk.bam --referenceFasta=/g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa --runDir=/g/data/u86/mxf221/Goodnow/vasculitis/wgs/runs/manta
+
+/g/data/u86/mxf221/Goodnow/vasculitis/wgs/runs/manta/runWorkflow.py -g 64 -j 16 -m local
+
+Copy somatic vcf file
+/drive2/variantdb/trunk/scripts/parse_manta.pl -manta_vcf somaticSV.vcf
+grep -v inv manta.txt > manta.nobp
+cp manta.tra manta.bp; grep inv manta.txt >> manta.bp 
+grep bnd manta.bp | cut -d$'\t' -f1-5 | awk '{print $1,$2,$2,$5"\n"$3,$4,$4,$5}' > manta.bp.split
+grep inv manta.bp | cut -d$'\t' -f1-5 | awk '{print $1,$2,$2,$4"\n"$1,$3,$3,$4}' >> manta.bp.split
+
+/drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.nobp -just_overlap -coord  /drive2/vardb/v3.0/conf/human/GRCh38/gene/021118/GRCh38.gene.overlap.all -all | sed -e 's/	1$/	NO_GENE/' > manta.nobp.gene
+/drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.bp.split -just_overlap -coord  /drive2/vardb/v3.0/conf/human/GRCh38/gene/021118/GRCh38.gene.overlap.all -all | sed -e 's/	1$/	NO_GENE/' > manta.bp.gene
+
+cat  manta.txt  manta.tra >> manta.all
+cat  manta.nobp.gene manta.bp.gene >> manta.all.gene
+./manta_summarise.pl > Vasculitis_manta.tsv
+
+
+#Need to get fastq from Bam for ROBR samples
+
+cd /g/data/u86/mxf221/Goodnow/vasculitis/wgs/runs/ROBR/hg38
+
+samtools bam2fq -@ 16 -1 normal_R1.fq.gz -2 normal_R2.fq.gz -N --reference /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa  -s /dev/null ../normal.bam
+
+Then run gatk pipe as per normal
+
+#New batch 
+cat joint_calls.vcf | grep -v decoy | grep -v random | grep -v ^Un | grep -v ^[NM] > joint_calls_chr.vcf
+
+#Filter out common variants on command line
+cat ROBR_mutect.tsv  | extract -t "_15 <= 0.05"   | sed -e "s/[ACTG]->[ATCG]:\([0-9].[0-9]\+\):[0-9]\+.[0-9]\+/\1/g" | sed -e "s/[+-][ATCG]\+:\([0-9].[0-9]\+\):[0-9]\+.[0-9]\+/\1/" | extract -t "_16 <= 0.05" > ROBR_mutect_nocommon.tsv
+
+
+#Het variants 
+cat 6cells_all_variants.tsv | grep "^11" | extract -t "_1> 102332947 && _2<117166632" | extract -t "_37 eq 'het'" > 6cells_ATM_ctrlHet.tsv
+
+cat 6cells_all_variants.tsv | grep "^11" | extract -t "_1> 92339036 && _2<102339036" | extract -t "_37 eq 'het'" > 6cells_lowATM_ctrlHet.tsv
+
+>cat 6cells_all_variants.tsv | grep "^11" | extract -t "_1> 117148057 && _2<127148057" | extract -t "_37 eq 'het'" > 6cells_highATM_ctrlHet.tsv
+
+# In the meantime I was wondering if you were able to subsample the read-depth of these sample~/g/software/manta-1.1.1.centos5_x86_64/bins? Would it be possible to subsample to 20X, 10X and 5X coverage for each cell and then return germline HET variants from the control in the same way? This would be useful going forward if we can get away with sequencing say 5 cells at 5X or 10X coverage which would make the approach a lot more feasible.
+
+Get 20X, 10X and 5X reads
+
+Sequencable bases  =  3209286105 (https://github.com/igvteam/igv/blob/master/genomes/sizes/hg38.chrom.sizes)
+
+To get 1X = 3209286105/300 -> 10697620
+
+20X lines needed = 10697620*20*4 = 855809600
+10X = 10697620*10*4 = 427904800
+5X = 10697620*5*4 = 213952400
+
+for f in 213952400 427904800 855809600; do for g in A1_control_ A8_rogue_ C11_rogue_ C2_rogue_ C4_rogue_ C5_rogue_ C6_rogue_; do zcat ${g}R1.fastq.gz | head -${f} > ${g}${f}_R1.fastq; zcat ${g}R2.fastq.gz | head -${f} > ${g}${f}_R2.fastq; done; done
+
+rename 213952400 5X *213952400*
+rename 427904800 10X *427904800*
+rename 855809600 20X *855809600*
+
+#Manta wrapper
+{matt@matt-linux /drive3/work/Goodnow/ss/WGS3/manta}
+>for f in `cat ../sample_list`;do mkdir $f; echo $f; /drive2/variantdb/trunk/utils/quick_manta.pl -vcf_in somatic_${f}.vcf -outdir ./${f}; done
+
+
+
+

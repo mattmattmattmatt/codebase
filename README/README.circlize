@@ -1,0 +1,156 @@
+library(circlize)
+circos.clear()
+
+#Set alignment vertical
+circos.par(start.degree=90)
+
+#Set colors
+link_col_plus = colorRamp2(c(32,6,4,3,2,1), c("chartreuse4", "yellowgreen","palegreen2","springgreen3","seashell","green"), transparency = 0.5)
+
+cat A2_plus.csv | tr "\t" "\n" | sort | uniq | awk '{print \"$1"\"=\"\","}'| tr "\n" " "
+
+
+
+
+grid_col_plus = c("TRBJ1-1"="chartreuse4", "TRBJ1-2"="chartreuse3", "TRBJ1-3"="green","TRBJ1-4"="chartreuse2", "TRBJ1-5"="chartreuse1", "TRBJ1-6"="chartreuse", "TRBJ2-1"="greenyellow", "TRBJ2-2"="green", "TRBJ2-3"="green1", "TRBJ2-4"="green2", "TRBJ2-5"="green3", "TRBJ2-6"="green4", "TRBJ2-7"="darkolivegreen4", "TRBV10-3"="darkolivegreen3", "TRBV11-1"="palegreen","TRBV11-2"="darkolivegreen2", "TRBV11-3"="darkolivegreen1", "TRBV12-3"="darkolivegreen", "TRBV19"="forestgreen", "TRBV2"="palegreen", "TRBV20-1"="palegreen1", "TRBV23-1"="green1","TRBV24-1"="palegreen2", "TRBV25-1"="palegreen3", "TRBV27"="palegreen4", "TRBV28"="seagreen", "TRBV3-1"="seagreen1", "TRBV4-1"="seagreen2", "TRBV5-4"="limegreen", "TRBV5-8"="lightgreen", "TRBV7-8"="olivedrab3", "TRBV7-9"="olivedrab4")
+
+
+#Create blank circos
+chordDiagram(A2_plus,col=link_col_plus,big.gap=20,grid.col=grid_col_plus,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(A2_plus))))))
+
+#Flip and shrink labels
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+
+#Add vertical line
+abline(v = 0, lty = 2, col = "#00000080")
+
+#For minus next
+circos.clear()
+circos.par(start.degree=90)
+link_col_minus = colorRamp2(c(6,4,3,2,1), c("darkorange4", "chocolate1","tan","orange4","orange"), transparency = 0.5)
+grid_col_minus = c("TRBJ1-1"="chocolate", "TRBJ1-2"="chocolate1", "TRBJ1-4"="chocolate3", "TRBJ1-5"="darkorange", "TRBJ1-6"="darkorange1", "TRBJ2-1"="darkorange2", "TRBJ2-2"="darkorange3", "TRBJ2-3"="darkorange4", "TRBJ2-4"="orange", "TRBJ2-5"="orange1", "TRBJ2-6"="orange2", "TRBJ2-7"="orange3", "TRBV10-3"="orange4", "TRBV11-2"="tan1", "TRBV11-3"="tan2", "TRBV12-3"="sienna", "TRBV12-4"="tan","TRBV12-4"="chocolate2", "TRBV12-5"="orange","TRBV13"="sienna4", "TRBV14"="salmon", "TRBV18"="salmon1","TRBV19"="sienna1", "TRBV2"="sienna2", "TRBV20-1"="sienna3", "TRBV24-1"="tan3", "TRBV25-1"="tan4", "TRBV27"="peru", "TRBV28"="salmon4", "TRBV3-1"="sandybrown", "TRBV4-1"="coral", "TRBV4-2"="salmon2", "TRBV4-3"="salmon3","TRBV5-4"="coral1", "TRBV5-6"="coral2", "TRBV6-4"="coral3", "TRBV6-5"="coral4", "TRBV7-2"="burlywood", "TRBV7-9"="burlywood1", "TRBV9"="burlywood2","TRBV7-8"="burlywood3")
+chordDiagram(A2_minus,col=link_col_minus,big.gap=20,grid.col=grid_col_minus,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(A2_minus))))))
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+ abline(v = 0, lty = 2, col = "#00000080")
+
+
+#Great frequencies for V and J chains
+
+cat A2_plus_counted.csv | cut -d$'\t' -f1,3 | awk 'NR == 1 { print; next }
+  { a[$1] += $2 }
+  END {
+    for (i in a) {
+      printf "%-15s\t%s\n", i, a[i];
+    }
+  }
+' > A2_plus_Vchain_percent.tsv
+
+cat A2_plus_counted.csv | cut -d$'\t' -f2,3 | awk 'NR == 1 { print; next }
+  { a[$1] += $2 }
+  END {
+    for (i in a) {
+      printf "%-15s\t%s\n", i, a[i];
+    }
+  }
+' > A2_plus_Jchain_percent.tsv
+
+#Same for minus
+#
+#
+#Final files
+
+head -84 FLC_Total.csv | shrinkwrap | grep -v ^HLA | awk '{print $5"\t"$7}' | sed -e 's/\/DV[0-9]//' > ../../docs/papers/TCR_A2/FLC_plus_beta.csv
+head -84 FLC_Total.csv | shrinkwrap | grep -v ^HLA | awk '{print $2"\t"$4}' | sed -e 's/\/DV[0-9]//' > ../../docs/papers/TCR_A2/FLC_plus_alpha.csv
+tail -96 FLC_Total.csv | shrinkwrap | grep -v ^HLA | awk '{print $5"\t"$7}' | sed -e 's/\/DV[0-9]//' > ../../docs/papers/TCR_A2/FLC_minus_beta.csv
+tail -96 FLC_Total.csv | shrinkwrap | grep -v ^HLA | awk '{print $2"\t"$4}' | sed -e 's/\/DV[0-9]//' > ../../docs/papers/TCR_A2/FLC_minus_alpha.csv
+
+head -94 IMN_Total.csv | shrinkwrap | grep -v ^HLA | awk '{print $2"\t"$4}' | sed -e 's/\/DV[0-9]//' -e 's/*0[1-9]//g' > ../../docs/papers/TCR_A2/IMN_plus_alpha.csv
+head -94 IMN_Total.csv | shrinkwrap | grep -v ^HLA | awk '{print $5"\t"$7}' | sed -e 's/\/DV[0-9]//' -e 's/*0[1-9]//g' > ../../docs/papers/TCR_A2/IMN_plus_beta.csv
+tail -87 IMN_Total.csv | shrinkwrap | grep -v ^HLA | awk '{print $5"\t"$7}' | sed -e 's/\/DV[0-9]//' -e 's/*0[1-9]//g' > ../../docs/papers/TCR_A2/IMN_minus_beta.csv
+tail -87 IMN_Total.csv | shrinkwrap | grep -v ^HLA | awk '{print $2"\t"$4}' | sed -e 's/\/DV[0-9]//' -e 's/*0[1-9]//g' > ../../docs/papers/TCR_A2/IMN_minus_alpha.csv
+
+#Get color grids (note has tab)
+for f in IMN FLC; do for g in alpha beta; do cat ${f}_minus_${g}.csv | tr "\t" "\n" | sort | uniq > ${f}_minus_${g}.list ; paste ${f}_minus_${g}.list orange_colors  | grep TR | sed -e 's/    /"="/'  -e 's/^T/"T/' | tr "\n" '"'  | sed -e 's/""/","/g' > ${f}_minus_${g}.colors; done; done
+
+for f in IMN FLC; do for g in alpha beta; do cat ${f}_plus_${g}.csv | tr "\t" "\n" | sort | uniq > ${f}_plus_${g}.list ; paste ${f}_plus_${g}.list green_colors  | grep TR | sed -e 's/    /"="/'  -e 's/^T/"T/' | tr "\n" '"'  | sed -e 's/""/","/g' > ${f}_plus_${g}.colors; done; done
+
+
+library(circlize)
+FLC_minus_alpha <- read.csv2("FLC_minus_alpha.csv",sep="\t")
+FLC_minus_beta <- read.csv2("FLC_minus_beta.csv",sep="\t")
+FLC_plus_alpha <- read.csv2("FLC_plus_alpha.csv",sep="\t")
+FLC_plus_beta <- read.csv2("FLC_plus_beta.csv",sep="\t")
+IMN_minus_alpha <- read.csv2("IMN_minus_alpha.csv",sep="\t")
+IMN_minus_beta <- read.csv2("IMN_minus_beta.csv",sep="\t")
+IMN_plus_alpha <- read.csv2("IMN_plus_alpha.csv",sep="\t")
+IMN_plus_beta <- read.csv2("IMN_plus_beta.csv",sep="\t")
+
+
+link_col_orange = colorRamp2(c(6,4,3,2,1), c("darkorange4", "chocolate1","tan","orange4","orange"), transparency = 0.5)
+link_col_green = colorRamp2(c(32,6,4,3,2,1), c("chartreuse4", "yellowgreen","palegreen2","springgreen3","seashell","green"), transparency = 0.5)
+
+grid_FLC_minus_alpha = c("TRAJ10"="burlywood","TRAJ11"="burlywood1","TRAJ13"="burlywood2","TRAJ15"="burlywood3","TRAJ20"="chocolate","TRAJ21"="chocolate1","TRAJ22"="chocolate2","TRAJ23"="chocolate3","TRAJ24"="coral","TRAJ26"="coral1","TRAJ27"="coral2","TRAJ29"="coral3","TRAJ31"="coral4","TRAJ32"="darkorange","TRAJ33"="darkorange1","TRAJ34"="darkorange2","TRAJ35"="darkorange3","TRAJ37"="darkorange4","TRAJ38"="orange","TRAJ40"="orange","TRAJ41"="orange1","TRAJ42"="orange2","TRAJ43"="orange3","TRAJ45"="orange4","TRAJ47"="peru","TRAJ48"="salmon","TRAJ49"="salmon1","TRAJ5"="salmon2","TRAJ52"="salmon3","TRAJ53"="salmon4","TRAJ54"="sandybrown","TRAJ57"="sienna","TRAJ7"="sienna1","TRAJ8"="sienna2","TRAJ9"="sienna3","TRAV10"="sienna4","TRAV1-1"="tan","TRAV1-2"="tan1","TRAV12-1"="tan2","TRAV12-2"="tan3","TRAV12-3"="tan4","TRAV13-1"="burlywood","TRAV13-2"="burlywood1","TRAV14"="burlywood2","TRAV16"="burlywood3","TRAV17"="chocolate","TRAV19"="chocolate1","TRAV21"="chocolate2","TRAV22"="chocolate3","TRAV23"="coral","TRAV24"="coral1","TRAV26-1"="coral2","TRAV27"="coral3","TRAV29"="coral4","TRAV3"="darkorange","TRAV34"="darkorange1","TRAV35"="darkorange2","TRAV38-1"="darkorange3","TRAV38-2"="darkorange4","TRAV4"="orange","TRAV5"="orange","TRAV6"="orange1","TRAV8-1"="orange2","TRAV8-2"="orange3","TRAV8-3"="orange4","TRAV8-6"="peru","TRAV9-2"="salmon")
+
+grid_FLC_minus_beta = c("TRBJ1-1"="burlywood","TRBJ1-2"="burlywood1","TRBJ1-3"="burlywood2","TRBJ1-4"="burlywood3","TRBJ1-5"="chocolate","TRBJ1-6"="chocolate1","TRBJ2-1"="chocolate2","TRBJ2-2"="chocolate3","TRBJ2-3"="coral","TRBJ2-5"="coral1","TRBJ2-6"="coral2","TRBJ2-7"="coral3","TRBV10-1"="coral4","TRBV10-3"="darkorange","TRBV11-2"="darkorange1","TRBV11-3"="darkorange2","TRBV12-3"="darkorange3","TRBV12-4"="darkorange4","TRBV13"="orange","TRBV15"="orange","TRBV19"="orange1","TRBV2"="orange2","TRBV20-1"="orange3","TRBV23-1"="orange4","TRBV25-1"="peru","TRBV27"="salmon","TRBV28"="salmon1","TRBV29-1"="salmon2","TRBV3-1"="salmon3","TRBV4-1"="salmon4","TRBV4-2"="sandybrown","TRBV5-4"="sienna","TRBV5-8"="sienna1","TRBV6-5"="sienna2","TRBV7-2"="sienna3","TRBV9"="sienna4")
+
+grid_FLC_plus_alpha = c("TRAJ11"="chartreuse","TRAJ12"="chartreuse1","TRAJ20"="chartreuse2","TRAJ21"="chartreuse3","TRAJ23"="chartreuse4","TRAJ24"="darkolivegreen","TRAJ28"="darkolivegreen1","TRAJ31"="darkolivegreen2","TRAJ33"="darkolivegreen3","TRAJ34"="darkolivegreen4","TRAJ36"="forestgreen","TRAJ37"="green","TRAJ39"="green1","TRAJ40"="green1","TRAJ41"="green2","TRAJ42"="green3","TRAJ43"="green4","TRAJ44"="greenyellow","TRAJ45"="lightgreen","TRAJ47"="limegreen","TRAJ48"="olivedrab3","TRAJ49"="olivedrab4","TRAJ52"="palegreen","TRAJ54"="palegreen","TRAJ57"="palegreen1","TRAJ7"="palegreen2","TRAJ8"="palegreen3","TRAJ9"="palegreen4","TRAV1-2"="seagreen","TRAV12-1"="seagreen1","TRAV12-2"="seagreen2","TRAV14"="chartreuse","TRAV16"="chartreuse1","TRAV17"="chartreuse2","TRAV19"="chartreuse3","TRAV20"="chartreuse4","TRAV21"="darkolivegreen","TRAV22"="darkolivegreen1","TRAV23"="darkolivegreen2","TRAV24"="darkolivegreen3","TRAV27"="darkolivegreen4","TRAV29"="forestgreen","TRAV3"="green","TRAV34"="green1","TRAV35"="green1","TRAV36"="green2","TRAV38-2"="green3","TRAV4"="green4","TRAV41"="greenyellow","TRAV5"="lightgreen","TRAV8-1"="limegreen","TRAV8-2"="olivedrab3","TRAV8-6"="olivedrab4","TRAV9-2"="palegreen")
+
+grid_FLC_plus_beta = c("TRBJ1-1"="chartreuse","TRBJ1-2"="chartreuse1","TRBJ1-3"="chartreuse2","TRBJ1-4"="chartreuse3","TRBJ1-5"="chartreuse4","TRBJ1-6"="darkolivegreen","TRBJ2-1"="darkolivegreen1","TRBJ2-2"="darkolivegreen2","TRBJ2-3"="darkolivegreen3","TRBJ2-5"="darkolivegreen4","TRBJ2-7"="forestgreen","TRBV10-3"="green","TRBV11-3"="green1","TRBV12-4"="green1","TRBV13"="green2","TRBV19"="green3","TRBV2"="green4","TRBV20-1"="greenyellow","TRBV23-1"="lightgreen","TRBV25-1"="limegreen","TRBV27"="olivedrab3","TRBV28"="olivedrab4","TRBV29-1"="palegreen","TRBV30"="palegreen","TRBV3-1"="palegreen1","TRBV4-1"="palegreen2","TRBV4-2"="palegreen3","TRBV5-1"="palegreen4","TRBV6-4"="seagreen","TRBV7-2"="seagreen1","TRBV7-3"="seagreen2","TRBV7-9"="chartreuse","TRBV9"="chartreuse1")
+
+grid_IMN_minus_alpha = c("TRAJ12"="burlywood","TRAJ13"="burlywood1","TRAJ15"="burlywood2","TRAJ16"="burlywood3","TRAJ17"="chocolate","TRAJ18"="chocolate1","TRAJ20"="chocolate2","TRAJ22"="chocolate3","TRAJ23"="coral","TRAJ24"="coral1","TRAJ26"="coral2","TRAJ28"="coral3","TRAJ29"="coral4","TRAJ30"="darkorange","TRAJ31"="darkorange1","TRAJ32"="darkorange2","TRAJ34"="darkorange3","TRAJ39"="darkorange4","TRAJ40"="orange","TRAJ41"="orange","TRAJ42"="orange1","TRAJ43"="orange2","TRAJ44"="orange3","TRAJ45"="orange4","TRAJ47"="peru","TRAJ48"="salmon","TRAJ49"="salmon1","TRAJ52"="salmon2","TRAJ53"="salmon3","TRAJ56"="salmon4","TRAJ57"="sandybrown","TRAJ6"="sienna","TRAJ8"="sienna1","TRAJ9"="sienna2","TRAV10"="sienna3","TRAV1-1"="sienna4","TRAV1-2"="tan","TRAV12-1"="tan1","TRAV12-2"="tan2","TRAV12-3"="tan3","TRAV14"="tan4","TRAV16"="burlywood","TRAV17"="burlywood1","TRAV19"="burlywood2","TRAV20"="burlywood3","TRAV21"="chocolate","TRAV25"="chocolate1","TRAV26-1"="chocolate2","TRAV26-2"="chocolate3","TRAV29"="coral","TRAV3"="coral1","TRAV35"="coral2","TRAV38-1"="coral3","TRAV4"="coral4","TRAV41"="darkorange","TRAV5"="darkorange1","TRAV8-1"="darkorange2","TRAV8-2"="darkorange3","TRAV8-3"="darkorange4","TRAV8-6"="orange","TRAV9-2"="orange")
+
+grid_IMN_minus_beta = c("TRBJ1-1"="burlywood","TRBJ1-2"="burlywood1","TRBJ1-4"="burlywood2","TRBJ1-5"="burlywood3","TRBJ1-6"="chocolate","TRBJ2-1"="chocolate1","TRBJ2-2"="chocolate2","TRBJ2-3"="chocolate3","TRBJ2-4"="coral","TRBJ2-5"="coral1","TRBJ2-6"="coral2","TRBJ2-7"="coral3","TRBV10-3"="coral4","TRBV11-2"="darkorange","TRBV11-3"="darkorange1","TRBV12-3"="darkorange2","TRBV12-4"="darkorange3","TRBV12-5"="darkorange4","TRBV13"="orange","TRBV14"="orange","TRBV18"="orange1","TRBV19"="orange2","TRBV2"="orange3","TRBV20-1"="orange4","TRBV24-1"="peru","TRBV25-1"="salmon","TRBV27"="salmon1","TRBV28"="salmon2","TRBV3-1"="salmon3","TRBV4-1"="salmon4","TRBV4-2"="sandybrown","TRBV4-3"="sienna","TRBV5-4"="sienna1","TRBV5-6"="sienna2","TRBV6-4"="sienna3","TRBV6-5"="sienna4","TRBV7-2"="tan","TRBV7-9"="tan1","TRBV9"="tan2")
+
+grid_IMN_plus_alpha = c("TRAJ12"="chartreuse","TRAJ13"="chartreuse1","TRAJ15"="chartreuse2","TRAJ16"="chartreuse3","TRAJ18"="chartreuse4","TRAJ23"="darkolivegreen","TRAJ24"="darkolivegreen1","TRAJ27"="darkolivegreen2","TRAJ29"="darkolivegreen3","TRAJ30"="darkolivegreen4","TRAJ31"="forestgreen","TRAJ32"="green","TRAJ34"="green1","TRAJ37"="green1","TRAJ39"="green2","TRAJ4"="green3","TRAJ40"="green4","TRAJ41"="greenyellow","TRAJ43"="lightgreen","TRAJ44"="limegreen","TRAJ45"="olivedrab3","TRAJ47"="olivedrab4","TRAJ49"="palegreen","TRAJ52"="palegreen","TRAJ53"="palegreen1","TRAJ57"="palegreen2","TRAJ58"="palegreen3","TRAJ6"="palegreen4","TRAJ9"="seagreen","TRAV10"="seagreen1","TRAV12-2"="seagreen2","TRAV12-3"="chartreuse","TRAV14"="chartreuse1","TRAV17"="chartreuse2","TRAV19"="chartreuse3","TRAV21"="chartreuse4","TRAV22"="darkolivegreen","TRAV23"="darkolivegreen1","TRAV25"="darkolivegreen2","TRAV27"="darkolivegreen3","TRAV29"="darkolivegreen4","TRAV35"="forestgreen","TRAV35()"="green","TRAV38-1"="green1","TRAV38-2"="green1","TRAV41"="green2","TRAV5"="green3","TRAV8-1"="green4","TRAV8-2"="greenyellow","TRAV8-3"="lightgreen","TRAV8-6"="limegreen","TRAV9-2"="olivedrab3")
+
+grid_IMN_plus_beta = c("TRBJ1-1"="chartreuse","TRBJ1-2"="chartreuse1","TRBJ1-3"="chartreuse2","TRBJ1-4"="chartreuse3","TRBJ1-5"="chartreuse4","TRBJ1-6"="darkolivegreen","TRBJ2-1"="darkolivegreen1","TRBJ2-2"="darkolivegreen2","TRBJ2-3"="darkolivegreen3","TRBJ2-4"="darkolivegreen4","TRBJ2-5"="forestgreen","TRBJ2-6"="green","TRBJ2-7"="green1","TRBV10-3"="green1","TRBV11-1"="green2","TRBV11-2"="green3","TRBV11-3"="green4","TRBV12-3"="greenyellow","TRBV19"="lightgreen","TRBV2"="limegreen","TRBV20-1"="olivedrab3","TRBV23-1"="olivedrab4","TRBV24-1"="palegreen","TRBV25-1"="palegreen","TRBV27"="palegreen1","TRBV28"="palegreen2","TRBV3-1"="palegreen3","TRBV4-1"="palegreen4","TRBV5-4"="seagreen","TRBV5-8"="seagreen1","TRBV7-8"="seagreen2","TRBV7-9"="chartreuse")
+
+
+circos.clear()
+circos.par(start.degree=90)
+chordDiagram(FLC_minus_alpha,col=link_col_orange,big.gap=20,grid.col=grid_FLC_minus_alpha,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(FLC_minus_alpha))))))
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+abline(v = 0, lty = 2, col = "#00000080")
+
+
+circos.clear()
+circos.par(start.degree=90)
+chordDiagram(FLC_minus_beta,col=link_col_orange,big.gap=20,grid.col=grid_FLC_minus_beta,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(FLC_minus_beta))))))
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+abline(v = 0, lty = 2, col = "#00000080")
+
+circos.clear()
+circos.par(start.degree=90)
+chordDiagram(IMN_minus_alpha,col=link_col_orange,big.gap=20,grid.col=grid_IMN_minus_alpha,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(IMN_minus_alpha))))))
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+abline(v = 0, lty = 2, col = "#00000080")
+
+circos.clear()
+circos.par(start.degree=90)
+chordDiagram(IMN_minus_beta,col=link_col_orange,big.gap=20,grid.col=grid_IMN_minus_beta,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(IMN_minus_beta))))))
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+abline(v = 0, lty = 2, col = "#00000080")
+
+circos.clear()
+circos.par(start.degree=90)
+chordDiagram(FLC_plus_alpha,col=link_col_green,big.gap=20,grid.col=grid_FLC_plus_alpha,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(FLC_plus_alpha))))))
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+abline(v = 0, lty = 2, col = "#00000080")
+
+circos.clear()
+circos.par(start.degree=90)
+chordDiagram(FLC_plus_beta,col=link_col_green,big.gap=20,grid.col=grid_FLC_plus_beta,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(FLC_plus_beta))))))
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+abline(v = 0, lty = 2, col = "#00000080")
+
+circos.clear()
+circos.par(start.degree=90)
+chordDiagram(IMN_plus_alpha,col=link_col_green,big.gap=20,grid.col=grid_IMN_plus_alpha,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(IMN_plus_alpha))))))
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+abline(v = 0, lty = 2, col = "#00000080")
+
+circos.clear()
+circos.par(start.degree=90)
+chordDiagram(IMN_plus_beta,col=link_col_green,big.gap=20,grid.col=grid_IMN_plus_beta,annotationTrack="grid",preAllocateTracks = list(track.height = max(strwidth(unlist(dimnames(IMN_plus_beta))))))
+circos.track(track.index = 1, panel.fun = function(x, y) { circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.7)}, bg.border = NA)
+abline(v = 0, lty = 2, col = "#00000080")

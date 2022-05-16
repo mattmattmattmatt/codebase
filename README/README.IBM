@@ -1,0 +1,27 @@
+Just letting you know we have some new capture sequencing data that just came through for a different autoimmune disease – inclusion body myositis – which I just shared with you. For this project we are looking if there are somatic mutations in the CD8 – 57pos cells of these patients that may be driving disease. These patients often develop T-cell large granular lymphocytic leukemia (TLGL) so it is possible that their CD8 T cells harbor somatic mutations. We sequenced CD8-CD57+ and CD8-CD57- cells from 8 patients.
+
+For this dataset would you be able to generate a table of variants for each patient: the patient ID is the first 2 letters in the file name e.g. “KB”, “JB” (except “GMR” which is 3 letters) with a column with the cell type the variant was found in- labelled after the patient ID, e.g. “_CD4”.
+ 
+Basespace links:
+https://basespace.illumina.com/s/ZL0j9PuGuv29
+https://basespace.illumina.com/s/3aDppbIDpbc9
+
+Create concatenated fastq's (ending in _R1_fastq.gz)
+mkdir -p {/g/data/u86/mxf221/Goodnow/IBM/runs,qsub,fastq}
+cd /g/data/u86/mxf221/Goodnow/IBM/
+'ls' fastq | cut -d '_' -f1 | sort | uniq > sample_list
+for f in `cat sample_list`; do cat fastq/${f}*R1*gz >> fastq/${f}_R1.fastq.gz; done
+for f in `cat sample_list`; do cat fastq/${f}*R2*gz >> fastq/${f}_R2.fastq.gz; done
+/drive2/variantdb/trunk/utils/quick_var_qsub.pl -readdir IBM/fastq/ -outdir IBM/runs -qsubdir IBM/qsub/ -sample_list IBM/sample_list
+
+#Run all jobs on raijin (not joint_call.qsub)
+>for f in `cat sample_list`; do qsub qsub/${f}.qsub; done
+
+#When done
+qsub /g/data/u86/mxf221/Goodnow/IBM/qsub/joint_calls.qsub
+
+#When done
+scp -r mxf221@raijin.nci.org.au:/g/data/u86/mxf221/Goodnow/IBM/runs/joint* .
+
+/drive2/variantdb/trunk/utils/annotate_vcf.pl -vcf joint.vcf  -outdir results/ -ref GRCh37 -no_run
+

@@ -1,0 +1,18 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normal
+#PBS -l walltime=48:00:00,mem=32GB,jobfs=100GB,ncpus=2
+#PBS -l storage=gdata/pw1+gdata/u86+scratch/u86+gdata/xx92
+
+module load java/jdk-8.40
+module load samtools
+
+java -jar -Djava.io.tmpdir=OUTDIR  /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T SplitNCigarReads -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa  -I OUTDIR/SAMPLE.bam -o OUTDIR/SAMPLE_fix.bam  -rf ReassignOneMappingQuality -RMQF 255 -RMQT 60 -U ALLOW_N_CIGAR_READS
+
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T BaseRecalibrator -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa -I OUTDIR/SAMPLE_fix.bam -knownSites /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/dbsnp138.vcf -knownSites /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/Mills.indels.hg38.vcf -o OUTDIR/SAMPLE.table
+
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T PrintReads -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa -I OUTDIR/SAMPLE_fix.bam -BQSR OUTDIR/SAMPLE.table -o OUTDIR/SAMPLE.recal.bam
+
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -ERC GVCF -dontUseSoftClippedBases -stand_call_conf 20.0 -stand_emit_conf 20.0 -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa -I OUTDIR/SAMPLE.recal.bam -o OUTDIR/SAMPLE.g.vcf.gz
+
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar  -T GenotypeGVCFs -R /g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa -V OUTDIR/SAMPLE.g.vcf.gz -o OUTDIR/SAMPLE.vcf

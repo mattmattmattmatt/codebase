@@ -1,0 +1,17 @@
+for t in *tree.fasta; do mac2unix $t; done
+
+for f in *tree.fasta; do mafft --thread 3 --auto $f > `echo $f | sed -e 's/.fasta/.mafft.fa/'`; done
+
+for f in *tree.fasta; do mafft --thread 3 --phylipout --auto $f > `echo $f | sed -e 's/.fasta/.mafft.phylip/'`; done
+
+for f in *tree.fasta; do muscle -in $f  -seqtype protein  -fastaout `echo $f | sed -e 's/.fasta/.muscle.fa/'` -physout `echo $f | sed -e 's/.fasta/.muscle.phylips/'`  -phyiout `echo $f | sed -e 's/.fasta/.muscle.phylipi/'` -clwout `echo $f | sed -e 's/.fasta/.muscle.aln/'`; done
+
+for f in *.fa; do ~/software/aligner/OD-Seq/OD-seq -f fa  -i $f -o $f.outlier; done
+
+for f in *.fa; do /drive3/work/phylogeny/remove_outliers.pl -fasta_in $f -filter_list $f.outlier.remove; done
+
+for f in *filter; do mafft --thread 3 --auto $f > $f.fa; don
+
+for f in *filter; do mafft --thread 3 --phylipout --auto $f > $f.phylip; done
+
+for f in *filter; do muscle -in $f  -seqtype protein  -fastaout $f.fa -physout $f.phylips  -phyiout $f.phylipi -clwout $f.aln; done

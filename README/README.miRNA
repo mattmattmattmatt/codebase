@@ -1,0 +1,64 @@
+Here’s the link to download the data:
+
+https://cloudstor.aarnet.edu.au/plus/index.php/s/SlF1DFAwn54ZmpJ
+
+
+For Ramon’s data:
+- Folders:
+- SOT1939_A5-39928023
+- SOT1939_A6-39927002
+
+- Most related parasite in miRBASE is Ascaris suum (or the whole combined nematode group?)
+- Reference genome: Trichuris muris (http://parasite.wormbase.org/Trichuris_muris_prjeb126/Info/Index/)
+- Maybe it’s worth following the approach these guys did? http://www.nature.com/articles/ncomms6488 
+
+From the paper here is the method:
+"Two miRNA prediction programmes were used to identify miRNAs in the data sets: miRDeep2 (ref. 40) and mireap ( http://sourceforge.net/projects/mireap/). Both programmes use miRNA biogenesis to model the expected alignment of sRNA reads to a potential miRNA precursor. For miRDeep2, the following default settings were used: (a) requirement that reads match the genome perfectly, (b) removal of reads that match to more than five places in the genome and (c) cutoff -v 1, (d) the ‘-s option’ was employed, using all mature sequences from mirbase (version 19). The default settings of minimum free energy (<−20 kcal mol−1) and read length (18–30) were employed. In both programmes, precursor predictions with fewer than 10 reads were discarded. Where multiple precursor loci predicted identical mature miRNAs, only the precursor with the largest number of matching reads was reported."
+
+
+
+For Javi’s data:
+- Folders
+- SOT1939_A9_A10_SOT2103_A10-39928014
+- SOT2103_A8_A9-39929001
+
+- Most related parasite in miRBASE: Schistosoma japonica and Schistosoma mansoni
+- There is data for a closer related species (Fasciola hepatica-another liver fluke) here: https://www.ncbi.nlm.nih.gov/pubmed/26183562
+- It would be great if we can follow what these guys did: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4595467/
+- Reference genome: Opisthorchis viverrini (http://parasite.wormbase.org/Opisthorchis_viverrini_prjna222628/Info/Index/)
+
+Method from the paper:
+"The miRDeep2 package (29) was used to identify known and putative novel miRNA present in the EV-enriched and EV-depleted compartments of schistosomula E/S. After cleaning the reads with Trimmomatic (30), trimmed sequences of at least 16 nucleotides long were pre-processed (i.e. aligned) against the S. mansoni genome v5.2 (31) using the mapper module of miRDeep2 (utilizing bowtie) with default options that included discarding reads shorter than 18 bp, collapsing reads and mapping reads without any mismatches. These stringent criteria resulted in low numbers of mapped reads. Weakening the criteria to allow mismatches greatly increases the proportion of mapped reads identified (e.g. 60% or more depending upon the criteria selected). Unmapped reads (at any criteria) included a high proportion of low complexity regions. Identification of miRNAs was performed with the miRDeep2.pl script, including quantification and expression profiling performed by the Quantifier module. Known precursor S. mansoni miRNAs as well as mature miRNA sequences derived from 5 platyhelminth species (Schmidtea mediterranea, Echinococcus granulosus and Echinococcus multilocularis, Schistosoma japonicum and S. mansoni) were provided to the miRDeep2.pl script from miRBase (release 21). Outputs from both the Quantifier and miRDeep2 were merged and 2 filtering steps were applied to generate a final list of identified miRNAs: (a) only those miRNAs displaying a log-odd score above 0 and (b) only those miRNAs displaying at least 10 reads in 2 out of the 3 biological replicates (EV-enriched or EV-depleted fractions) were kept (Supplementary file 3). Library size scaling factors were calculated for each sample and miRNA data were normalized following the protocol of Anders et al. (32) using the R statistical programming language (27) and the Bioconductor (28) package DESeq2 (33). The Quantifier module maps reads to predefined miRNA precursors derived from miRBase; however, some of these miRNAs could not be mapped to the current S. mansoni genome assembly (v5.2)."
+
+
+Commands run:
+
+Combine 4 sample reads together
+>cat sample_2*.gz >> sample2.fastq.gz
+
+>cutadapt -b TGGAATTCTCGGGTGCCAAGG -O 3 -m 17 -f fastq -q 20 sample3.fastq -o sample3.cutadapt.fastq --too-short-output=sample3.tooshort.fastq
+
+>mapper.pl /drive3/work/miRNA/trichuris/sample3.cutadapt.fastq -e -h -m -p /drive3/work/miRNA/trichuris/tri -s /drive3/work/miRNA/trichuris/tri_aligned_sample3.fa -t /drive3/work/miRNA/trichuris/tri_reads_vs_genome_sample3.arf -v
+>mapper.pl /drive3/work/miRNA/opisthorchis/sample1.cutadapt.fastq -e -h -m -p /drive3/work/miRNA/opisthorchis/opi -s /drive3/work/miRNA/opisthorchis/opi_aligned_sample1.fa -t /drive3/work/miRNA/opisthorchis/opi_reads_vs_genome_sample1.arf -v
+
+
+
+Run mirdeep2.pl
+Generate miRNA from mature.fa for five species (Schmidtea mediterranea, Echinococcus granulosus and Echinococcus multilocularis, Schistosoma japonicum and S. mansoni)
+
+For Javi use sme, egr, emu, sja, sma
+grep -A1 '>sme' mature.fa      | grep -v '\-\-' >> mature_related.fa
+
+For Ramon use asu, bma, cbn, cbr, cel, crm, hco, ppc, prd, str
+
+
+
+Remove whitespace from fastas:
+cat opi.fa | cut -d' ' -f1 > opi_mirdeep.fa
+cat mature_related.fa | cut -d' ' -f1 > mature_related_opi.fa
+
+#Run mirdeep2
+>miRDeep2.pl /drive3/work/miRNA/opisthorchis/opi_aligned_sample1.fa /drive3/work/miRNA/opisthorchis/opi_mirdeep.fa /drive3/work/miRNA/opisthorchis/opi_reads_vs_genome_sample1.arf none /drive3/work/miRNA/opisthorchis/mature_related_opi.fa none 
+
+#Run custom summary script to combine two samples
+./summary_mirdeep2.pl -summary1 opisthorchis/sample1_summary.csv -summary2 opisthorchis/sample2_summary.csv  > opisthorchis/opi_miRNA_summary.tsv

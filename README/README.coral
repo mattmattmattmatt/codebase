@@ -1,0 +1,67 @@
+1) Downloaded Coral Variant calls from townsville
+scp -r sci-irc@zodiac.hpc.jcu.edu.au:/rdsi/vol07/Q0214/Projects/atenuis_wgs/hpc/snp_calling_qc/angsd_gatk.mafs.gz .
+etc...
+
+Got BAM files and vcfs for GATK/FreeBayes/ANGSD_samtools/ANGSD_gatk
+
+ANGSD_gatk corrupted so skip
+gzip: angsd_gatk.mafs.gz: unexpected end of file
+
+2) Ran samtools additionally
+>samtools mpileup -f aten_final_0.1.fasta -C50 -E -g DI-1-10_merged_marked.bam ... PR-2-8_merged_marked.bam | bcftools view -vcg - > samtools.vcf
+
+3) Filter vcfs (snv_quality 40)
+>for f in *.vcf.gz; do zcat $f | grep "^Sc\|^x" | extract -t "_5 >= 40" | awk '{print $1,$2,$3,$4,$5,$6,$7,$8}' > `echo $f | sed -e 's/.vcf.gz/.filter.vcf/'`; done
+
+4) Found GATK is incomplete so regenerate gvcf and recall on raijin
+>cat template.qsub
+module load java/jdk1.8.0_60
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -nt 1 -ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000 --minPruning 3 --maxNumHaplotypesInPopulation 200 --max_alternate_alleles 3 -contamination 0.0 -R /g/data/u86/mxf221/coral/aten_final_0.1.fasta -I /g/data/u86/mxf221/coral/bam/DI-1-10_merged_marked.bam -o /home/221/mxf221/g/mxf221/coral/vcf/DI-1-10.g.vcf
+
+-Then generate all haplotype jobs
+>for f in *bam; do str=`echo $f | cut -d'_' -f1`; cat ../qsub/template.qsub | sed -e "s/DI-1-10/${str}/g" > $str.qsub; done
+
+Then generate combined vcf
+Get the gvcf list:
+>for f in *.bam; do str=`echo $f | cut -d'_' -f1`; echo "-V /g/data/u86/mxf221/coral/vcf/${str}.g.vcf"; done | tr "\n" " " 
+
+Add this to joint.qsub
+
+>wc *.filter.vcf
+  22191570  177532560 4975236664 gatk.filter.vcf
+  24658667   197269336 10798088113 freebayes.filter.vcf
+  27236929   217895432  5122924701 samtools.filter.vcf
+
+>wc angsd_samtools.mafs 
+  29935022  209545154 1419394299 angsd_samtools.mafs
+
+To put angsd in consistent form (fields are chromosome, the position, the major allele, the minor allele, the minor allele estimate, the allele frequency, the p-value and the number of individuals with information)
+> cat angsd_samtools.mafs |  grep -v chromo | awk '{print $1"\t"$2"\t"$2"\tSNV;"$1":"$2"-"$2";"$3"->"$4";Q="$6";ALLELE=?/"$7"("$5")"}' > angsd_samtools.filter.vcf.txt.SNV
+
+#Split into types:
+for f in DEL SNV INS; do echo $f; grep $f freebayes.filter.vcf.txt > freebayes.filter.vcf.txt.$f; done
+etc
+
+>wc *SNV
+  29935021  119740084 2904375821 angsd_samtools.filter.vcf.txt.SNV
+  25559629  102238516 2382165447 freebayes.filter.vcf.txt.SNV
+  19877367   79509468 1761240050 gatk.filter.vcf.txt.SNV
+  27981286  111925144 2515865534 samtools.filter.vcf.txt.SNV
+
+>wc *INS
+  1378788   5515152 128302783 freebayes.filter.vcf.txt.INS
+  1566606   6266424 141440625 gatk.filter.vcf.txt.INS
+  1240998   4963992 112746327 samtools.filter.vcf.txt.INS
+
+>wc *DEL
+  1421017   5684068 134094058 freebayes.filter.vcf.txt.DEL
+  1659993   6639972 154238122 gatk.filter.vcf.txt.DEL
+  1280275   5121100 119177996 samtools.filter.vcf.txt.DEL
+
+Mummer:
+Builds have shared contigs: add '_at' to aten build
+perl -i.bak -pe 's/(>[0-9A-Za-z]+)/$1_at/' aten_final_0.11.fasta
+
+~/g/software/mummer/nucmer -t 16 -p coral_nucmer Amil_v2.01/Amil.v2.01.chrs.fasta aten/aten_final_0.11.fasta
+
+

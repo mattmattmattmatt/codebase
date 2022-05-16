@@ -1,0 +1,43 @@
+
+Follow docs at https://software.broadinstitute.org/gatk/guide/article?id=3891
+
+/g/data/u86/software/STAR/bin/Linux_x86_64/STAR --runThreadN 16 --readFilesCommand zcat  --genomeDir /g/data/u86/mxf221/GRCh37_star --outFileNamePrefix /g/data/u86/mxf221/RNAseq_single/STAR/Jurkat7 --readFilesIn /g/data/u86/mxf221/RNAseq_single/reads/Jurkat7_R1.fastq.gz /g/data/u86/mxf221/RNAseq_single/reads/Jurkat7_R2.fastq.gz --outSAMtype BAM SortedByCoordinate
+
+Tried to fit into pipeline (proved a huge headache and not worth it)
+
+1) Needed to remove chr
+>samtools view -H bam | grep SQ | sed -e 's/chr//g' > nochr_header
+>samtools reheader -P nochr_headers Jurkat_sample10/Jurkat_sample10_sg1_humansingle1_runs/Jurkat_sample10_sg1_humansingle1_1494/bam/Jurkat_sample10_sg1_humansingle1_1494.merge_bam.out.bam > Jurkat_sample10/Jurkat_sample10_sg1_humansingle1_runs/Jurkat_sample10_sg1_humansingle1_1494/bam/Jurkat_sample10_sg1_humansingle1_1494.merge_bam.out.bam.new
+
+2) Then need to add read groups
+>for f in {3..28}; do for g in Jurkat_sample${f}/*runs/*/bam/*no_rg; do echo java -jar /g/data/u86/variantdb/v2.3/ext/bin/picard-tools-2.4.1/picard.jar AddOrReplaceReadGroups I=$g O=$g.bam RGID=Jurkat_sample${f} RGLB=Lib RGPL=illumina CREATE_INDEX=TRUE RGSM=20 RGPU=Unit1; done; done | bash
+
+3) Need to create GATK reference:
+java -jar /g/data/u86/variantdb/v2.3/ext/bin/picard-tools-2.4.1/picard.jar CreateSequenceDictionary R=GRCh37.fa O=GRCh37.dict
+
+4) Then need to fix the RNASeq overhangs:
+>java -jar -Djava.io.tmpdir=/g/data/u86/mxf221/tmp  /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T SplitNCigarReads -R /g/data/u86/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -I Jurkat_sample1/Jurkat_sample1_sg1_humansingle1_runs/Jurkat_sample1_sg1_humansingle1_1513/bam/Jurkat_sample1_sg1_humansingle1_1513.picard_sorted.dupmarked.bam -o Jurkat_sample1/Jurkat_sample1_sg1_humansingle1_runs/Jurkat_sample1_sg1_humansingle1_1513/bam/Jurkat_sample1_sg1_humansingle1_1513.picard_sorted.dupmarked.split.bam  -rf ReassignOneMappingQuality -RMQF 255 -RMQT 60 -U ALLOW_N_CIGAR_READS
+
+In the end easier to move out of pipe and analyse independently
+See /g/data/u86/mxf221/jurkat_singlecell
+
+qsubs has following commands:
+
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T BaseRecalibrator -R /g/data/u86/mxf221/ref_genomes/GRCh37.fa  -I /g/data/u86/mxf221/jurkat_singlecell/Jurkat_sample1.bam -knownSites /g/data/u86/variantdb/v2.3/conf/human/hs37d5/gatk_resources//dbsnp_138.b37.vcf -knownSites /g/data/u86/variantdb/v2.3/conf/human/hs37d5/gatk_resources//Mills_and_1000G_gold_standard.indels.b37.vcf -o /g/data/u86/mxf221/jurkat_singlecell/Jurkat_sample1.table
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T PrintReads -R /g/data/u86/mxf221/ref_genomes/GRCh37.fa -I /g/data/u86/mxf221/jurkat_singlecell/Jurkat_sample1.bam -BQSR /g/data/u86/mxf221/jurkat_singlecell/Jurkat_sample1.table -o /g/data/u86/mxf221/jurkat_singlecell/Jurkat_sample1.recal.bam
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -dontUseSoftClippedBases -stand_call_conf 20.0 -stand_emit_conf 20.0 -R /g/data/u86/mxf221/ref_genomes/GRCh37.fa -I /g/data/u86/mxf221/jurkat_singlecell/Jurkat_sample1.recal.bam -o /g/data/u86/mxf221/jurkat_singlecell/Jurkat_sample1.gvcf
+java  -Xms3200m -Xmx3600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar  -T VariantFiltration -R /g/data/u86/mxf221/ref_genomes/GRCh37.fa -V /g/data/u86/mxf221/jurkat_singlecell/Jurkat_sample1.gvcf -window 35 -cluster 3 -filterName FS -filter "FS > 30.0" -filterName QD -filter "QD < 2.0" -o /g/data/u86/mxf221/jurkat_singlecell/Jurkat_sample1.vcf
+
+Get the vcfs and process locally:
+for f in *.vcf; do grep -v SnpCluster $f > $f.pass; done
+for f in vcf/*.vcf.pass; do echo $f; /drive2/variantdb/trunk/utils/parse_vcf.pl -vcf $f; done
+
+>cat ../jurkat_dilution_RNA/known_mutations.hg19.bed | sed -e 's/chr//' > jurkat_known_nochr.tsv
+
+>for f in overlap/*.txt; do echo $f; /drive2/variantdb/v2.3/utils/overlap_files.pl -ref $f -coord jurkat_known_nochr.tsv -all -just_overlap | sed -e 's/\s1$/\tNO_JURKAT/'  > $f.jurkat ;done
+
+>for f in overlap/*txt; do echo $f; cat $f | grep SNV | sed -e 's/:/ /g' -e 's/;/ /g' -e 's/->/ /' | awk '{print $1,$2,$3,$8,"+"}' > $f.vep_in ;done 
+
+for f in overlap/*vep_in; do echo $f; /drive2/variantdb/trunk/utils/vep_wrapper.pl -vep_in $f > $f.vep_exon; done
+
+for f in overlap/*vep_in; do echo $f; /drive2/variantdb/trunk/utils/vep_wrapper.pl -vep_in $f -all > $f.vep_all; done

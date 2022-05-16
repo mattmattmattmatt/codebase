@@ -1,0 +1,18 @@
+conda activate qiime2-2018.4
+
+for f in *biom; do  qiime tools import  --input-path $f --type 'FeatureData[Taxonomy]' --output-path `echo $f | sed -e 's/biom/qza/'` --source-format BIOMV210Format; done
+
+Failed for old one...
+biom convert -i otu_table_filtered.biom -o otu_table_filtered.tsv --to-tsv --table-type="OTU table" --header-key taxonomy
+
+Then merged table failed
+qiime feature-table merge --i-tables J2263_hdf5.qza --i-tables J2264_hdf5.qza --o-merged-table New_samples_merge.qza
+
+Plugin error from feature-table:
+
+  Argument to parameter 'tables' is not a subtype of List[FeatureTable[Frequency]].
+
+Just convert everything to tsv and manually merge
+for f in *biom; do biom convert -i $f -o `echo $f | sed -e 's/biom/tsv/'`  --to-tsv --table-type="OTU table" --header-key taxonomy; done
+
+./merge_biom.pl

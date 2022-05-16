@@ -1,0 +1,15 @@
+Running virusbreakend from gridss
+
+module load samtools
+module load bcftools
+module load bwa
+module load R/3.6.1
+module load java/jdk-8.40
+export R_LIBS_USER="/g/data/u86/mxf221/R"
+export PATH=$PATH:/g/data/u86/software/kraken2/:/g/data/u86/software/gridss/scripts/:/g/data/u86/software/RepeatMasker/:/g/data/u86/software/gridss/src/main/c/gridsstools/
+
+
+cd /g/data/u86/mxf221/Goodnow/vasculitis/wgs/runs/gridss_final/
+
+~/g/software/gridss/scripts/virusbreakend.sh --host human -r ref.fa -o ROBR_gridss_rogue_virus.vcf --host human --minreads 5 -t 16 --db ~/g/software/gridss/scripts/virusbreakenddb/ /g/data/u86/mxf221/Goodnow/vasculitis/wgs/runs/gridss_final/rogue.bam
+

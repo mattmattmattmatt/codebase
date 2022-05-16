@@ -1,0 +1,221 @@
+Pharmaco analysis for CGI and PGKB pharmaco variants
+
+https://www.pharmgkb.org/downloads
+https://www.cancergenomeinterpreter.org/biomarkers
+
+Parse and format for VEP:
+>cat cgi_biomarkers_per_variant.tsv | cut -d'	' -f22 | grep '>' | sort | uniq  | sed -e 's/g.//' -e 's/:/ /' -e 's/[ACGT]>/ /' -e 's/chr//' | awk '{print $1,$2,$2,$3}' > cgi.vep_in
+
+>/g/data/u86/variantdb/v2.3/utils/vep_wrapper.pl -vep_in cgi.vep_in > cgi_vep.exon
+
+>/g/data/u86/variantdb/v2.3/utils/vep_wrapper.pl -vep_in cgi.vep_in -all > cgi_vep.all
+
+>cat variants.tsv  | cut -d'    ' -f 2,6 | grep rs | grep GRCh37 | sed -e 's/\[GRCh37\]chr//' -e 's/:/  /' | awk '{print $2"\t"$3"\t"$3"\t"$1}' | sort +0n -1 +1n -2 | grep -v ^M > ../rs_coord.tsv
+
+>for f in {1..22} X; do echo $f; cat rs_coord.${f}.tsv | cut -d'        ' -f4 | xargs -i grep -w {} /drive2/variantdb/v2.3/conf/human/hs37d5/dbsnp/137_147/hs37d5.dbsnp.overlap.snv.$f | sed -e 's/\^\^\^/ /g' | sed -e 's/(/ /g' -e 's/>/ /' | awk '{print $1"\t"$2"\t"$3"\t"$6"\t"$8"\t"$5}' >> pgkb_rs.tsv; done
+
+#Prepare for vep
+>./parse.pl  | sort | uniq > vep_in.pgkb
+
+Run VEP
+>/g/data/u86/variantdb/v2.3/utils/vep_wrapper.pl -vep_in vep_in.pgkb > pgkb_vep.exon
+
+
+
+
+#Add annotations
+./annotate.pl  | sort | uniq > pgkb_rs_anno.tsv
+./parse_final.pl | sort | uniq > pgkb_rs_anno_final.tsv
+
+>cat pgkb_rs_anno_final.tsv | extract -t "_9 ne 'N/A'" > pgkb.tsv 
+
+In R
+pgkb <- read.csv("pgkb.tsv", header=TRUE, sep="\t")
+
+data_summary <- function(x) {
+   m <- mean(x)
+   ymin <- m-sd(x)
+   ymax <- m+sd(x)
+   return(c(y=m,ymin=ymin,ymax=ymax))
+}
+
+ggplot(pgkb,aes(x=all,y=pph2_score,fill=all)) + xlab("All PGKB Variants") + ylab("Polyphen2 Score") + geom_violin() +  stat_summary(fun.data=data_summary)
+
+ggplot(pgkb,aes(x=all,y=cadd_score,fill=all)) + xlab("All PGKB Variants") + ylab("Polyphen2 Score") + geom_violin() +  stat_summary(fun.data=data_summary)
+
+>cat pgkb.tsv | grep "R->[CHQW]\|[AI]->[TV]\|V->[IM]\|G->[RS]\|E->K\|D->N\|L->P\|P->L\|T->M\|coord"  > pgkb_aa_change.tsv
+>cat pgkb.tsv | sed -e 's/->[A-Z]//' > pgkb_aa_start.tsv
+
+ggplot(pgkb_aa,aes(x=aa,y=cadd_score,fill=aa)) + xlab("PGKB Start amino acid") + ylab("pph2 Score") + geom_violin() + stat_summary(fun.data=data_summary)
+
+ggplot(pgkb_disease,aes(x=disease,y=pph2_score,fill=disease)) + xlab("PGKB Disease") + ylab("pph2 Score") + geom_violin() + stat_summary(fun.data=data_summary) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) -> vertical x labels
+
+
+./parse_cgi.pl | grep -v Stop > cgi.tsv
+>cat cgi.tsv | grep "coord\|    ABL1    \|      EGFR    \|      ALK     \|      ERBB    \|      BRAF    \|      MTOR    \|      KIT     " | grep -v ROS1 > cgi_gene.tsv 
+
+
+#Generate PCA plots:
+pharm <- read.csv("pgkb_pca.tsv", header=TRUE,sep="\t")
+pharm.mat <- data.matrix(pharm)
+pharm.df <- data.frame(pharm.mat)
+pca <-  prcomp(pharm.df,retx=TRUE,scale=TRUE,center=TRUE)
+
+
+Plot evidence -> Remove N/A
+evi_df <- pharm.df[which(pharm.df$evidence != 7),]
+evi_pca <-  prcomp(evi_df,retx=TRUE,scale=TRUE,center=TRUE)
+plot(evi_pca$x[,1],evi_pca$x[,2],col=factor(evi_df$evidence),pch=16,xlab="PCA1",ylab="PC2",main="PCA Analysis Evidence Class")
+l <- legend(x="topright",title="Evidence Class", legend=c("","","","","",""),pch=16,col=c("black","red","green3","blue","cyan","magenta"))
+text(l$text$x,l$text$y,labels=c("1A","1B","2A","2B","3","4"))
+
+Plot Signifigance
+sign_df <- pharm.df[which(pharm.df$sign != 1),]
+sign_pca <-  prcomp(sign_df,retx=TRUE,scale=TRUE,center=TRUE)
+plot(sign_pca$x[,1],sign_pca$x[,2],col=factor(sign_df$sign),pch=16,xlab="PCA1",ylab="PC2",main="PCA Analysis Significance")
+l <- legend(x="topright",title="Significance", legend=c("",""),pch=16,col=c("black","red"))
+text(l$text$x,l$text$y,labels=c("no","yes"))
+
+Plot CADD
+ii <- cut(pharm.df$cadd_score,breaks=seq(min(pharm.df$cadd_score), max(pharm.df$cadd_score), len = 100),include.lowest = TRUE)
+colors <- colorRampPalette(c("yellow","black"))(99)[ii]
+plot(pca$x[,1],pca$x[,2],col=colors,pch=16,xlab="PCA1",ylab="PCA2",main="PCA Analysis CADD Score")
+l <- legend(x="topright",title="CADD Scores", legend=c("",""),pch=16,col=c("yellow","black"))
+text(l$text$x,l$text$y,labels=c("      Low","       High"))
+
+Images merging:
+montage -mode concatenate -tile 2x2 CADD_All_PGKB.pdf CADD_All_CGI.pdf pph2_All_PGKB.pdf pph2_All_CGI.pdf Figure1.pdf
+
+
+Final for paper:
+>cgi$pph2_score <- as.numeric(cgi$pph2_score)
+
+
+> ggplot(pgkb,aes(x=all,y=cadd_score)) + xlab("All PGKB Missense Variants") + ylab("CADD Score") + geom_violin() +  stat_summary(fun.data=data_summary) + ggtitle("a)") -> export as TIFF Fig1_a
+> ggplot(cgi,aes(x=all,y=cadd_score)) + xlab("All CGI Missense Variants") + ylab("CADD Score") + geom_violin() +  stat_summary(fun.data=data_summary) + ggtitle("b)") -> Fig1_b
+
+> ggplot(pgkb,aes(x=all,y=pph2_score)) + xlab("All PGKB Missense Variants") + ylab("Polyphen2 Score") + geom_violin() +  stat_summary(fun.data=data_summary) + ggtitle("a)") -> Fig2_a 
+> ggplot(cgi,aes(x=all,y=pph2_score)) + xlab("All CGI Missense Variants") + ylab("Polyphen2 Score") + geom_violin() +  stat_summary(fun.data=data_summary) + ggtitle("b)") ->  Fig2_b
+
+> ggplot(pgkb,aes(x=evidence,y=cadd_score)) + xlab("PharmGKB Evidence Level") + ylab("CADD Score") + geom_violin() +  stat_summary(fun.data=data_summary) + ggtitle("a)") -> Fig3_a
+
+> pgkb_gene <- read.csv("pgkb_gene.tsv",sep="\t",header=TRUE)
+> ggplot(pgkb_gene,aes(x=gene,y=cadd_score)) + xlab("PharmGKB Gene Family") + ylab("CADD Score") + geom_violin() +  stat_summary(fun.data=data_summary) + ggtitle("b)") -> Fig3_b
+
+> pgkb_adme <- read.csv("pgkb_adme.tsv",sep="\t",header=TRUE)
+> ggplot(pgkb_adme,aes(x=adme,y=cadd_score)) + xlab("PharmGKB ADME / Non-ADME") + ylab("CADD Score") + geom_violin() +  stat_summary(fun.data=data_summary) + ggtitle("c)") -> Fig3_c
+
+> cgi_drug <- read.csv("cgi_drug.tsv",sep="\t",header=TRUE)
+> ggplot(cgi_drug,aes(x=drug,y=cadd_score)) + xlab("CGI Drug Family") + ylab("CADD Score") + geom_violin() +  stat_summary(fun.data=data_summary) + ggtitle("d)") -> Fig3_d
+
+>montage -mode concatenate -tile 2x1 Fig1_a.tiff Fig1_b.tiff Figure1.tiff
+>montage -mode concatenate -tile 2x1 Fig2_a.tiff Fig2_b.tiff Figure2.tiff
+>montage -mode concatenate -tile 2x2 Fig3_a.tiff Fig3_b.tiff Fig3_c.tiff Fig3_d.tiff Figure3.tiff
+
+
+
+
+#ROC Curves needed for review -> use Cat 1 variants vs random
+
+#See pharmaco.R for full code
+
+ROC <- read.csv2("ROC_data.csv",sep="\t",header=TRUE)
+poly_df <- data.frame(ROC$PolyPhen.Score,ROC$Labels)
+poly_df <- poly_df[!is.na(poly_df$ROC.PolyPhen.Score),]
+poly_pred <- prediction(as.numeric(as.character(poly_df$ROC.PolyPhen.Score)),poly_df$ROC.Labels)
+poly_perf <- performance(poly_pred,"tpr","fpr")
+plot(poly_perf,colorize=TRUE, main="PolyPhen2 ROC Plot")
+
+#AUC
+poly_auc <- performance(poly_pred, measure = "auc")
+poly_auc@y.values[[1]]
+
+#MCC
+poly_mcc <- performance(poly_pred,"mat")
+poly_mcc@y.values[[1]][which.max(poly_mcc@y.values[[1]])]
+
+#For SIFT, flip labels
+cat R_template | sed -e 's/poly/sift/g' -e 's/PolyPhen/SIFT/g' -e 's/Labels/LabelsFlip/g'
+
+cat R_template | sed -e 's/poly/mutpred/g' -e 's/PolyPhen/MutPred/g'
+
+cat R_template | sed -e 's/poly/revel/g' -e 's/PolyPhen/REVEL/g'
+
+
+#Non 0-1 ranging algorithms
+cadd <- normalized(as.integer(ROC$CADD.Phred.Score))
+cadd_df <- data.frame(cadd,ROC$Labels)
+cadd_df <- cadd_df[!is.na(cadd_df$cadd),]
+cadd_pred <- prediction(as.numeric(as.character(cadd_df$cadd)),cadd_df$ROC.Labels)
+cadd_perf <- performance(cadd_pred,"tpr","fpr")
+plot(cadd_perf,colorize=TRUE,main="CADD ROC Plot")
+cadd_auc <- performance(cadd_pred, measure = "auc")
+cadd_auc@y.values[[1]]
+cadd_mcc <- performance(cadd_pred,"mat")
+cadd_mcc@y.values[[1]][which.max(cadd_mcc@y.values[[1]])]
+
+mutass <- normalized(as.integer(ROC$MutationAssessor.Score))
+mutass_df <- data.frame(mutass,ROC$Labels)
+mutass_df <- mutass_df[!is.na(mutass_df$mutass),]
+mutass_pred <- prediction(as.numeric(as.character(mutass_df$mutass)),mutass_df$ROC.Labels)
+mutass_perf <- performance(mutass_pred,"tpr","fpr")
+plot(mutass_perf,colorize=TRUE,main="Mutation Assessor ROC Plot")
+mutass_auc <- performance(mutass_pred, measure = "auc")
+mutass_auc@y.values[[1]]
+mutass_mcc <- performance(mutass_pred,"mat")
+mutass_mcc@y.values[[1]][which.max(mutass_mcc@y.values[[1]])]
+
+#Create figure 2
+montage -mode concatenate -tile 2x6 CADD_ROC_cat1.tiff CADD_ROC_cat34.tiff MutAss_ROC_cat1.tiff MutAss_ROC_cat34.tiff MutPred_ROC_cat1.tiff MutPred_ROC_cat34.tiff PolyPhen_ROC_cat1.tiff Polyphen_ROC_cat34.tiff REVEL_ROC_cat1.tiff REVEL_ROC_cat34.tiff SIFT_ROC_cat1.tiff SIFT_ROC_cat34.tiff All_ROC.tiff
+
+
+#Filter for Table 1
+Take 561 from Table S2
+cat var_pheno_ann.tsv | sed -e 's/"//g' > var_pheno_ann_fix.tsv
+for f in `cat snv_561.txt`; do grep $f var_pheno_ann_fix.tsv | grep -w toxicity; done  | cut -d$'\t' -f2 | sort | uniq | grep ^rs > snv_561_toxicity.txt -> 339
+
+for f in `cat snv_561_toxicity_remove.txt`; do grep -v -w $f snv_561_toxicity.txt >> tmp; done
+for f in `cat snv_561_toxicity.txt`; do grep -w $f var_pheno_ann_fix.tsv | grep "	toxicity,"; done  | cut -d$'\t' -f2 | sort | uniq | grep ^rs  > snv_561_toxicity_remove.txt
+sort tmp | uniq -c | shrinkwrap | grep ^68 | cut -d" " -f2 > snv_561_toxicity_single.txt
+for f in `cat snv_561_toxicity_single.txt`; do grep -w $f var_pheno_ann_fix.tsv | cut -d$'\t' -f3 | cut -d'(' -f1 | sort | uniq; done  | grep -v ^$ > snv_561_toxicity_single_genes.txt
+for f in `cat snv_561_toxicity_single_genes.txt`; do grep -w $f ../all_adme; done | cut -d'    ' -f2 | sort | uniq > snv_561_toxicity_single_genes_adme.txt
+
+cat  snv_561_toxicity_single_genes_adme.txt | tr "\n" "|" | sed -e 's/|/\\|/g'
+
+for f in `cat snv_561_toxicity_single.txt`; do grep -w $f var_pheno_ann_fix.tsv | grep -v "ABCB1\|ABCB5\|ABCC10\|ABCC11\|ABCC2\|ABCC4\|ABCC6\|ABCC8\|ABCG2\|ADH1B\|ADH1C\|ALDH2\|ALDH3A1\|AOX1\|ATP7A\|ATP7B\|CBR1\|CBR3\|CDA\|CES1\|CYP1A1\|CYP1B1\|CYP2A6\|CYP2B6\|CYP2C19\|CYP2C8\|CYP2C9\|CYP2D6\|CYP2E1\|CYP4B1\|CYP4F2\|DPYD\|EPHX1\|FMO3\|GSTP1\|KCNJ11\|NAT2\|NOS3\|PON1\|POR\|SLC19A1\|SLC22A1\|SLC22A16\|SLC22A4\|SLC22A6\|SLC28A1\|SLC28A2\|SLC29A1\|SLCO1A2\|SLCO1B1\|SLCO1B3\|SLCO2A1\|SOD2\|SULT1A1\|TPMT\|UGT1A1\|UGT1A10\|UGT1A4\|UGT1A6\|UGT1A8\|UGT1A9\|UGT2B7"; done | cut -d$'\t' -f2 | sort | uniq | grep ^rs > snv_561_toxicity_single_noadme.txt 
+
+for f in `cat snv_561_toxicity_single_adme.txt`; do grep -w $f ~/Dropbox/pharm_peerj/resubmit/Supplemental_Table1.tsv; done > ~/Dropbox/pharm_peerj/resubmit/Supplemental_Table3.tsv
+
+#non coding:
+grep GRCh38 variants.tsv | grep -v '[ACTG]>[ACGT]'   | cut -d'	' -f2 > non_coding_vep
+
+for f in `cat non_coding_vep`; do grep -w $f clinical_ann_metadata.tsv | grep '        [12][AB]        ';  done  | cut -d'     ' -f2 | sort | uniq > non_coding_vep_cat1_cat2
+
+
+#Regenerate bar plot
+cadd_box <- data.frame(as.numeric(as.character(boxdata$CADD.Phred.Score)),boxdata$PharmGKB.evidence.level)
+cadd_box <- cadd_box[!is.na(cadd_box$as.numeric.as.character.boxdata.CADD.Phred.Score..),]
+ggplot(cadd_box, aes(x=cadd_box$boxdata.PharmGKB.evidence.level,y=cadd_box$as.numeric.as.character.boxdata.CADD.Phred.Score..)) + geom_boxplot(width=0.4) + ggtitle("a) CADD") + xlab("Category") + ylab("Score") + stat_boxplot(geom ='errorbar', width = 0.3) + theme_bw()
+
+poly_box <- data.frame(as.numeric(as.character(boxdata$PolyPhen.Score)),boxdata$PharmGKB.evidence.level)
+poly_box <- poly_box[!is.na(poly_box$as.numeric.as.character.boxdata.PolyPhen.Score..),]
+ggplot(poly_box, aes(x=poly_box$boxdata.PharmGKB.evidence.level,y=poly_box$as.numeric.as.character.boxdata.PolyPhen.Score..)) + geom_boxplot(width=0.4) + ggtitle("b) Polyphen2") + xlab("Category") + ylab("Score") + ylim(0,1) + stat_boxplot(geom ='errorbar', width = 0.3) + theme_bw()
+
+
+sift_box <- data.frame(as.numeric(as.character(boxdata$SIFT.Score)),boxdata$PharmGKB.evidence.level)
+sift_box <- sift_box[!is.na(sift_box$as.numeric.as.character.boxdata.SIFT.Score..),]
+ggplot(sift_box, aes(x=sift_box$boxdata.PharmGKB.evidence.level,y=sift_box$as.numeric.as.character.boxdata.SIFT.Score..)) + geom_boxplot(width=0.4) + ggtitle("c) SIFT") + xlab("Category") + ylab("Score") + ylim(0,1) + stat_boxplot(geom ='errorbar', width = 0.3) + theme_bw()
+
+ma_box <- data.frame(as.numeric(as.character(boxdata$MutationAssessor.Score)),boxdata$PharmGKB.evidence.level)
+ma_box <- ma_box[!is.na(ma_box$as.numeric.as.character.boxdata.MutationAssessor.Score..),]
+ggplot(ma_box, aes(x=ma_box$boxdata.PharmGKB.evidence.level,y=ma_box$as.numeric.as.character.boxdata.MutationAssessor.Score..)) + geom_boxplot(width=0.4) + ggtitle("d) MutationAssessor") + xlab("Category") + ylab("Score") + ylim(-3,5) + stat_boxplot(geom ='errorbar', width = 0.3) + theme_bw()
+
+mb_box <- data.frame(as.numeric(as.character(boxdata$MutPred.Score)),boxdata$PharmGKB.evidence.level)
+mb_box <- mb_box[!is.na(mb_box$as.numeric.as.character.boxdata.MutPred.Score..),]
+ggplot(mb_box, aes(x=mb_box$boxdata.PharmGKB.evidence.level,y=mb_box$as.numeric.as.character.boxdata.MutPred.Score..)) + geom_boxplot(width=0.4) + ggtitle("e) MutationPredictor") + xlab("Category") + ylab("Score") + ylim(0,1) + stat_boxplot(geom ='errorbar', width = 0.3) + theme_bw()
+
+revel_box <- data.frame(as.numeric(as.character(boxdata$REVEL.Score)),boxdata$PharmGKB.evidence.level)
+revel_box <- revel_box[!is.na(revel_box$as.numeric.as.character.boxdata.REVEL.Score..),]
+ggplot(revel_box, aes(x=revel_box$boxdata.PharmGKB.evidence.level,y=revel_box$as.numeric.as.character.boxdata.REVEL.Score..)) + geom_boxplot(width=0.4) + ggtitle("f) REVEL") + xlab("Category") + ylab("Score") + ylim(0,1) + stat_boxplot(geom ='errorbar', width = 0.3) + theme_bw()
+
+montage -mode concatenate -tile 3x2 Fig1_CADD.tiff Fig1_PPH2.tiff Fig1_SIFT.tiff Fig1_MutAss.tiff Fig1_MutPred.tiff Fig1_REVEL.tiff Fig1.tiff

@@ -1,0 +1,154 @@
+Downloaded all GWAS files and create merged vcfs by chromosome
+
+Ran bcftools norm to remove duplicates
+
+
+for f in 2 13 17 19; do echo $f; bcftools merge -R chr${f}.bed -l vcf_list_nodup --threads 48 -Oz -o AAA_gwas.${f}.vcf.gz; done
+
+#Merge the chromosomes
+Just concat and re-compress/index
+
+#Didn't use in the end
+~/g/software/vcftools/src/cpp/vcftools --gzvcf AAA_gwas.vcf.gz --plink --out AAA_plink
+
+
+#Followed guide here
+https://www.biostars.org/p/271694/
+
+#Make gwas fam file
+{matt@matt-linux /drive3/work/GWAS}
+>./gwas_prep.pl -pheno_col AAA
+>scp AAA_gwas_norm_AAA.txt AAA_gwas_norm_AAA.fam mxf221@gadi-dm.nci.org.au:/g/data/u86/mxf221/AAA/plink/
+
+
+#normalise vcf
+bcftools norm -m-any AAA_gwas.vcf.gz | bcftools norm --check-ref w -f ../gwas/vcf/fasta/hg38.fa | bcftools annotate -Ob -x ID -I +'%CHROM:%POS:%REF:%ALT:%ID' > AAA_gwas_norm.bcf
+
+#Run plink
+~/g/software/plink/plink --bcf AAA_gwas_norm.bcf --keep-allele-order --vcf-idspace-to _ --double-id --allow-extra-chr 0 --split-x b38 no-fail --indiv-sort file sample_order.txt --make-bed --out tmp
+
+#Swap out fam file
+rm plink_AAA.fam
+ln -s AAA_gwas_norm_AAA.fam plink_AAA.fam
+
+#MDS
+~/software/plink/plink  --bfile plink_AAA --cluster --mds-plot 10 --out plink_AAA
+
+#PCA
+~/g/software/plink/plink  --bfile plink_AAA --pca --out plink_AAA
+
+#Remove dups
+cut -f 2 plink_AAA.bim | sort | uniq -d > plink_AAA.dups
+
+#Run assoc for manhattan (add CI flag)
+~/software/gwas/plink --bfile  plink_AAA --assoc --out plink_AAA --adjust --exclude plink_AAA.dups --ci 
+
+library(qqman)
+gwasResults <- read.table("plink_AAA.assoc", header=TRUE)
+gwasResults <- gwasResults[!is.na(gwasResults$P),]
+manhattan(gwasResults,p="P",col = c("blue4", "orange3"),ylim=c(0,15),chrlabs=c(1:22,"X","Y","MT","NA"))
+
+#Filter on p-value (use cutoff from manhattan)
+gwasResultsSig <- gwasResults[gwasResults$P<=0.0000001,]
+write.table(as.data.frame(gwasResultsSig),file="AAA_GWAS_sighits.tsv",sep="\t")
+
+#Run quick_anno
+#First need to do quick_annotate_vcf
+./quick_annotate_vcf.pl -vcf_in AAA_gwas_norm.vcf -keep_zyg -> gives AAA_gwas_norm_chr.txt for next step 
+
+#Create assoc file
+cat plink_AAA_filter.assoc | shrinkwrap | tr " " "\t" > plink_AAA_filter.assoc.tsv
+
+#Annotate
+./annotate_gwas.pl -var_file AAA_gwas_norm_chr.txt -fam_file AAA_gwas_norm_AAA.fam -assoc_file AAA_GWAS_all.assoc.tsv -sample_vcf_order vcf_sample_order -chr 21
+
+
+
+#Filter variants (genotype in >90% samples and MAF > 1%)
+/software/gwas/plink --bfile plink_AAA --geno 0.1 --maf 0.01 --make-bed --out plink_AAA_filter
+
+cat AAA_GWAS_filter_annoated.tsv | extract -t "_4 ne 'NA' && _4 ne 'NO_PLINK' && _4 < 0.0000001" > AAA_GWAS_filter_annotated_sighits.tsv
+
+#Investigate high OR
+#Lots in chrX so ignore due to sex issues
+In total:
+26 OR > 2 (17 sig p-value) -> Of 26, 10 have MAF < 1% so not typical GWAS and 5 have no dbsnp entries so denovo
+16 OR > 3 (all sig)
+13 OR > 4 (all sig)
+
+cat AAA_GWAS_filter.tsv | extract -t "_10>2" | grep -v 'X:' | cut -d$'\t' -f 3 | cut -d':' -f2 | xargs -i grep -w {} AAA_GWAS_filter_annotated.tsv  > OD_greater2.tsv
+cat AAA_GWAS_filter.tsv | extract -t "_10>2" | grep -v 'X:' | cut -d$'\t' -f 3 | cut -d':' -f2 | xargs -i grep -w {} AAA_GWAS_filter_annotated_sighits.tsv  > OD_greater2_sig.tsv
+cat AAA_GWAS_filter.tsv | extract -t "_10>3" | grep -v 'X:' | cut -d$'\t' -f 3 | cut -d':' -f2 | xargs -i grep -w {} AAA_GWAS_filter_annotated.tsv  > OD_greater3.tsv
+...etc
+
+
+#Investigate 0/0 cases
+cat AAA_GWAS_filter_annotated.tsv | extract -t "_9==0 && _11==0" |wc -> Total of 531 cases (486166 total cases)
+#Found bug in annotate_gwas (affected == 2 in if statement) and GT 0/0 -> ref
+
+#Turns out lots of cases with missing problems, investigate using 92 sighits
+for f in `cat coord_file`; do echo $f; for v in *vcf.gz; do bcftools view -H $v $f >> ${f}.txt; done; done
+#Should be 4714 entries, less than this missing entries
+
+
+#Add CI
+~/software/gwas/plink --bfile  plink_AAA_filter --assoc --out plink_AAA_filter --adjust --exclude plink_AAA.dups --ci (0.95 for example)
+
+
+#Fixed samples Nov 2021
+
+#Two vcfs with 10 duplicates -> investigate
+
+>head -1000  JCU_PMDA.vcf | grep CHR | tr "\t" "\n" | grep CEL | linenum | grep  5509954407675010622247_PMDA_E08_KRI8228A418_CP5_C10.CEL
+ 1807 : 5509954407675010622247_PMDA_E08_KRI8228A418_CP5_C10.CEL
+
+>head -1000  JCU_PMDA_1296.vcf | grep CHR | tr "\t" "\n" | grep CEL | linenum | grep  5509954407675010622247_PMDA_E08_KRI8228A418_CP5_C10.CEL
+ 1252 : 5509954407675010622247_PMDA_E08_KRI8228A418_CP5_C10.CEL
+
+>cat JCU_PMDA_1296.vcf | cut -d$'\t' -f1252 | grep -v ^# | sort | uniq -c
+>cat JCU_PMDA.vcf | cut -d'     ' -f1807 | grep -v ^# | sort | uniq -c
+
+Look roughly same so use first file and filter from second; remove control from both
+>head -1000 JCU_PMDA_1296.vcf | grep CHR | tr "\t" "\n" | grep CEL$ > vcf_list2
+>head -1000 JCU_PMDA.vcf | grep CHR | tr "\t" "\n" | grep CEL$ > vcf_list1
+
+>head -1000 JCU_PMDA.vcf | grep CHR | tr "\t" "\n" | grep -i control > vcf_list_remove1
+>head -1000 JCU_PMDA_1296.vcf | grep CHR | tr "\t" "\n" | grep -i control > vcf_list_remove2
+>cat vcf_list1 vcf_list2 | sort | uniq -c | sort -n | shrinkwrap  | grep ^2 | cut -d'	' -f2 | grep -v Control >> vcf_list_remove2
+
+
+
+
+#Error with unknownchr, final probe and sorting
+>cat JCU_PMDA_1296.vcf | grep -v UNKNOWN | grep -v AX-150248918 > JCU_PMDA_1296_filter.vcf
+>cat JCU_PMDA.vcf | grep -v UNKNOWN | grep -v AX-150248918 > JCU_PMDA_filter.vcf
+>bcftools view --threads 48 -S ^vcf_duplicates2 JCU_PMDA_1296_filter.vcf  > JCU_PMDA_1296_filter_nodups.vcf
+>bcftools view --threads 48 -S ^vcf_duplicates1 JCU_PMDA_filter.vcf  > JCU_PMDA_filter_nodups.vcf
+>~/g/software/samtools/htslib-1.12/bgzip -@48  JCU_PMDA_filter_nodups.vcf 
+>~/g/software/samtools/htslib-1.12/bgzip -@48  JCU_PMDA_1296_filter_nodups.vcf 
+>bcftools sort -T /g/data/u86/mxf221/AAA/gwas/fixed -m 64G -Oz -o JCU_PMDA_1296_filter_nodups_sort.vcf.gz JCU_PMDA_1296_filter_nodups.vcf.gz 
+>bcftools sort -T /g/data/u86/mxf221/AAA/gwas/fixed -m 64G -Oz -o JCU_PMDA_filter_nodups_sort.vcf.gz JCU_PMDA_filter_nodups.vcf.gz 
+>bcftools sort -T /g/data/u86/mxf221/AAA/gwas/fixed -m 64G -Oz -o JCU_PMDA_filter_nodups_sort.vcf.gz JCU_PMDA_filter_nodups.vcf.gz 
+>bcftools view --threads 48 JCU_PMDA_1296_filter_nodups_sort.vcf.gz | bcftools norm --threads 48 -f ../vcf/fasta/hg38.fa -Oz -c wx > JCU_PMDA_1296_filter_nodups_sort_norm.vcf.gz
+>bcftools view --threads 48 JCU_PMDA_filter_nodups_sort.vcf.gz | bcftools norm --threads 48 -f ../vcf/fasta/hg38.fa -Oz -c wx > JCU_PMDA_filter_nodups_sort_norm.vcf.gz
+>~/g/software/samtools/htslib-1.12/tabix JCU_PMDA_1296_filter_nodups_sort_norm.vcf.gz
+>~/g/software/samtools/htslib-1.12/tabix JCU_PMDA_filter_nodups_sort_norm.vcf.gz 
+
+
+#Finally merge
+bcftools merge --threads 48 -Oz -o AAA_fixed.vcf.gz JCU_PMDA_filter_nodups_sort_norm.vcf.gz JCU_PMDA_1296_filter_nodups_sort_norm.vcf.gz
+
+#Five samples not in metadata
+>bcftools view --threads 48 -S ^final_filter -Oz AAA_fixed.vcf.gz   > AAA_final.vcf.gz
+
+#Norm for plink
+>bcftools norm --threads 48 -m-any ../AAA_final.vcf.gz | bcftools norm --check-ref w -f ../../vcf/fasta/hg38.fa | bcftools annotate -Ob -x ID -I +'%CHROM:%POS:%REF:%ALT:%ID' > AAA_fixed_gwas_norm.bcf
+
+../gwas_prep.pl  -pheno_col AAA -> needs samples_vcf file -> generates '.txt' file for indiv-sort in next step
+
+~/software/gwas/plink --bcf AAA_fixed_gwas_norm.bcf --keep-allele-order --vcf-idspace-to _ --double-id --allow-extra-chr 0 --split-x b38 no-fail --indiv-sort file AAA_gwas_norm_AAA.txt --make-bed --out AAA_gwas_fixed
+
+~/software/gwas/plink --bfile AAA_gwas_fixed --cluster --mds-plot 10 --out AAA_gwas_fixed
+
+~/g/software/plink/plink  --bfile plink_AAA --pca --out plink_AAA
+

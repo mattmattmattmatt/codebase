@@ -1,0 +1,13 @@
+Peptide from Norelle.
+
+Set up Blast
+makeblastdb -in helio_1.0.fasta -title helio -out /drive3/work/References/BLASTDB/helio -dbtype prot
+makeblastdb -in helio_1.0.fasta -title helio -out /drive3/work/References/BLASTDB/helio -dbtype nucl
+tblastn -query norelle_peptide.fa -db /drive3/work/References/BLASTDB/helio >  norelle_peptide.blast
+
+Run augustus:
+http://bioinf.uni-greifswald.de/augustus/submission.php
+
+
+Batch mode for handfull of cases:
+for f in `cat peptide_list`; do echo ">${f}_query" > ${f}.in;  echo "${f}" >> ${f}.in;  tblastn -query ${f}.in -db  /drive3/work/References/BLASTDB/helio > ${f}.blast; done

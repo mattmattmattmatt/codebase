@@ -1,0 +1,8 @@
+vpn.unsw.edu.au/garvan
+
+sudo mount -a -> /drive5 for NCI_Immunogenomics
+
+dice -> access hpc
+
+Move files from dice
+bash-4.2$ scp -r Pat2/ mxf221@gadi-dm.nci.org.au:/g/data/u86/mxf221/CarT/CarT2/

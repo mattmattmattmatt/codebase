@@ -1,0 +1,35 @@
+Ran through regular pipe:
+Lumpy:
+/g/data/u86/software/lumpy-sv/bin/lumpyexpress  -B /g/data/u86/mxf221/lumpy/IGL03262_3382_remove_duplicates.rg.bam
+
+Delly:
+Vicky ran delly
+
+~/work/anu/IGL3262/parse_sv.pl
+
+cat delly_del lumpy_del | sort +0 -1 +1n -2 +2n -3 > IGL3262_del
+
+cat delly_tra lumpy_tra | sort +0 -1 +1n -2 +2 -3 +3n -4 > IGL3262_tra
+
+awk '{print $1,$2,$2,$5}' IGL3262_tra > IGL3262_tra_first_coord
+awk '{print $3,$4,$4,$5}' IGL3262_tra > IGL3262_tra_second_coord
+awk '{print $1,$2,$2,$4}' IGL3262_inv > IGL3262_inv_first_coord
+awk '{print $3,$4,$4,$5}' IGL3262_inv > IGL3262_inv_second_coord
+
+Generate gene coords:
+./create_gene_coord.pl < mm10.exon.coord  > mm10.gene.coord
+
+
+For dels and dups:
+/drive2/vardb/trunk/utils/overlap_files.pl -ref IGL3262_del -coord mm10.gene.coord -all -just_overlap > IGL3262_del.gene
+/drive2/vardb/trunk/utils/overlap_files.pl -ref IGL3262_dup -coord mm10.gene.coord -all -just_overlap > IGL3262_dup.gene
+
+For tra and inv
+/drive2/vardb/trunk/utils/overlap_files.pl -ref IGL3262_tra_first_coord -coord mm10.gene.coord -all -just_overlap > IGL3262_tra_first.gene
+/drive2/vardb/trunk/utils/overlap_files.pl -ref IGL3262_tra_second_coord -coord mm10.gene.coord -all -just_overlap > IGL3262_tra_second.gene
+/drive2/vardb/trunk/utils/overlap_files.pl -ref IGL3262_inv_first_coord -coord mm10.gene.coord -all -just_overlap > IGL3262_inv_first.gene
+/drive2/vardb/trunk/utils/overlap_files.pl -ref IGL3262_inv_second_coord -coord mm10.gene.coord -all -just_overlap > IGL3262_inv_second.gene
+
+./report_sv.pl
+
+

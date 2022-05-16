@@ -1,0 +1,1 @@
+/g/data/u86/variantdb/v2.3/scripts/summarize_reports.pl -sample_list sample_list -gene_list unique_gene_list -no_db

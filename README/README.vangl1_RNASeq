@@ -1,0 +1,17 @@
+Generated Sashimi plots for four original samples and six new samples.
+
+One for all exons and one for each exon.  Found following anomalies.
+
+
+Skipped exons:
+1) SJ_003 has two reads skipping exon 3 (exon 2 to exon 4)
+2) SJ_003 has single read skipping exon 5 (exon 4 to exon 6) and Sample 2 has two reads also skipping exon 5.
+
+Alt Splice:
+1) SJ_002 has read spanning alternative exon 1 to exon 2
+2) SJ_002 has a single read with an alternative splice site between exon 5/6
+3) Sample 2 has single read that has alternative splice site between exon 2/3 (extra 4 bp) 
+4) SJ_002 has single read that has alternative splice site between exon 6/7
+5) Sample has single read that has alternative splice site between exon 4/5
+6) Sample 5 has single read that has alternative splice site between exon 3/4
+

@@ -1,0 +1,13 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normal
+#PBS -l walltime=4:00:00,mem=64GB,jobfs=10GB,ncpus=16
+#PBS -l storage=gdata/pq84+gdata/u86+scratch/u86+gdata/xx92
+
+module load samtools
+
+/g/data/u86/software/TrimGalore/trim_galore --paired --output_dir READDIR --path_to_cutadapt /g/data/u86/software/cutadapt/cutadapt READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz 
+
+/g/data/u86/software/STAR/bin/Linux_x86_64_static/STAR --outSAMattrRGline ID:SAMPLE SM:SAMPLE_l1 PL:ILLUMINA --sjdbOverhang SJDB_value --readFilesCommand zcat --runThreadN 16 --genomeDir REFDIR/REF/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1_val_1.fq.gz READDIR/SAMPLE_R2_val_2.fq.gz
+
+samtools index OUTDIR/SAMPLE_Aligned.sortedByCoord.out.bam

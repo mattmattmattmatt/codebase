@@ -1,0 +1,36 @@
+Ran manta somatic mode (versus mother) for affected 1,2,3,4
+
+See /g/data/u86/mxf221/Carola/CPI-CCG_cohort6
+
+/drive2/variantdb/trunk/scripts/parse_manta.pl -manta_vcf variants/somaticSV.vcf; grep -v inv manta.txt > manta.nobp; cp manta.tra manta.bp; grep inv manta.txt >> manta.bp ; grep bnd manta.bp | cut -d$'\t' -f1-5 | awk '{print $1,$2,$2,$5"\n"$3,$4,$4,$5}' > manta.bp.split; grep inv manta.bp | cut -d$'\t' -f1-5 | awk '{print $1,$2,$2,$4"\n"$1,$3,$3,$4}' >> manta.bp.split; /drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.bp.split -just_overlap -coord  /drive2/vardb/v2.3/conf/human/hs37d5/gene/120116/hs37d5.gene.overlap.all -all | sed $'s/\t1$/\tNO_GENE/' > manta.bp.gene; /drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.nobp -just_overlap -coord /drive2/vardb/v2.3/conf/human/hs37d5/gene/120116/hs37d5.gene.overlap.all -all | sed $'s/\t1$/\tNO_GENE/' > manta.nobp.gene; cat  manta.txt  manta.tra >> manta.all; cat  manta.nobp.gene manta.bp.gene >> manta.all.gene;  /drive2/vardb/trunk/utils/manta_summarise.pl > mantaA337.tsv
+
+#Add exons
+drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.nobp -just_overlap -coord  /drive2/vardb/v2.3/conf/human/hs37d5/exon/040614/hs37d5.exon.overlap.all -all | sed $'s/\t1$/\tNO_EXON/' > manta.nobp.exon
+>/drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.bp.split -just_overlap -coord  /drive2/vardb/v2.3/conf/human/hs37d5/exon/040614/hs37d5.exon.overlap.all -all | sed $'s/\t1$/\tNO_EXON/' > manta.bp.exon
+>cat manta.bp.exon manta.nobp.exon >> manta.all.exon
+
+Rerun manta_summarise.pl
+
+
+For GRCh38
+for f in *vcf; do cat $f | grep -v Un_JTF | grep -v Un_KN | grep -v _KI2 | grep -v NC > ${f}.chr; done
+
+{matt@matt-linux /drive3/work/anu/CPI/CCG_cohort6/manta_GRCh38/resultsA1}
+>rm -f manta.*; 
+/drive2/variantdb/trunk/scripts/parse_manta.pl -manta_vcf ../somaticSV_A1.vcf.chr; 
+grep -v inv manta.txt > manta.nobp; 
+cp manta.tra manta.bp; 
+grep inv manta.txt >> manta.bp ; 
+grep bnd manta.bp | cut -d$'\t' -f1-5 | awk '{print $1,$2,$2,$5"\n"$3,$4,$4,$5}' > manta.bp.split; 
+grep inv manta.bp | cut -d$'\t' -f1-5 | awk '{print $1,$2,$2,$4"\n"$1,$3,$3,$4}' >> manta.bp.split; 
+/drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.bp.split -just_overlap -coord  /drive2/vardb/v2.38/conf/human/GRCh38/gene/021118/GRCh38.gene.overlap.all -all | sed $'s/\t1$/\tNO_GENE/' > manta.bp.gene; 
+/drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.nobp -just_overlap -coord /drive2/vardb/v2.38/conf/human/GRCh38/gene/021118/GRCh38.gene.overlap.all -all | sed $'s/\t1$/\tNO_GENE/' > manta.nobp.gene; 
+cat  manta.txt  manta.tra >> manta.all; 
+cat  manta.nobp.gene manta.bp.gene >> manta.all.gene; 
+/drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.nobp -just_overlap -coord  /drive2/vardb/v2.38/conf/human/GRCh38/exon/021118/GRCh38.exon.overlap.all -all | sed $'s/\t1$/\tNO_EXON/' > manta.nobp.exon; 
+/drive2/vardb/v2.3/utils/overlap_files.pl -ref manta.bp.split -just_overlap -coord  /drive2/vardb/v2.38/conf/human/GRCh38/exon/021118/GRCh38.exon.overlap.all -all | sed $'s/\t1$/\tNO_EXON/' > manta.bp.exon; 
+cat manta.bp.exon manta.nobp.exon >> manta.all.exon; 
+/drive2/vardb/trunk/utils/manta_summarise.pl -gene_file /drive2/vardb/v2.38/conf/human/GRCh38/gene/021118/GRCh38.gene.all > mantaA1_38.tsv
+
+head -2 resultsA1/mantaA1_38.tsv > manta_sids_genes.tsv; for f in `cat ../sids_gene_list.txt`; do grep -w $f resultsA*/*tsv; done >> manta_sids_genes.tsv
+head -2 resultsA1/mantaA1_38.tsv > manta_exon_overlaps.tsv; grep  OVERLAP_EXON results*/manta*_38.tsv  | grep -v '>5 Genes' >> manta_exon_overlaps.tsv

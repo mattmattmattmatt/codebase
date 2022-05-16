@@ -1,0 +1,80 @@
+Read stats from fastqc already generated.
+
+Alignment:
+(raijin ~/g/mxf221/spider)
+
+Downloaded funnel genome from http://www.ncbi.nlm.nih.gov/genome/?term=txid407821[orgn] (68653 contigs) and tarantula assembly from http://www.ncbi.nlm.nih.gov/assembly/GCA_000661875.1/ with ~5 million contigs
+
+STAR:
+Index genome:
+/g/data/u86/software/STAR/bin/Linux_x86_64/STAR   --runMode genomeGenerate   --runThreadN 16   --genomeDir .   --genomeFastaFiles ../GCA_000611955.2_Stegodyphus_mimosarum_v1_genomic.fna      --outFileNamePrefix funnelStar --limitGenomeGenerateRAM=128000000000
+Align:
+/g/data/u86/software/STAR/bin/Linux_x86_64/STAR   --runThreadN 16   --genomeDir star/   --readFilesIn ../ND_DWC_CTTGTA_L008_R1_001.fastq.gz ../ND_DWC_CTTGTA_L008_R2_001.fastq.gz      --outFileNamePrefix ND_DWC_funnelStar
+
+Fails for tarantula (runs out of memory w/ 128G) so use bwa
+~/g/software/bwa-0.7.12/bwa mem -t 16 -r "@RG\tID:AIP\tSM:ND_DWC\tPL:ILLUMINA" -M tarantula/GCA_000661875.1_tarantula_genomic.fna ND_DWC_CTTGTA_L008_R1_001.fastq.gz ND_DWC_CTTGTA_L008_R2_001.fastq.gz | ~/g/software/samtools/samtools-0.1.18/samtools view -S -b -h - | ~/g/software/samtools/samtools-0.1.18/samtools sort -m64000000000 - ND_DWC_tarantula
+
+Run trinity
+~/g/software/trinityrnaseq-2.2.0/Trinity  --seqType fq  --max_memory 120G --CPU 16 --left ../SN_AIP_2_GCCAAT_L004_R1_001.fastq.gz,../SN_DAIP_2_CTTGTA_L004_R1_001.fastq.gz,../SN_Naive_TGACCA_L004_R1_001.fastq.gz --right ../SN_AIP_2_GCCAAT_L004_R2_001.fastq.gz,../SN_DAIP_2_CTTGTA_L004_R2_001.fastq.gz,../SN_Naive_TGACCA_L004_R2_001.fastq.gz --normalize_reads --trimmomatic
+
+Run RSEM:
+~/g/software/RSEM-1.2.29/bin/extract-transcript-to-gene-map-from-trinity tarantula_trinity.fasta tarantula_rsem_map
+
+~/g/software/RSEM-1.2.29/bin/rsem-prepare-reference --transcript-to-gene-map tarantula_rsem_map --bowtie2 --bowtie2-path /g/data/u86/software/bowtie2-2.2.3/ -p 16 /g/data/u86/mxf221/spider/tarantula/tarantula_trinity.fasta /g/data/u86/mxf221/spider/tarantula/rsem/tarantula_rsem
+
+~/g/software/RSEM-1.2.29/bin/rsem-calculate-expression -p 16 --bowtie2 --bowtie2-path /g/data/u86/software/bowtie2-2.2.3/ --estimate-rspd --paired-end read1_R1.fq.gz,read2_R1.fq.gz,read3_R1.fq.gz read1_R2.fq.gz,read2_R2.fq.gz,read3_R2.fq.gz rsem/funnel_rsem rsem/funnel_rsem_out
+
+Run transdecoder
+>~/g/software/TransDecoder-2.1.0/TransDecoder.LongOrfs -t funnel_trinity.fasta 
+
+Create blastdb:
+Download uniref90 from http://www.uniprot.org/downloads
+/g/data/u86/software/ncbi-blast-2.3.0+/bin/makeblastdb -input_type fasta -dbtype prot -in uniprot_sprot.fasta -out uniprot_sprot -title uniprot_sprot
+
+Run blastp
+/g/data/u86/software/ncbi-blast-2.3.0+/bin/blastp -query /g/data/u86/mxf221/spider/funnel/transdecoder_dir/longest_orfs.pep  -db uniprot_sprot  -max_target_seqs 1 -outfmt 6 -evalue 1e-5 -num_threads 16 > /g/data/u86/mxf221/spider/funnel/blast/blastp_orf.outfmt6
+
+Run hmm/pfam
+/g/data/u86/software/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmscan --cpu 16 --domtblout /g/data/u86/mxf221/spider/funnel/pfam/pfam.domtblout -o /g/data/u86/mxf221/spider/funnel/pfam/hmmscan.out /g/data/u86/software/pfam/Pfam-A.hmm /g/data/u86/mxf221/spider/funnel/transdecoder_dir/longest_orfs.pep
+
+Finish transdecoder
+~/g/software/TransDecoder-2.1.0/TransDecoder.Predict -t funnel_trinity.fasta --retain_pfam_hits pfam/pfam.domtblout --retain_blastp_hits blast/blastp_orf.outfmt6   
+
+
+
+Start trinotate
+~/software/RNAseq/trinityrnaseq-2.2.0/util/support_scripts/get_Trinity_gene_to_trans_map.pl funnel_trinity.fasta > funnel_trinity.fasta.gene_trans_map
+
+~/software/RNAseq/Trinotate-3.0.1/util/rnammer_support/RnammerTranscriptome.pl --transcriptome funnel_trinity.fasta --path_to_rnammer /home/matt/software/prediction/rnammer-1.2/rnammer
+
+/g/data/u86/software/ncbi-blast-2.3.0+/bin/blastp -query /g/data/u86/mxf221/spider/tarantula/transdecoder_dir/transdecoder.pep  -db uniprot_sprot  -max_target_seqs 1 -outfmt 6 -num_threads 16 > /g/data/u86/mxf221/spider/tarantula/blast/blastp_trans.outfmt6
+
+/g/data/u86/software/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmscan --cpu 16 --domtblout /g/data/u86/mxf221/spider/tarantula/pfam/pfam_trans.domtblout -o /g/data/u86/mxf221/spider/tarantula/pfam/hmmscan_trans.out /g/data/u86/software/pfam/Pfam-A.hmm /g/data/u86/mxf221/spider/tarantula/transdecoder_dir/transdecoder.pep
+
+~/software/prediction/tmhmm-2.0c/bin/tmhmm --short < tarantula.transdecoder.pep > tarantula.tmhmm.out
+
+~/g/software/signalp-4.1/signalp -v  -f short -T /g/data/u86/mxf221/spider/tarantula/signalp -n tarantula.signalp.out tarantula.transdecoder.pep
+
+Now build the sqlite3 database 
+
+
+wget "https://data.broadinstitute.org/Trinity/Trinotate_v3_RESOURCES/Trinotate_v3.sqlite.gz" -O Trinotate.sqlite.gz
+
+sesame Trinotate.sqlite.gz
+mv Trinotate.sqlite Trinotate.tarantula.sqlite
+
+ ~/software/RNAseq/Trinotate-3.0.1/Trinotate ~/software/databases/Trinotate.tarantula.sqlite init --gene_trans_map tarantula.gene_trans_map --transcript_fasta tarantula_trinity.fasta --transdecoder_pep tarantula.transdecoder.pep 
+
+~/software/RNAseq/Trinotate-3.0.1/Trinotate ~/software/databases/Trinotate.tarantula.sqlite LOAD_swissprot_blastp tarantula.blastp_trans.outfmt6 
+
+~/software/RNAseq/Trinotate-3.0.1/Trinotate ~/software/databases/Trinotate.tarantula.sqlite LOAD_swissprot_blastx tarantula.blastx_uniprot.outfmt6 
+
+~/software/RNAseq/Trinotate-3.0.1/Trinotate ~/software/databases/Trinotate.tarantula.sqlite LOAD_pfam tarantula.pfam_trans.domtblout 
+
+~/software/RNAseq/Trinotate-3.0.1/Trinotate ~/software/databases/Trinotate.tarantula.sqlite LOAD_tmhmm tarantula.tmhmm.out 
+
+~/software/RNAseq/Trinotate-3.0.1/Trinotate ~/software/databases/Trinotate.tarantula.sqlite LOAD_signalp tarantula.signalp.out 
+
+~/software/RNAseq/Trinotate-3.0.1/Trinotate ~/software/databases/Trinotate.tarantula.sqlite LOAD_rnammer tarantula.rnammer.gff 
+
+~/software/RNAseq/Trinotate-3.0.1/Trinotate ~/software/databases/Trinotate.tarantula.sqlite report --incl_pep --incl_trans > tarantula.trinotate.xls

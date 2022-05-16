@@ -1,0 +1,15 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normal
+#PBS -l walltime=24:00:00,mem=16GB,jobfs=100GB,ncpus=16
+#PBS -l storage=gdata/u86+scratch/u86+gdata/xx92+gdata/pw1
+
+module load samtools
+module load java/jdk-8.40
+
+
+samtools depth -a -d 10000 OUTDIR/SAMPLE_md_realign_recal.bam > OUTDIR/SAMPLE.depth
+
+
+samtools view -h --threads 16 OUTDIR/SAMPLE_md_realign_recal.bam | /g/data/u86/software/bbmap/pileup.sh in=stdin > OUTDIR/SAMPLE.mapstat
+

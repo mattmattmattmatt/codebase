@@ -1,0 +1,3 @@
+#To link mito to existing bioproject / biosample using bankit add to fasta header
+>seq [organism=canis lupus dingo] [biosample=SAMN09397198] [bioproject=PRJNA475652]
+

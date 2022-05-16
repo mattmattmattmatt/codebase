@@ -1,0 +1,29 @@
+New coordinate list from Manu
+
+1) Convert to hg19
+~/software/suites/ucsc/liftOver.asc Lymphoma_panel_regions_cons.txt ~/software/suites/ucsc/hg38ToHg19.over.chain.gz Lymphoma_panel_regions_cons_hg19 Lymphoma_panel_regions_cons_unmapped
+
+2) Then generate depth on raijin (/g/data/u86/mxf221/Goodnow/ss/depth_paper/qsub)
+samtools depth -b /g/data/u86/mxf221/Goodnow/ss/depth_paper/hs37d5.exon.subset -a -d 100000 /g/data/u86/mxf221/Goodnow/ss/ss_DNA_rogue1/runs/S9_md_realign_recal.bam > /g/data/u86/mxf221/Goodnow/ss/depth_paper/S9.depth
+
+
+3) Format for overlap to exons
+for f in *.depth; do mv $f tmp; cat tmp | awk '{print $1"\t"$2"\t"$2"\t"$3}' > $f; rm tmp; done
+
+4) Includes UTRs so extend coords
+>cat hs37d5.gene.overlap.all | awk '{if ($2-100000<0) {print $1,0,$3+100000,$4} else {print $1,$2-100000,$3+100000,$4}}' > hs37d5.gene.overlap.all.extend
+
+Build up proper gene list (final_gene_list_sorted)
+
+for f in *.depth; do echo $f; /drive2/variantdb/v2.3/utils/overlap_files.pl -ref $f -coord final_gene_list_sorted -all -just_overlap > ${f}.gene ; done
+
+5) ./depth.pl -> makes A_and_B_exon_depth.tsv
+
+6) Get >15 reads, >1 read, and average total cover
+i) for f in [AB]*depth; do cat $f | extract -t "_3 > 15" > $f.more15; done
+wc *15 | shrinkwrap | cut -d' ' -f1
+
+ii) for f in [AB]*depth; do cat $f | extract -t "_3 > 1" > $f.more1; done
+wc *11 | shrinkwrap | cut -d' ' -f1
+
+iii) for f in [AB]*depth; do cat $f | cut -d'	' -f4| stats | grep ^n | cut -d' ' -f4; done

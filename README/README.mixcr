@@ -1,0 +1,10 @@
+#Trim galore
+for f in *R1.fastq.gz; do ~/software/qc/TrimGalore-0.6.5/trim_galore --paired --output_dir .  $f `echo $f | sed -e 's/R1/R2/'`; done
+
+#symlinks
+for f in `cat ../sample_names_batch2`; do ln -s ${f}*R2_val_2.fq.gz ${f}_R2.fq.gz; done
+for f in `cat ../sample_names_batch2`; do ln -s ${f}*R1_val_1.fq.gz ${f}_R1.fq.gz; done
+
+#mixcr steps
+for f in `cat sample_names_batch2`; do ~/software/vdj/mixcr-2.0.3/mixcr align -s hs -t 4 AGRF_CAGRF21046344_JNH3V/${f}_R1.fq.gz AGRF_CAGRF21046344_JNH3V/${f}_R2.fq.gz mixcr2/${f}.vdjca; ~/software/vdj/mixcr-2.0.3/mixcr assemble -t 4 mixcr2/${f}.vdjca mixcr2/${f}.clones.clns; ~/software/vdj/mixcr-2.0.3/mixcr  exportClones -count -vGene -dGene -jGene -nFeature CDR3 -aaFeature CDR3 -lengthOf CDR3 mixcr2/${f}.clones.clns mixcr2/${f}.clones.txt; done
+

@@ -1,0 +1,159 @@
+ cat tmp | cut -d'	' -f2 | awk '{print "wget --load-cookies ~/Desktop/cookies.txt --http-user=harindrasathkumaramudiyanselage --http-password=AITHM123 https://data.ace.uq.edu.au/users/harindrasathkumaramudiyanselage/data/P175b/J2504/"$1}' | bash
+
+#Get map from readme (tmp2)
+while read -r line; do echo "$line" | awk '{print "ln -s", $3"_R1_001.fastq.gz",$1"_R1.fastq.gz"}' | bash; done < ../tmp2
+while read -r line; do echo "$line" | awk '{print "ln -s", $3"_R2_001.fastq.gz",$1"_R2.fastq.gz"}' | bash; done < ../tmp2
+
+1) Map file
+Create qiime_map.txt from D1878.tsv
+
+Create ACE_qiime.biom from ACE_results/qiime_feature_table/feature-table.biom
+
+Try qiime2
+conda activate qiime2-2018.4
+qiime tools inspect-metadata qiime_map.txt
+
+
+2) Create observation file
+#ACE changed location of count file
+>cat ACE_results/statistics/features_statistics.csv | cut -d',' -f1,37  | sed -e 's/,/  /' > ACE_qiime.obs
+->Update headers to #OTUID\ttaxonomy
+
+
+3) Change sample names
+>biom convert -i otu_filtered_all_newsample.biom -o ACE_qiime_newsample_meta.tsv --to-tsv --table-type="OTU table" 
+>cat ../qiime_map.txt | cut -d$'\t' -f1 | tr "\n" "\t" > new_headers
+
+4) Add metadata
+biom add-metadata -i  ACE_qiime_newsample.biom -o ACE_qiime_newsample_meta.biom --observation-metadata-fp ACE_qiime.obs --sc-separated taxonomy -m qiime_map.txt
+
+5) Remove mouse OTUs
+>bowtie2 -x /drive3/work/References/mm10 -p 4 -U ACE_results/qiime_feature_seqs/sequences.fasta -f -S qiime_mouse_align.sam
+3546 reads; of these:
+  3546 (100.00%) were unpaired; of these:
+    799 (22.53%) aligned 0 times
+    2561 (72.22%) aligned exactly 1 time
+    186 (5.25%) aligned >1 times
+77.47% overall alignment rate
+>samtools view -f 4 -F 256 qiime_mouse_align.sam | cut -d'    ' -f1 > qiime_mouse_otu_unaligned
+>biom subset-table -i ACE_qiime_newsample_meta.biom -a observation -s qiime_mouse_otu_unaligned -o otu_final.biom
+>biom convert -i otu_final.biom -o otu_final.tsv --to-tsv --table-type="OTU table"
+
+#Mostly removed sequences from lungs
+
+6) Run pairs.pl (toggle for lung and stool)
+Had to change sizeEstimation as Geom mean was failing due to zeros
+DESeq(....,sfType="poscounts")
+
+7) Run separately for lung and stool due to issues with lung
+cd lung
+grep -v ^S ../qiime_map.txt > qiime_map.txt
+grep ^L qiime_map.txt  | cut -d$'\t' -f1 > sample.txt
+biom subset-table -a sample -s sample.txt -i ../otu_final.biom -o otu_lung.biom
+biom summarize-table -i otu_lung.biom > otu_lung.stats
+
+8) Examine some cases that are different
+Remove color codes from diff
+>diff joint_sorted single_sorted | grep '>' | sed -e 's/> //' | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g" > diff_list
+>cat diff_list | awk '{print "head -1 tmp.tsv | cut -d$\x27\\t\x27 -f1,23,24,25,26,27,32,33,34,35; grep",$1,"tmp.tsv | cut -d$\x27\\t\x27 -f1,23,24,25,26,27,32,33,34,35"}' | bash
+
+9) While neither is perfect go with single analysis for stool (in stool subdirs)
+and lung joint for lung (in fullset dir)
+
+10) Generate qiime graphs (had to reinstall qiime using 'pip install qiime'
+Also have qiime2 but lacking lots of functionality
+'conda list env' and 'conda activate qiime2-2018.4' so didn't use in the end
+
+
+#Generate other comparison levels in R (not just OTUs)
+
+library("phyloseq")
+library("DESeq2")
+biom <- import_biom("./otu_final.biom")
+tax_col <- c("Kingdom","Phylum","Class","Order","Family","Genus","Species")
+map <- import_qiime_sample_data("./qiime_map.txt")
+phylo <- merge_phyloseq(biom,map)
+colnames(tax_table(phylo)) <- tax_col
+Group_phy_deseq <- phyloseq_to_deseq2(phylo,~Group)
+Group_phy_deseq <- DESeq(Group_phy_deseq, test="Wald", fitType="parametric",sfType="poscounts")
+res <- results(Group_phy_deseq, cooksCutoff = FALSE, contrast = c("Group","StoolNaiveCtrl","StoolNaiveT2D"))
+head(res)
+head(phylo)
+head(Group_phy_deseq)
+alpha = 0.01
+sigtab = res[which(res$padj < alpha), ]
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(phylo)[rownames(sigtab), ], "matrix"))
+library(ggplot2)
+theme_set(theme_bw())
+scale_fill_discrete <- function(palname = "Set1", ...) {
+scale_fill_brewer(palette = palname, ...)
+}
+x = tapply(sigtab$log2FoldChange, sigtab$Family, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Family = factor(as.character(sigtab$Family), levels=names(x))
+
+x = tapply(sigtab$log2FoldChange, sigtab$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Genus = factor(as.character(sigtab$Genus), levels=names(x))
+
+x = tapply(sigtab$log2FoldChange, sigtab$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Phylum = factor(as.character(sigtab$Phylum), levels=names(x))
+
+x = tapply(sigtab$log2FoldChange, sigtab$Order, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Order = factor(as.character(sigtab$Order), levels=names(x))
+
+x = tapply(sigtab$log2FoldChange, sigtab$Class, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Class = factor(as.character(sigtab$Class), levels=names(x))
+
+#For each combo run the following (Genus on X, colored by Family)
+ggplot(sigtab, aes(x=Genus, y=log2FoldChange, color=Family)) + geom_point(size=6) + theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+
+#For paper:
+#Health control vs T2D
+res <- results(Group_phy_deseq, cooksCutoff = FALSE, contrast = c("Group","LungNaiveCtrl","LungNaiveT2D"))
+sigtab = res[which(res$padj < alpha), ]
+sigtab <- na.omit(sigtab)
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(phylo)[rownames(sigtab), ], "matrix"))
+x = tapply(sigtab$log2FoldChange, sigtab$Family, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Family = factor(as.character(sigtab$Family), levels=names(x))
+x = tapply(sigtab$log2FoldChange, sigtab$Class, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Class = factor(as.character(sigtab$Class), levels=names(x))
+ggplot(sigtab, aes(x=Class, y=log2FoldChange, color=Family)) + geom_point(size=6) + theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ylim(-40,30) + ggtitle("Microbiome Changes Healthy Control vs Type II Diabetes") + theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+
+#Health control vs Inf
+res <- results(Group_phy_deseq, cooksCutoff = FALSE, contrast = c("Group","LungNaiveCtrl","LungInfCtrl"))
+sigtab <- na.omit(sigtab)
+sigtab = res[which(res$padj < alpha), ]
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(phylo)[rownames(sigtab), ], "matrix"))
+x = tapply(sigtab$log2FoldChange, sigtab$Family, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Family = factor(as.character(sigtab$Family), levels=names(x))
+x = tapply(sigtab$log2FoldChange, sigtab$Class, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Class = factor(as.character(sigtab$Class), levels=names(x))
+ggplot(sigtab, aes(x=Class, y=log2FoldChange, color=Family)) + geom_point(size=6) + theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("Stuff") + theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+Health control vs Inf/T2D
+res <- results(Group_phy_deseq, cooksCutoff = FALSE, contrast = c("Group","LungNaiveCtrl","LungInfT2D"))
+sigtab = res[which(res$padj < alpha), ]
+sigtab <- na.omit(sigtab)
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(phylo)[rownames(sigtab), ], "matrix"))
+x = tapply(sigtab$log2FoldChange, sigtab$Family, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Family = factor(as.character(sigtab$Family), levels=names(x))
+x = tapply(sigtab$log2FoldChange, sigtab$Class, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Class = factor(as.character(sigtab$Class), levels=names(x))
+x = tapply(sigtab$log2FoldChange, sigtab$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Genus = factor(as.character(sigtab$Genus), levels=names(x))
+ggplot(sigtab, aes(x=Class, y=log2FoldChange, color=Family)) + geom_point(size=6) + theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ylim(-40,30) + ggtitle("Microbiome Changes Healthy Control vs TB Infection AND Type II Diabetes") + theme(plot.title = element_text(hjust = 0.5, face="bold"))
+
+

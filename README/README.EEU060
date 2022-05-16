@@ -1,0 +1,9 @@
+Would you be able to check the deletion in the BSN gene in EEU060 and tell me if you think it is real?
+I am very interested since the Folbigg male boys had biallelic mutations in this gene, and EEU presents with febrile convulsions (BSN has recently been associated to febrile convulsions by GWAS).
+
+#Retrieved fastq's and aligned to hg38
+BSN deletion doesn't look good for exact breakpoints
+
+However missense mutation is very rare so looks good (rs372819667) G->C reported in 2/8998 ethnicity of 'other'
+
+

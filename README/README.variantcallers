@@ -1,0 +1,30 @@
+/usr/bin/python ~/software/variantcall/Platypus/Platypus.py callVariants --nCPU=4 --bamFiles=NA12878_genome_sg1_humansingle1.bam --refFile=hs37d5.fa --output=platypus.vcf
+
+samtools mpileup -B -f hs37d5.fa NA12878_genome_sg1_humansingle1.bam | java -jar ~/software/variantcall/VarScan/VarScan.v2.3.9.jar mpileup2indel > varscan_indel.vcf
+samtools mpileup -B -f hs37d5.fa NA12878_genome_sg1_humansingle1.bam | java -jar ~/software/variantcall/VarScan/VarScan.v2.3.9.jar mpileup2snp > varscan_snp.vcf
+
+#Varscan 'vcf' is rubbish so need to format
+cat varscan_indel_final.vcf | grep -v ^Chrom | grep "  -" | sed -e "s/ -/      /" | awk '{print $1"\t"$2"\t.\t"$3$4"\t"$3"\t100\t.\t"$5"\t"$6}' > varscan_del_format.vcf
+cat varscan_indel_final.vcf | grep -v ^Chrom | grep "  +" | sed -e "s/ +/      /" | awk '{print $1"\t"$2"\t.\t"$3"\t"$3$4"\t100\t.\t"$5"\t"$6}' > varscan_ins_format.vcf
+cat varscan_snp_final.vcf | grep -v ^Chrom | awk '{print $1"\t"$2"\t.\t"$3"\t"$4"\t100\t.\t"$5"\t"$6}' > varscan_snp_format.vcf
+
+
+~/software/variantcall/lofreq_star-2.1.3.1/lofreq call --call-indels -f hs37d5.fa -o /drive3/work/variantcall_compare/lofreq.vcf -s -S /drive2/variantdb/v2.3/conf/human/hs37d5/gatk_resources/dbsnp_138.b37.vcf NA12878_genome_sg1_humansingle1.bam
+
+~/software/variantcall/freebayes/bin/freebayes -f hs37d5.fa NA12878_genome_sg1_humansingle1.bam > freebayes.vcf
+
+~/software/variantcall/VarDictJava/build/install/VarDict/bin/VarDict -C -G /drive3/work/variantcall_compare/hs37d5.fa -f 0.01 -N NA12878_genome_sg1_humansingle1 -b /drive3/work/variantcall_compare/NA12878_genome_sg1_humansingle1.bam -z -c 1 -S 2 -E 3 -g 4 hs37d5.bed | ~/software/variantcall/VarDictJava/build/install/VarDict/bin/teststrandbias.R |  ~/software/variantcall/VarDictJava/build/install/VarDict/bin/var2vcf_valid.pl -E -f 0.01 -N NA12878_genome_sg1_humansingle1 > vardict.vcf
+
+~/software/suites/bcftools/bcftools mpileup -f /drive2/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa NA12878_genome_sg1_humansingle1.bam | ~/software/suites/bcftools/bcftools call -mv -Ov -o samtools.vcf
+
+GATK from v2.3
+
+#Do specific tool varcalls relative to gatk
+#Six to assess for WGS
+for f in platypus varscan samtools lofreq freebayes; do echo $f; /drive2/vardb/v2.3/utils/giab.pl -vcf1 gatk.vcf -vcf2 ${f}.vcf  -out WGS_${f}.tsv -tmpdir WGS_${f}; done
+
+#Seven to assess for chr22
+for f in platypus varscan samtools lofreq freebayes vardict; do echo $f; /drive2/vardb/v2.3/utils/giab.pl -vcf1 gatk_chr22.vcf -vcf2 ${f}_chr22.vcf  -out chr22_${f}.tsv -tmpdir chr22_${f} -chr22; done
+
+#Get into single file -> format to final output (add gatk, etc)
+cat chr22*tsv | grep -v gatk | grep -v ^$ | sort > chr22_results.tsv

@@ -1,0 +1,38 @@
+Six groups across two ACE experiments;  want DE for each pair
+
+Pairs are:
+
+1) Lung neonates: 7 NTQ and 11 HA
+2) Caecum nodam: 11 Vehicle and 10 NTQ
+3) Caecum dam: 9 Vehicle and 10 Dam
+
+First create qiime mapping files from csvs downloaded from ACE.
+Validate when done
+>validate_mapping_file.py -m caecum_nodam/qiime_map.txt
+
+First remove controls and create proper subsets
+cat qiime_map.txt | grep -v \# | cut -d'	' -f1 > sample.txt
+biom subset-table -a sample -s sample.txt -j ../ACE_analysis/J1453/otu_table_count_filtered.biom -o caecam_nodam.biom
+
+Then swap out names, add metadata, and observation
+>biom convert -i caecum_dam.biom -o tmp.tsv --to-tsv --table-type="OTU table"
+>cat qiime_map.txt  | cut -d'   ' -f1 | grep -v Sample | tr "\n" "\t" > new_headers
+>biom convert -i  tmp.tsv -o caecum_dam_newsample.biom  --to-hdf5 --table-type="OTU table"
+
+>cat ../ACE_analysis/J1483/*count.annotated* | cut -d'TAB' -f1,22 | grep -v ^OTU | sed -e 's/; /;/g' | sort | uniq > qiime_obs.txt
+
+Add #OTUID and taxonomy as headers (use libreoffice)
+biom add-metadata -i lung_newsample.biom -o lung_newsample_final.biom --observation-metadata-fp qiime_obs.txt --sc-separated taxonomy -m qiime_map.txt
+
+Problem with records with no taxa for lung:
+cut -d'	' -f1 ../ACE_analysis/J1483/otu_table_R1_count.annotated.tab | sort | uniq  | grep -v ^OTU > tax_list
+cut -d'	' -f1 tmp.tsv | sort | uniq  | grep -v \#OTU > tmp_list
+diff tax_list tmp_list | grep '>' | sed -e 's/> //' > remove_list
+Remove from tmp.tsv and rerun steps.....
+
+Followed zainab from here except for following changes:
+
+i) For lung beta_diversity used -e 300 instead of -e 3000
+
+ii) For lung, Dec17_pairs.pl had to add three columns to tax_col to account for some eukaryote entries that had more categories
+print R_INPUT 'tax_col <- c("Kingdom","Phylum","Class","Order","Family","Genus","Species","A1","A2","A3")' ."\n";

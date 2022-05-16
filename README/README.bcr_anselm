@@ -1,0 +1,49 @@
+As discussed last week, it would be great if you could try to work out if the WES from tumours contain a fully or partially recombined BCR. All sequences have been generated from isolated tumour cells so the population should be reasonably monoclonal with only very few contaminating B cells.
+
+As a recap, first a D and J element are brought together, followed then by bringing a V element together. J and D elements are relatively small, the V element is larger but since we are only interested in seeing if we find any J elements directly next to a D element without any intervening sequence this should not be a large issue. And if you do find such a VJ pair, the next question would be to see if there are any V elements next to the DJ pair.
+
+The IGL numbers for our tumour sequences are IGL02853-56 and IGL03415-18.
+I think that is all you need but let me know if you need more information.
+
+
+Run random IGL for background levels expected (IGL03667 renamed to test)
+
+
+1) Run mixcr with wrapper
+>for f in IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do ~/g/software/mixcr/mixcr analyze shotgun  --species musmusculus --starting-material dna  ${f}_R1.fastq.gz ${f}_R2.fastq.gz ${f}_default; done
+
+-> Bug uses '-p rna-seq' so try to run steps manually (from .report file)
+
+2) Here we use -p Kaligner2 which is special aligner for BCR
+for f in  IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do ~/g/software/mixcr/mixcr align -OvParameters.geneFeatureToAlign=VGeneWithP -OallowPartialAlignments=true -s musmusculus -t 16 -p KAligner2 ${f}_R1.fastq.gz ${f}_R2.fastq.gz ${f}_kaligner2.vdjca; done
+
+for f in  IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do ~/g/software/mixcr/mixcr assemblePartial --report ${f}_kaligner2.report ${f}_kaligner2.vdjca ${f}_kaligner2_0.vdjca; done
+
+for f in  IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do ~/g/software/mixcr/mixcr assemblePartial --report ${f}_kaligner2.report ${f}_kaligner2_0.vdjca ${f}_kaligner2_1.vdjca; done
+
+for f in  IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do ~/g/software/mixcr/mixcr extend --report ${f}_kaligner2.report ${f}_kaligner2_1.vdjca ${f}_kaligner2.extended.vdjca; done
+
+for f in  IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do ~/g/software/mixcr/mixcr assemble --report ${f}_kaligner2.report --write-alignments -OseparateByV=true -OseparateByJ=true -OseparateByC=true ${f}_kaligner2.extended.vdjca ${f}_kaligner2.clna; done
+
+for f in  IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do ~/g/software/mixcr/mixcr exportClones ${f}_kaligner2.clna ${f}.txt; done
+
+3) #Final analysis after playing with parameters -> use kaligner and do the following
+for f in  IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do echo $f; ~/software/vdj/mixcr-3.0.6/mixcr assemble --report ${f}_kaligner2.report --write-alignments -f ${f}_kaligner2.extended.vdjca ${f}_kaligner2.clna; done
+
+for f in  IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do echo $f; ~/software/vdj/mixcr-3.0.6/mixcr assembleContigs --report ${f}_kaligner2.report -f ${f}_kaligner2.clna ${f}_kaligner2.clns; done
+
+for f in  IGL02853 IGL02854 IGL02855 IGL02856 IGL03415 IGL03416 IGL03417 IGL03418 test; do echo $f; ~/software/vdj/mixcr-3.0.6/mixcr exportClones -f ${f}_kaligner2.clns -c IG -p fullImputed ${f}_kaligner2.txt; done
+
+Try vdjpuzzle:
+>conda activate vdjpuzzle
+>export PATH=~/software/vdj/vdjpuzzle/bin/:$PATH
+#Reads need to have R1/2 in name
+>vdjpuzzle /drive3/work/anu/anselm_bcr/vdjpuzzle --type=b --bowtie-index=/drive3/work/References/mm10 --align=bowtie --gtf=/drive3/work/References/Mus_musculus.GRCm38.96.gtf --species=mouse --THR=4  
+
+
+
+
+
+
+
+

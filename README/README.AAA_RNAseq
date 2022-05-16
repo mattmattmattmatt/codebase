@@ -1,0 +1,57 @@
+Download from AGRF and uncompress
+
+Sample info:
+/drive3/work/RNASeq/AAA/Sample_info.csv (add names PAD1-6, AAA1-6, and Control1-6)
+
+Prep data:
+>cd /g/data/u86/mxf221/AAA/RNAseq/AGRF_CAGRF14651_CB12LANXX
+
+Concat reads:
+>for f in {2..23}; do echo $f; cat ${f}_CB12LANXX_*_L003_R1.fastq.gz ${f}_CB12LANXX_*_L004_R1.fastq.gz >> ${f}_R1.fastq.gz; cat ${f}_CB12LANXX_*_L003_R2.fastq.gz ${f}_CB12LANXX_*_L004_R2.fastq.gz >> ${f}_R2.fastq.gz; done
+
+Create symlinks for easy automation
+>while read line; do echo $line | awk '{print "ln -s ",$1"_R2.fastq.gz",$2"_R2.fastq.gz"}'; done < map.txt | bash
+
+#Create STAR aligner jobs
+>cat Control1_star.qsub
+#!/bin/bash
+#PBS -P u86
+#PBS -q normal
+#PBS -l walltime=48:00:00,mem=64GB,jobfs=10GB,ncpus=16
+
+/g/data/u86/software/STAR/bin/Linux_x86_64/STAR --sjdbGTFfile  /g/data/u86/mxf221/GRCh37_star/gencode.v19.annotation.gtf --readFilesCommand zcat --runThreadN 16   --genomeDir /g/data/u86/mxf221/STAR --outFileNamePrefix /g/data/u86/mxf221/AAA/RNAseq/bams/Control1 --outSAMtype BAM SortedByCoordinate --quantMode TranscriptomeSAM --readFilesIn /g/data/u86/mxf221/AAA/RNAseq/fastq/Control1_R1.fastq.gz /g/data/u86/mxf221/AAA/RNAseq/fastq/Control1_R2.fastq.gz 
+
+>for f in {2..6}; do cat PAD1_star.qsub | sed -e "s/PAD1/PAD${f}/g" > PAD${f}_star.qsub; done
+>for f in {1..6}; do cat PAD1_star.qsub | sed -e "s/PAD1/AAA${f}/g" > AAA${f}_star.qsub; done
+>for f in {1..6}; do cat PAD1_star.qsub | sed -e "s/PAD1/Control${f}/g" > control${f}_star.qsub; done
+
+R first tried
+dds <- DESeqDataSet(se, design = ~ condition)
+> res_AAA_control <- results(dds,contrast=c("condition","AAA","control"))
+> res_PAD_control <- results(dds,contrast=c("condition","PAD","control"))
+> res_AAA_PAD <- results(dds,contrast=c("condition","AAA","PAD"))
+> mcols(res_AAA_control, use.names=TRUE)
+
+Repeat process for each of three results
+> short_ens <- gsub("\\..*","",row.names(res_AAA_control))
+> res_AAA_control$genename <- mapIds(org.Hs.eg.db, keys = short_ens,column="GENENAME",keytype="ENSEMBL",multiVals="first")
+> res_AAA_control$symbol <- mapIds(org.Hs.eg.db, keys = short_ens,column="SYMBOL",keytype="ENSEMBL",multiVals="first")
+> res_cover_AAA_control <- res_AAA_control[which(res_AAA_control$baseMean > 3),]
+> res_cover_AAA_control <- res_cover_AAA_control[order(res_cover_AAA_control$padj,decreasing = FALSE),]
+
+
+#Problem with small number of DE genes for 2 of 3 comparisons (PAD vs control and AAA vs PAD)
+Solution from https://www.biostars.org/p/115685/
+
+ddsLRT <- DESeq(dds, test="LRT", reduced= ~ 1)
+
+-> This gives samples which differ for any condition, not quite what we want so have to do separate pairwise for AAA_control, PAD_control, AAA_PAD
+See R projects AAA_control, PAD_control, and AAA_PAD
+
+#Run with consensusDE
+sample_table <- read.csv("sample_table.tsv",sep="\t",header=TRUE)
+summarised_AAA <-  buildSummarized(sample_table = sample_table, bam_dir = "/g/data/u86/mxf221/AAA/RNAseq/bam2/",read_format = "paired",strand_mode = 2,output_log="/g/data/u86/mxf221/AAA/RNAseq/bam2/",gtf="/g/data/u86/mxf221/ref_genomes//GRCh38/GRCh38.gtf",n_cores=16,BamFileList_yieldsize=2000000)
+
+all_dir <- "/drive3/work/RNASeq/AAA/consensusDE/"
+multi_de_pairs(summarized = se_AAA, ruv_correct = TRUE, plot_dir=all_dir, output_combined = all_dir, output_voom = all_dir, output_edger = all_dir,output_deseq = all_dir, ensembl_annotate = org.Hs.eg.db)
+

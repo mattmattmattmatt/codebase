@@ -1,0 +1,48 @@
+Want to compare:
+
+1) Want to do four comparisons:
+
+i) Regular diet vs HFD diet
+ii) ND1 naive vs tx naive
+iii) HFD naive vs tx naive
+iv) Healthy vs Unhealthy
+
+2) First combine the bioms
+>merge_otu_tables.py -i UQ/J758/otu_table_count_filtered.biom,UQ/J848/otu_table_count_filtered.biom -o analysis/OTU_filtered_all.biom
+
+3) Create biom with meaningful names
+>cat qiime_map.tsv  | cut -d'   ' -f1 | grep -v Sample | tr "\n" "\t" > new_headers
+>biom convert -i OTU_filtered_all.biom -o tmp.tsv --to-tsv --table-type="OTU table"
+Open tmp.tsv and swap out samples names with new_header values
+>biom convert -i  tmp.tsv -o otu_zainab_newsample.biom  --to-hdf5 --table-type="OTU table"
+
+NOTE: Had to remove single entry in tmp.tsv that didn't have taxonomy info -> will get error in step 6 if this happens
+>grep ^[0-9NC] qiime_obs.txt  | cut -d'	' -f1 | sort > obs_entries
+>grep ^[0-9NC] tmp.tsv  | cut -d'	' -f1 | sort > tmp_entries
+>diff tmp_entries  obs_entries 
+
+
+4) Create obs file (account for number of samples)
+>cat ../UQ/J758/*count.annotated* | cut -d'TAB' -f1,22 | grep -v ^OTU | sed -e 's/; /;/g' > tmp
+>cat ../UQ/J848/*count.annotated* | cut -d'TAB' -f1,6 | grep -v OTU | sed -e 's/; /;/g'  >> tmp 
+>sort tmp | uniq > qiime_obs.txt
+
+Add #OTUID\ttaxonomy as header to qiime_obs.txt (USE libreoffice to add TAB!!!)
+
+5) Add to final biom
+>biom add-metadata -i otu_zainab_newsample.biom -o otu_zainab_final.biom --observation-metadata-fp qiime_obs.txt --sc-separated taxonomy -m qiime_map.txt
+
+6) taxa info
+summarize_taxa_through_plots.py -i otu_final.biom -m qiime_map.txt -o taxa
+
+7) alpha rarefaction
+>alpha_rarefaction.py -m qiime_map.txt -i otu_final.biom -o alpha -f -t ~/software/microbiome/qiime/gg_13_8_otus/trees/97_otus.tree 
+
+8) beta diversity
+>beta_diversity_through_plots.py  -i otu_final.biom -m  qiime_map.txt -o beta -e 3000 -a -t ~/software/microbiome/qiime/gg_13_8_otus/trees/97_otus.tree
+
+9) Scree plots
+>make_2d_plots.py -i beta/unweighted_unifrac_pc.txt -m qiime_map.txt -o 2d_plots/ --scree
+
+10) Generate DE for 4 pairs above
+./zainab_pairs.pl ->  generates zainab_pairwise_summary.tsv

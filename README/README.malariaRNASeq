@@ -1,0 +1,112 @@
+#Build STAR reference with gtf
+/g/data/u86/software/STAR/bin/Linux_x86_64/STAR --runMode genomeGenerate --runThreadN 16 --genomeDir . --genomeFastaFiles /g/data/u86/variantdb/v2.2/conf/human/GRCh37/fasta/single_file/GRCh37.fa --sjdbOverhang 99 --sjdbGTFfile ../GRCh37_star/gencode.v19.annotation.gtf --outFileNamePrefix GRCh37_100bp
+
+#Alignments
+/g/data/u86/software/STAR/bin/Linux_x86_64/STAR --sjdbGTFfile  /g/data/u86/mxf221/GRCh37_star/gencode.v19.annotation.gtf --readFilesCommand zcat --runThreadN 16   --genomeDir /g/data/u86/mxf221/STAR --outFileNamePrefix /g/data/u86/mxf221/malaria_RNAseq/bams/S1_trans --outSAMtype BAM SortedByCoordinate --quantMode TranscriptomeSAM --readFilesIn /g/data/u86/mxf221/malaria_RNAseq/reads/malaria_S1/S1_t0_R1.fastq.gz /g/data/u86/mxf221/malaria_RNAseq/reads/malaria_S1/S1_t0_R2.fastq.gz
+
+#Build RSEM reference
+software/RSEM-1.2.29/rsem-prepare-reference --gtf GRCh37_star/gencode.v19.annotation.gtf -p 16 /g/data/u86/variantdb/v2.2/conf/human/GRCh37/ RSEM/GRCh37
+
+#Run RSEM
+~/g/software/RSEM-1.2.29/rsem-calculate-expression -p 16 --strand-specific --alignments --paired-end --output-genome-bam --estimate-rspd -append-names --bam bams/S1_transAligned.toTranscriptome.out.bam ../RSEM/GRCh37 rsem/S1_rsem
+
+#Run htseq
+samtools sort -n /g/data/u86/mxf221/malaria_RNAseq/bams/S1_t0_transAligned.sortedByCoord.out.bam | samtools view - | /g/data/u86/software/HTSeq-0.6.1/htseq-count -a 10 -m union - /g/data/u86/mxf221/GRCh37_star/gencode.v19.annotation.gtf  > /g/data/u86/mxf221/malaria_RNAseq/htseq/S1_t0_htseq
+
+#Make jobs
+for f in {2..5}; do cat S1_t0_star.qsub | sed -e "s/S1/S${f}/g" > S${f}_t0_star.qsub; done
+for f in {2..5}; do cat S1_t0_rsem.qsub | sed -e "s/S1/S${f}/g" > S${f}_t0_rsem.qsub; done
+for f in {2..5}; do cat S1_t0_htseq.qsub | sed -e "s/S1/S${f}/g" > S${f}_t0_htseq.qsub; done
+for f in {1..5}; do cat S${f}_t0_star.qsub | sed -e 's/t0/t1/g' > S${f}_t1_star.qsub; done
+for f in {1..5}; do cat S${f}_t0_rsem.qsub | sed -e 's/t0/t1/g' > S${f}_t1_rsem.qsub; done
+for f in {1..5}; do cat S${f}_t0_htseq.qsub | sed -e 's/t0/t1/g' > S${f}_t1_htseq.qsub; done
+
+submit all jobs
+
+#Prepare DESeq2
+paste S1_t0_htseq S2_t0_htseq S3_t0_htseq S4_t0_htseq S5_t0_htseq S1_t1_htseq S2_t1_htseq S3_t1_htseq S4_t1_htseq S5_t1_htseq | cut -d'        ' -f1,2,4,6,8,10,12,14,16,18,20 > ../deseq2/gene_counts.tsv
+
+> filenames <- list.files(path=".",pattern=".bam$")
+> dir <- getwd()
+> bam_files <- file.path(dir,filenames)
+> bamfiles <- BamFileList(bam_files,yieldSize =2000000)
+> library("GenomicFeatures")
+> gtffile <- file.path("/drive3/work/RNASeq/malaria_original_paper/deseq2","gencode.v19.annotation.gtf")
+> (txdb <- makeTxDbFromGFF(gtffile, format="gtf", circ_seqs=character()))
+> (ebg <- exonsBy(txdb, by="gene"))
+> library("GenomicAlignments")
+> library("BiocParallel")
+> register(MulticoreParam(workers=4))
+> se <- summarizeOverlaps(features=ebg, reads=bamfiles, mode="Union", singleEnd=FALSE, ignore.strand=FALSE, fragments=TRUE ) -> TAKES OVERNIGHT
+> sampleInfo <- read.table(paste0(getwd(),"/sample_info.tsv"),header=TRUE,row.names=1)
+> (colData(se) <- DataFrame(sampleInfo))
+> se$condition <- relevel(se$condition,"control")
+> dds <- DESeqDataSet(se, design = ~ patient  + condition)
+> dds <- DESeq(dds)
+> dat <- counts(dds, normalized=TRUE)
+> idx <- rowMeans(dat) > 1
+> dat <- dat[idx,]
+> mod <- model.matrix(~ patient  + condition,colData(dds))
+> mod0 <- model.matrix(~ 1, colData(dds))
+> svseq <- svaseq(dat, mod, mod0, n.sv=2)
+> dds_final <- dds 
+> dds_final$SV1 <- svseq$sv[,1]
+> dds_final$SV2 <- svseq$sv[,2]
+> design(dds_final) <- ~ SV1 + SV2 + patient + condition
+> dds_final <- DESeq(dds_final)
+> dds_final <- dds_final[ rowSums(counts(dds_final)) > 1,]
+
+#Graphing
+> rld <- rlog(dds_final, blind=FALSE)
+> sampleDists <- dist( t( assay(rld) ) )
+> sampleDistMatrix <- as.matrix( sampleDists )
+> rownames(sampleDistMatrix) <- paste( rld$patient, rld$condition, sep="-" )
+> colnames(sampleDistMatrix) <- NULL
+> colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+> pheatmap(sampleDistMatrix,clustering_distance_rows=sampleDists, clustering_distance_cols=sampleDists, col=colors)
+> plotPCA(rld, intgroup = c("condition", "patient"))
+> topVarGenes <- head(order(rowVars(assay(rld)),decreasing=TRUE),20)
+> mat <- assay(rld)[ topVarGenes, ]
+> df <- as.data.frame(colData(rld)[,c("patient","condition")])
+> pheatmap(mat, annotation_col=df)
+
+
+> resultsNames(dds_final)
+ [1] "Intercept"        "SV1"              "SV2"              "patientS1"        "patientS2"        "patientS3"       
+ [7] "patientS4"        "patientS5"        "conditioncontrol" "conditiontreated"
+> res_final <- results(dds_final,contrast=c("condition","treated","control"))
+> short_ens <- gsub("\\..*","",row.names(res_final))
+> res_final$genename <- mapIds(org.Hs.eg.db, keys = short_ens,column="GENENAME",keytype="ENSEMBL",multiVals="first")
+> res_final$go <- mapIds(org.Hs.eg.db, keys = short_ens,column="GO",keytype="ENSEMBL",multiVals="first")
+> res_final$symbol <- mapIds(org.Hs.eg.db, keys = short_ens,column="SYMBOL",keytype="ENSEMBL",multiVals="first")
+> res_final$omim <- mapIds(org.Hs.eg.db, keys = short_ens,column="OMIM",keytype="ENSEMBL",multiVals="first")
+
+
+Filter for min cover (>3)
+res_cover <- res[which(res$baseMean > 3),]
+
+Sort by padj
+res_cover <- res_cover[order(res_cover$padj,decreasing = FALSE),]
+
+Write to file
+write.table(res_cover,file="adult_clinical_all.tsv",sep="\t")
+
+
+> topGene <- rownames(res_cover)[grep("ENSG00000151929",rownames(res_cover))]; data <- plotCounts(dds, gene=topGene, intgroup=c("patient","condition"), returnData = TRUE); ggplot(data, aes(x=condition, y=count, color=patient, group=patient)) + geom_point(size=3) + geom_line() + ggtitle('BAG3')
+
+
+Annotate
+grep ENSG00000 Control_vs_Treated_DESeq2_final.tsv | sed -e 's/"//g' | cut -d' ' -f1 | cut -d'.' -f1  > sig_ens
+
+Paper:
+
+topGene <- rownames(res_final)[grep("ENSG00000151929",rownames(res_final))]; data <- plotCounts(dds_final, gene=topGene, intgroup=c("patient","condition"), returnData = TRUE); ggplot(data, aes(x=condition, y=count, color=patient, group=patient)) + geom_point(size=3) + geom_line() + ggtitle('BAG3 Gene') + ylab("Read Count") + xlab("Condition")
+
+continue for each member of gene_list_plot
+
+Get raw data from raw counts
+
+#Get normalised counts
+> normalized_counts <- counts(dds_final, normalized=TRUE)
+> write.table(normalized_counts,file = "normalised_counts.tsv",sep="\t")
+

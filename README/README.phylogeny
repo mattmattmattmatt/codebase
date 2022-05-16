@@ -1,0 +1,48 @@
+1) Data QC:
+
+grep '>' All_seqs.fasta | sort | uniq -c | sort -n | shrinkwrap  | grep -v ^1 > duplicate_fasta_tags
+
+Reveals 20 duplicate tags, 3 of which appear three times -> these names need to be made unique
+
+Also, phylip format alignment format only allows ten character long tags so need to modify existing fasta
+
+./make_tags_unique.pl -fasta_in All_seqs.fasta -> creates All_seqs.fastq.uniq
+
+
+2) Multiple seq alignment; try muscle and mafft
+
+mafft --thread 3 --auto seqs/All_seqs.fasta.uniq > msa/mafft.fasta
+mafft --thread 3 --auto --phylipout seqs/All_seqs.fasta.uniq > msa/mafft.phylip
+
+Convert to nexus at http://phylogeny.lirmm.fr/phylo_cgi/data_converter.cgi
+(input mafft.fasta and nexus prints to webpage) -> msa/mafft.nexus
+
+muscle -in seqs/All_seqs.fasta.uniq  -seqtype protein  -fastaout msa/muscle.fa -physout msa/muscle.phylips  -phyiout msa/muscle.phylipi -clwout msa/muscle.aln
+
+3) Detect and remove outliers
+Alignment look poor (long unaligned regions) so detect and filter out outliers:
+
+OD-seq -i /drive3/work/phylogeny/Jayden/msa/muscle.fa -f fa -o /drive3/work/phylogeny/Jayden/outliers/muscle.outliers
+
+#Create header file 
+>grep '>' muscle.outliers | sed -e 's/>//' > muscle.outliers.headers
+
+Remove 36 outliers from mafft input fasta
+Remove 104 outliers from muscle input fasta
+
+cd /drive3/work/phylogeny/Jayden/seqs
+./remove_outliers.pl -fasta_in All_seqs.fasta -filter_list muscle.outliers.headers
+
+4) Redo above steps with new file (All_seqs.fasta.uniq.filter_mafft and All_seqs.fasta.uniq.filter_muscle)
+
+mafft --thread 3 --auto --phylipout seqs/All_seqs.fasta.uniq.filter_mafft > msa/mafft.filter.phylipi
+mafft --thread 3 --auto seqs/All_seqs.fasta.uniq.filter_mafft > msa/mafft.filter.fasta
+
+muscle -in seqs/All_seqs.fasta.uniq.filter_muscle  -seqtype protein  -fastaout msa/muscle.filter.fa -physout msa/muscle.filter.phylips  -phyiout msa/muscle.filter.phylipi -clwout msa/muscle.filter.aln
+
+
+5) 
+Run phyml:
+phyml -i muscle.filter.phylipi -d aa -m LG -c4 -a e
+
+

@@ -1,0 +1,41 @@
+Reads:
+1) 8bp unique tag partI
+2) 4bp of same seq for most
+3) sequence of interest of different lengths
+4) 4bp of same seq for most 
+5) 8bp unique tag partII
+6) adaptor (see below for read1 and read2 adaptors)
+7) poor quality seq of different lengths
+
+To clean up:
+>cutadapt -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG read1
+>cutadapt -a AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT read2
+
+Run through deepseq.pl up to BAM generation
+>run_deepseq.pl -filename_stub 1_100 -read1_fastq 1_100_R1.fastq -read2_fastq 1_100_R2.fastq -coord_bed jurkat.exon.bed -conf deepseq.conf -no_adaptor -uid_len1 8 -uid_len2 8 -cut_length 12
+
+jurkat.exon.bed is all ensembl exon coordinates
+
+Need to generate STAR aligner BAM files and swap in:
+-Need to generate single end file as strange insert sizes chokes STAR
+cat read1.cutadapt read2.cutadapt >> single_read
+STAR  --runThreadN 16  --genomeDir GRCh37_star --outFileNamePrefix 1_100_star --outSAMtype BAM SortedByCoordinate --readFilesIn single_read
+
+-Replace bam in deepseq dirs with symlinks to star BAMS
+
+Resume run_deepseq.pl
+run_deepseq.pl -filename_stub 1_100 -read1_fastq 1_100_R1.fastq -read2_fastq 1_100_R2.fastq -coord_bed jurkat.exon.bed -conf deepseq.conf -no_adaptor -uid_len1 8 -uid_len2 8 -cut_length 12 -working_dir 1_100_NNN -start call_variants
+
+Generate 4 reports for min_group1, 2, 5, and 10
+for f in min_group*/*; do cat $f | sed -e 's/; /^^^/g' | awk '{print $2,$3,$4,$5"XX"$1"XX"$6}' > $f.overlap_format; done
+
+for f in min_group*/*format; do echo $f; /drive2/variantdb/trunk/utils/overlap_files.pl -ref $f -coord known_mutations.hg19.bed -all -just_overlap | sed -e 's/\s1$/\tNO_JURKAT/' > $f.jurkat_known; done
+
+for f in min_group*/*format; do echo $f; /drive2/variantdb/trunk/utils/overlap_files.pl -ref $f -coord ensembl_all_exons -all -just_overlap | sed -e 's/\s1$/\tNO_EXON/' > $f.exon; done
+
+>for f in min_group*/*format; do echo $f; cat $f | sed -e 's/XX/ /' -e 's/chr//' | awk '{print $1,$2,$3,$4}'  | grep -v '+'  | grep -v '\-[0-9]'  > $f.vep_in; done
+
+for f in jurkat_all; do cat min_group*/$f*format | cut -d' ' -f 1,2,3 | sort | uniq |  awk '{print "~/software/suites/samtools-1.3/samtools depth -r "$1":"$2"-"$3,"bam/jurkat_all.bam >> jurkat_all.depth"}' ;done | bash
+And for others
+
+for f in jurkat_all pbmc_all 1_100 1_1000 1_10000; do echo $f; ./summary.pl min_group5/${f}.pass_group_supermutants.5.tsv.overlap_format ${f}.depth  > summaries/${f}.min_group5.tsv; done

@@ -1,0 +1,291 @@
+~3Tb of SRA fastq to get:
+
+
+cd /g/data/u86/mxf221/basenjii/SRA_done/FILE
+#/g/data/u86/software/sratoolkit.2.10.4-centos_linux64/bin/prefetch -X 80000000 --output-directory /g/data/u86/mxf221/basenjii/SRA/ FILE
+#/g/data/u86/software/sratoolkit.2.10.4-centos_linux64/bin/fastq-dump --gzip --split-e FILE.sra
+#/g/data/u86/software/sratoolkit.2.10.4-centos_linux64/bin/fasterq-dump --split-3 -e 16 FILE.sra
+#wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRRFIRST/LAST/SRR7120249/FILE_1.fastq.gz
+#wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRRFIRST/LAST/SRR7120249/FILE_2.fastq.gz
+
+Tried lots of options....
+In the end use ENA wget -> need to mimic file structure
+
+for f in `cat ../samples_all`; do cat template.qsub | sed -e "s/FILE/${f}/" > ${f}.qsub; echo $f | awk '{match($0,"[0-9][0-9][0-9]",a)} {match($0,"[0-9]$",b)} END {print "wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR"a[0]"/00"b[0]"/"$0"/"$0"_1.fastq.gz"} {print "wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR"a[0]"/00"b[0]"/"$0"/"$0"_2.fastq.gz"}' >> ${f}.qsub; done
+
+SRR7107953 is SE so skip (AlaskanWolf)
+
+SRR7107984 is basenji
+SRR7107773 is boxer (canfam)
+SRR7107884 is german shepherd
+
+Downloaded dbsnp v151 for CanFam
+
+Build truth sets for each reference:
+/g/data/u86/variantdb/v2.3/ext/bin/bwa_mem mem -M -R "@RG\tID:SRR7107884\tSM:SRR7107884_l1\tPL:ILLUMINA" -t 16 /g/data/u86/mxf221/basenjii/references/GSD/GSD /g/data/u86/mxf221/basenjii/GS_reads/SRR7107884_1.fastq.gz /g/data/u86/mxf221/basenjii/GS_reads/SRR7107884_2.fastq.gz |  /g/data/u86/variantdb/v2.3/ext/bin/samtools view -u -S - | /g/data/u86/software/bin/novosort --md --kt -c 8 -x 6 -m 10G -t /g/data/u86/mxf221/basenjii/runs/SRR7107884/ -i -o /g/data/u86/mxf221/basenjii/runs/SRR7107884/SRR7107884_GSD.bam -
+
+/g/data/u86/variantdb/v2.3/ext/bin/bwa_mem mem -M -R "@RG\tID:SRR7107984\tSM:SRR7107984_l1\tPL:ILLUMINA" -t 16 /g/data/u86/mxf221/basenjii/references/Basenji/Basenji /g/data/u86/mxf221/basenjii/Basenji_reads/SRR7107984_1.fastq.gz /g/data/u86/mxf221/basenjii/Basenji_reads/SRR7107984_2.fastq.gz |  /g/data/u86/variantdb/v2.3/ext/bin/samtools view -u -S - | /g/data/u86/software/bin/novosort --md --kt -c 8 -x 6 -m 10G -t /g/data/u86/mxf221/basenjii/runs/SRR7107984/ -i -o /g/data/u86/mxf221/basenjii/runs/SRR7107984/SRR7107984_BAS.bam -
+
+/g/data/u86/variantdb/v2.3/ext/bin/bwa_mem mem -M -R "@RG\tID:SRR7107773\tSM:SRR7107773_l1\tPL:ILLUMINA" -t 16 /g/data/u86/mxf221/basenjii/references/CanFam/CanFam /g/data/u86/mxf221/basenjii/Boxer_reads/SRR7107773_1.fastq.gz /g/data/u86/mxf221/basenjii/Boxer_reads/SRR7107773_2.fastq.gz |  /g/data/u86/variantdb/v2.3/ext/bin/samtools view -u -S - | /g/data/u86/software/bin/novosort --md --kt -c 8 -x 6 -m 10G -t /g/data/u86/mxf221/basenjii/runs/SRR7107773/ -i -o /g/data/u86/mxf221/basenjii/runs/SRR7107773/SRR7107773_CAN.bam -
+
+Then for one BAM:
+java -Xms3200m -Xmx3600m  -jar /g/data/u86/variantdb/v2.3/ext/bin/picard-tools-2.4.1/picard.jar MarkDuplicates AS=TRUE VALIDATION_STRINGENCY=LENIENT I=/g/data/u86/mxf221/basenjii/runs/SRR7107984/SRR7107984_BAS.bam O=/g/data/u86/mxf221/basenjii/runs/SRR7107984/SRR7107984_BAS_md.bam TMP_DIR=/g/data/u86/mxf221/basenjii/runs/SRR7107984/ M=/g/data/u86/mxf221/basenjii/runs/SRR7107984/SRR7107984_BAS_md.txt
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -nt 1 -ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000 --minPruning 3 --maxNumHaplotypesInPopulation 200 --max_alternate_alleles 3 -contamination 0.0 -R /g/data/u86/mxf221/basenjii/references/GSD/GSD.fasta  -I SRR7107884_GSD_md.bam -o SRR7107884_GSD.gvcf
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar  -T GenotypeGVCFs -nt 1 -R /g/data/u86/mxf221/basenjii/references/GSD/GSD.fasta -V SRR7107884_GSD.gvcf -o SRR7107884_GSD_gatk.vcf
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -nt 1 -ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000 --minPruning 3 --maxNumHaplotypesInPopulation 200 --max_alternate_alleles 3 -contamination 0.0 -R /g/data/u86/mxf221/basenjii/references/CAN/CAN.fasta  -I SRR7107773_CAN_md.bam -o SRR7107773_CAN.gvcf
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar  -T GenotypeGVCFs -nt 1 -R /g/data/u86/mxf221/basenjii/references/CAN/CAN.fasta -V SRR7107773_CAN.gvcf -o SRR7107773_CAN_gatk.vcf
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -nt 1 -ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000 --minPruning 3 --maxNumHaplotypesInPopulation 200 --max_alternate_alleles 3 -contamination 0.0 -R /g/data/u86/mxf221/basenjii/references/BAS/BAS.fasta  -I SRR7107984_BAS_md.bam -o SRR7107984_BAS.gvcf
+
+java -Xms3g -Xmx3500m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar  -T GenotypeGVCFs -nt 1 -R /g/data/u86/mxf221/basenjii/references/BAS/BAS.fasta -V SRR7107984_BAS.gvcf -o SRR7107984_BAS_gatk.vcf
+
+bcftools  mpileup -f ../../references/GSD/GSD.fasta SRR7107884_GSD_md.bam | bcftools call -mv -Ov -o SRR7107884_GSD_samtools.vcf
+
+bcftools  mpileup -f ../../references/BAS/BAS.fasta SRR7107984_BAS_md.bam | bcftools call -mv -Ov -o SRR7107984_BAS_samtools.vcf
+
+bcftools  mpileup -f ../../references/CAN/CAN.fasta SRR7107773_CAN_md.bam | bcftools call -mv -Ov -o SRR7107773_CAN_samtools.vcf
+
+#Generate overlapping variants as truth set
+
+#First get variants only of >40 quality
+for f in *vcf; do cat $f | grep -v ^# | extract -delim "\t" -t "_5 >=40" > ${f}.body; cat $f | grep ^# > ${f}.header; cat ${f}.header ${f}.body >> ${f}.filter; done
+
+for f in *filter.vcf; do bgzip $f; done
+for f in *filter.vcf.gz; do tabix -p vcf $f; done
+
+vcf-merge SRR7107984_BAS_gatk.vcf.filter.vcf.gz SRR7107984_BAS_samtools.vcf.filter.vcf.gz > SRR7107984_BAS_consensus.vcf
+etc
+
+cat SRR7107984_BAS_consensus.vcf | extract -t "_9 ne '.' && _10 ne '.'" > SRR7107984_BAS_consensus_merge.vcf
+etc
+
+ERROR: Had to add ##fileformat=VCFv4.2 to the top of vcf-merge vcfs, otherwise not valid for GATK
+
+
+#Generate all three BAMs
+for f in `cat ../samples_all`; do cat template_bwa.qsub | sed -e "s/SRR/${f}/g" -e "s/DOG/CAN/g" > ${f}_bwa_CAN.qsub ; done
+for f in `cat ../samples_all`; do cat template_bwa.qsub | sed -e "s/SRR/${f}/g" -e "s/DOG/GSD/g" > ${f}_bwa_GSD.qsub ; done
+for f in `cat ../samples_all`; do cat template_bwa.qsub | sed -e "s/SRR/${f}/g" -e "s/DOG/BAS/g" > ${f}_bwa_BAS.qsub ; done
+
+
+
+for f in `cat ../runs/md_togo`; do echo $f | sed -e 's/_/_md_/' | awk '{print "qsub",$0".qsub"}'; done | bash
+
+#Generated all BAMs, bam stats, and raw vcfs
+
+grep 'mapped (' *BAS*stats | cut -d'(' -f2 | cut -d' ' -f1 | sed -e 's/%//' | stats
+n 125 mean 98.004 median 98.780 mode 99.910 stddev 2.3816 min 85.620 max 99.930 p01 88.630 p05 93.680 p10 94.980 p16 96.140000 p84 99.650 p90 99.830 p95 99.910 p99 99.920
+>grep 'mapped (' *CAN*stats | cut -d'(' -f2 | cut -d' ' -f1 | sed -e 's/%//' | stats
+n 125 mean 97.822 median 98.610 mode 99.210 stddev 2.3914 min 85.410 max 99.810 p01 88.350 p05 93.540 p10 94.830 p16 95.970000 p84 99.510 p90 99.640 p95 99.760 p99 99.790
+>grep 'mapped (' *GSD*stats | cut -d'(' -f2 | cut -d' ' -f1 | sed -e 's/%//' | stats
+n 125 mean 98.017 median 98.790 mode 99.470 stddev 2.3786 min 85.610 max 99.930 p01 88.670 p05 93.690 p10 95.010 p16 96.170000 p84 99.660 p90 99.830 p95 99.910 p99 99.920
+
+
+>grep 'paired (' *BAS*stats | cut -d'(' -f2 | cut -d' ' -f1 | sed -e 's/%//' | stats
+n 125 mean 95.122 median 96.190 mode 96.760 stddev 3.3518 min 78.790 max 99.310 p01 80.880 p05 88.330 p10 91.080 p16 92.460000 p84 97.520 p90 97.710 p95 98.040 p99 99.220
+>grep 'paired (' *CAN*stats | cut -d'(' -f2 | cut -d' ' -f1 | sed -e 's/%//' | stats
+n 125 mean 95.128 median 96.240 mode 95.390 stddev 3.3472 min 79.620 max 99.240 p01 80.340 p05 88.260 p10 91.090 p16 92.390000 p84 97.570 p90 97.720 p95 97.970 p99 99.110
+>grep 'paired (' *GSD*stats | cut -d'(' -f2 | cut -d' ' -f1 | sed -e 's/%//' | stats
+n 125 mean 95.542 median 96.640 mode 96.630 stddev 3.3248 min 80.140 max 99.420 p01 81.430 p05 88.590 p10 91.450 p16 92.780000 p84 97.960 p90 98.100 p95 98.270 p99 99.360
+
+#Parse vcfs
+See /g/data/pq84/basenji/qsub/vcf.qsub
+
+#stats for vcf
+for f in *GSD*txt; do echo $f; grep SCAFF $f > ${f}.scaff; grep -v SCAFF $f > ${f}.chr; grep -v SCAFF $f | grep "NALACHR[A-Z0-9][A-Z]*[0-9]*.01        " > ${f}.mainchr; done
+
+for f in *CAN*txt; do echo $f; grep -v ^[0-9XM] $f > ${f}.scaff; grep ^[0-9X] $f > ${f}.mainchr; done
+
+for f in *BAS*txt; do echo $f; grep SCAFF $f > ${f}.scaff; grep -v SCAFF $f > ${f}.chr; grep -v SCAFF $f | grep "BASENJICHR[A-Z0-9][A-Z]*[0-9]*.01X*   " > ${f}.mainchr; done
+
+#Split by type
+for f in *.txt.*; do for g in DEL SNV INS; do grep $g $f > ${f}.${g}; done; done
+
+#Joint calling
+cat Basenji.dict | grep CHR | grep '\.01       '  | cut -d'    ' -f2,3 | sed -e 's/SN://' -e 's/LN:/1-/' | awk '{print "echo "$1":"$2 "> BAS."$1".intervals}' | bash
+cat CanFam.dict | grep SN:[0-9X] |  cut -d$'\t' -f2,3 | sed -e 's/SN://' -e 's/LN:/1-/' | awk '{print "echo "$1":"$2 "> CAN."$1.".intervals"}' | bash
+cat GSD.dict | grep CHR | grep '\.01'  | cut -d$'\t' -f2,3 | sed -e 's/SN://' -e 's/LN:/1-/' | awk '{print "echo "$1":"$2 "> GSD."$1.".intervals"}'  | bash
+
+>for f in {1..38} X; do cat joint_call_GSD.qsub | sed -e "s/CHR/NALACHR${f}.01/g" > joint_call_GSD_${f}.qsub; done
+>for f in {1..38} X; do cat joint_call_BAS.qsub | sed -e "s/CHR/BASENJICHR${f}.01/g" > joint_call_BAS_${f}.qsub; done
+>for f in {1..38} X; do cat joint_call_CAN.qsub | sed -e "s/CHR/${f}/g" > joint_call_CAN_${f}.qsub; done
+
+Get joint calls and tabulate
+./vcf_count_snps.pl  -vcf joint_calls_GSD.vcf
+etc
+
+
+#Sort data by Clade -> skip as do this based on 
+#bas_data$Sample <- factor(bas_data$Sample,levels=bas_data$Sample[order(bas_data$Clade)])
+
+#Plot by average
+#ggplot(data=bas_data, mapping = aes(x=Clade,y=Indels,fill=Clade))  + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Total Small Indels Against Basenji Assembly") + stat_summary(fun="mean",geom="bar")
+#ggplot(data=bas_data, mapping = aes(x=Clade,y=Snv,fill=Clade))  + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Total Small Indels Against Basenji Assembly") + stat_summary(fun="mean",geom="bar")
+
+#Sort based on Bill's ideas
+ ggplot(data=bas_data_order, mapping = aes(x=Clade,y=Indels,fill=Clade))  + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Total Small Indels Against BAS Assembly") + scale_x_discrete(limits=unique(as.character(bas_data_order$Clade))) + stat_summary(fun="mean",geom="bar")
+
+
+
+
+#SV analysis:
+#Long reads
+#Minimap2 indices
+~/g/software/minimap2/minimap2 -t 16 -d GSD.mmi GSD.fasta
+
+#Minimap align (4 samples x 3 reference genomes)
+/g/data/u86/software/minimap2/minimap2 -ax map-ont --MD -t 16 -L /g/data/u86/mxf221/basenjii/references/BAS/BAS.mmi /g/data/pq84/longreads/nala-ont/Nala_recalled_ONT.fasta.gz | samtools sort -T /g/data/u86/mxf221/basenjii/nala_ont_mm_BAS --threads 16 -m 1G -o  /g/data/u86/mxf221/basenjii/nala_ont_mm_BAS.bam
+/g/data/u86/software/minimap2/minimap2 -ax map-ont --MD -t 16 -L /g/data/u86/mxf221/basenjii/references/BAS/BAS.mmi /g/data/pq84/longreads/chinagirl-ont/basenji_HAC_pass.fastq.gz | samtools sort -T /g/data/u86/mxf221/basenjii/cg_ont_mm_BAS --threads 16 -m 1G -o  /g/data/u86/mxf221/basenjii/cg_ont_mm_BAS.bam
+/g/data/u86/software/minimap2/minimap2 -ax map-pb --MD -t 16 -L /g/data/u86/mxf221/basenjii/references/BAS/BAS.mmi /g/data/pq84/longreads/nala-pacbio/Ramac.TOW5157A1.Nala.fastq.gz | samtools sort -T /g/data/u86/mxf221/basenjii/nala_pb_mm_BAS --threads 16 -m 1G -o  /g/data/u86/mxf221/basenjii/nala_pb_mm_BAS.bam
+/g/data/u86/software/minimap2/minimap2 -ax map-pb --MD -t 16 -L /g/data/u86/mxf221/basenjii/references/BAS/BAS.mmi /g/data/pq84/longreads/wags-pacbio/basenji_wags.subreads.fastq | samtools sort -T /g/data/u86/mxf221/basenjii/wags_pb_mm_BAS --threads 16 -m 1G -o  /g/data/u86/mxf221/basenjii/wags_pb_mm_BAS.bam
+
+#Some failed so generate sam and then sort
+minimap ... -o file.sam
+samtools view -b /g/data/u86/mxf221/basenjii/nala_pb_mm_GSD.sam | samtools sort -T /g/data/u86/mxf221/basenjii/nala_pb_mm_GSD --threads 16 -m 1G -o /g/data/u86/mxf221/basenjii/nala_pb_mm_GSD.bam 
+etc
+
+#Original forgot MD tag (need by sniffles)
+samtools calmd -@ 15 -bAr nala_ont_mm_BAS.bam /g/data/u86/mxf221/basenjii/references/BAS/BAS.fasta > nala_ont_mm_BAS_MD.bam
+
+~/g/software/Sniffles-master/bin/sniffles-core-1.0.11/sniffles -m nala_ont_mm_BAS_MD.bam -v nala_ont_mm_BAS_sniffles.vcf -t 16
+
+
+#Run svim 
+
+cd /g/data/u86/mxf221/basenjii/long_reads/nala_pb_mm_WAGS
+/g/data/u86/software/svim/src/svim/svim alignment /g/data/u86/mxf221/basenjii/long_reads/nala_pb_mm_WAGS  /g/data/u86/mxf221/basenjii/long_reads/nala_pb_mm_WAGS.bam /g/data/u86/mxf221/basenjii/references/WAGS/GCA_004886185.2_Basenji_breed-1.1_genomic.fna
+
+
+#Now clean up to remove non-major chromosomes
+for f in *BAS*vcf; do grep '^BASENJICHR[0-9XY]*.01     ' $f | grep -v SCAFF >> ${f}.chr; done
+for f in *CAN*vcf; do grep ^[0-9XY] $f | grep -v AAEX | grep -v JH37 >> ${f}.chr; done 
+for f in *GSD*vcf; do grep '^NALACHR[0-9XY]*.01	' $f | grep -v SCAFF >> ${f}.chr; done
+for f in *WAGS*vcf; do grep '^CM0' $f  >> ${f}.chr; done
+
+#parse sniffles (svim has crazy numbers)
+for f in *sniffles.vcf.chr; do /drive2/variantdb/trunk/utils/parse_sniffles.pl -sniffles_vcf  $f -output `echo $f | sed -e 's/.vcf.chr//'`; done
+
+#overlap to genes
+>cat ../CAN.gff | grep ^[0-9X] | grep -v 'chromosome' | awk '{print $1,$4,$5,$2":"$3":"$9}' > CAN.genes
+>cat ../BAS.gff | grep BAS | awk '{print $1,$4,$5,$2":"$3":"$9}' > BAS.genes
+>cat ../GSD.gff | grep BAS | awk '{print $1,$4,$5,$2":"$3":"$9}' > GSD.genes
+>for f in *BAS_sniffles.txt; do echo $f; /drive2/variantdb/trunk/utils/overlap_files.pl -ref $f -coord BAS.genes -all -just_overlap  | sed -e 's/1$/NO_GFF/' > ${f}.gene_overlap; done
+
+#overlap to exons
+cat ../CAN.gff | grep ^[0-9X] | grep -v 'chromosome' | grep $'\texon\t' | awk '{print $1,$4,$5,$2":"$3":"$9}' > CAN.exon
+grep CDS GSD.genes > GSD.exons
+grep CDS BAS.genes > BAS.exons 
+>for f in *BAS_sniffles.txt; do echo $f; /drive2/variantdb/trunk/utils/overlap_files.pl -ref $f -coord BAS.exons -all -just_overlap  | sed -e 's/1$/NO_GFF/' > ${f}.exon_overlap; done
+
+etc.
+for f in *sniffles.tra; do awk '{print $1,$2,$2,$5,"\n",$3,$4,$4,$5}' > ${f}.coord; done
+ >for f in *BAS_sniffles.tra.coord; do echo $f; /drive2/variantdb/trunk/utils/overlap_files.pl -ref $f -coord BAS.overlap -all -just_overlap  | sed -e 's/1$/NO_GFF/' > ${f}.gene_overlap; done
+
+for s in del dup inv ins; do for f in *_BAS_sniffles.txt; do grep SVTYPE=${s} $f |wc -l; done; done
+for s in del dup inv ins; do for f in *_BAS_sniffles.txt.gene_overlap; do grep SVTYPE=${s} $f | grep -v NO_GFF | wc -l; done; done
+
+#Get just homozygotes
+for f in *_sniffles.tra.coord *_sniffles.txt; do grep ZYG=1/1 $f > ${f}.hom; done
+
+#Overlap to NuMT
+for f in *BAS_sniffles.tra.coord *_BAS_sniffles.txt; do echo $f; /drive2/variantdb/trunk/utils/overlap_files.pl -ref $f -coord china.v1.2.numt.overlap.tsv -max_distance 2000 -just_overlap > ${f}.numt; done
+
+#Amylase 2B coord
+CAN: 
+6:46,954,374-46,960,090
+
+NALA: 
+NALACHR6.01 47373530 47380645
+NALACHR6.01 47358681 47365790
+NALACHR6.01 47343858 47350969
+NALACHR6.01 47388383 47395494
+
+BASENJI:
+BASENJICHR6.01 46943564 46950679
+BASENJICHR6.01 46928705 46935822
+
+#Generate stats for singles (SV_genome_features_overlaps.csv) -> ignore self to self
+wc cg_ont_mm_*txt
+for f in cg_ont_mm_*txt.gene_overlap; do echo $f; cat $f | grep -v NO_GFF |wc; done
+for f in cg_ont_mm_*txt.exon_overlap; do echo $f; cat $f | grep -v NO_EXON |wc; done
+wc cg_ont_mm_*txt.hom
+
+#Merge ONT/PB for stats (not by type)
+>/drive2/variantdb/trunk/utils/overlap_files.pl -ref wags_pb_mm_CAN_sniffles.txt -coord cg_ont_mm_CAN_sniffles.txt -just_overlap > basenji_CAN_sv_merged.txt
+>/drive2/variantdb/trunk/utils/overlap_files.pl -ref wags_pb_mm_GSD_sniffles.txt -coord cg_ont_mm_GSD_sniffles.txt -just_overlap > basenji_GSD_sv_merged.txt
+>/drive2/variantdb/trunk/utils/overlap_files.pl -ref nala_pb_mm_CAN_sniffles.txt -coord nala_ont_mm_CAN_sniffles.txt -just_overlap > gsd_CAN_sv_merged.txt
+>/drive2/variantdb/trunk/utils/overlap_files.pl -ref nala_pb_mm_BAS_sniffles.txt -coord nala_ont_mm_BAS_sniffles.txt -just_overlap > gsd_BAS_sv_merged.txt
+
+/drive2/variantdb/trunk/utils/overlap_files.pl -ref basenji_GSD_sv_merged.txt -coord GSD.genes -just_overlap -all |  sed -e 's/1$/NO_GFF/' > basenji_GSD_sv_merged.txt.gene_overlap
+
+for f in *merged.txt.gene_overlap; do echo $f; cat $f | grep -v NO_GFF |wc; done
+
+#Same for exons
+
+#For homs
+for f in *_merged.txt; do grep ZYG=1/1 $f > ${f}.hom; done
+
+
+
+1) Split by type and filter events <100bp
+
+for f in *txt; do cat $f | grep SVTYPE=del | awk '{print $3-$2,$0}' | awk '{if ($1 >= 100) {print $0}}' | awk '{print $2,$3,$4,$5}' > ${f}.100bp_del; done
+
+for f in *txt; do cat $f | grep SVTYPE=ins | tr "^" " " | awk '{print $8,$0}' | sed -e 's/LEN=//' | awk '{if ($1>100) {print $0}}' | awk '{print $2,$3,$4,$5"^^^"$6"^^^"$7"^^^"$8"^^^"$9"^^^"$10"^^^"$11"^^^"$12"^^^"$13}' > ${f}.100bp_ins; done
+
+
+#Merge pb/ont calls
+for f in del ins; do for g in BAS CAN GSD; do /drive2/variantdb/trunk/utils/overlap_files.pl -ref wags_pb_mm_${g}_sniffles.txt.100bp_${f} -coord cg_ont_mm_${g}_sniffles.txt.100bp_${f} -just_overlap > basenji_${g}_${f}; done; done
+
+for f in del ins; do for g in BAS CAN GSD; do /drive2/variantdb/trunk/utils/overlap_files.pl -ref nala_pb_mm_${g}_sniffles.txt.100bp_${f} -coord nala_ont_mm_${g}_sniffles.txt.100bp_${f} -just_overlap > gsd_${g}_${f}; done; done
+
+
+
+#Get sums of deleted / inserted (merge CANFAM before)
+>cat basenji_GSD_del | awk '{print $3-$2}' | sums
+92916598 
+>cat basenji_GSD_ins | tr "^" " " | awk '{print $8}' | sed -e 's/LEN=//' | sums
+4117149
+>cat gsd_BAS_del | awk '{print $3-$2}' | sums
+97217556 
+>cat gsd_BAS_ins |  tr "^" " " | awk '{print $8}' | sed -e 's/LEN=//' | sums
+4098716 
+#Union of CanFam SVs for stats
+for f in del ins; do /drive2/variantdb/trunk/utils/overlap_files.pl -ref basenji_CAN_${f} -coord gsd_CAN_${f} -just_overlap -all > CAN_union_${f}; done
+>cat CAN_union_del |  awk '{print $3-$2}' | sums
+78992972
+>cat CAN_union_ins |  tr "^" " " | awk '{print $8}' | sed -e 's/LEN=//' | sums
+7690700
+
+
+#Intersect CanFam SVs for Venn
+for f in del ins; do /drive2/variantdb/trunk/utils/overlap_files.pl -ref basenji_CAN_${f} -coord gsd_CAN_${f} -just_overlap > CAN_intersect_${f}; done
+
+#Overlap SVs relative to CanFam (number from >wc *CAN*del)
+    25260    126300  20139082 basenji_CAN_del
+    17682    127734 324518624 CAN_intersect_del
+    24138    120690  19569829 gsd_CAN_del
+
+venn.plot <- venn.diagram(list(BAS_DEL = 1:25620, GSD_DEL = 7558:31716),"CANFAM_dels_overlap.tiff",main="Overlap >100bp CANFAMv3.1 deletions for German Shepherd and Basenji", fill = c("cornflowerblue", "green"),scaled = TRUE)
+venn.plot <- venn.diagram(list(BAS_INS = 1:15434, GSD_INS = 10289:24400),"CANFAM_ins_overlap.tiff",main="Overlap >100bp CANFAMv3.1 insertions for German Shepherd and Basenji", fill = c("cornflowerblue", "green"),scaled = TRUE)
+
+#Then show SV numbers for nala relative to BAS/CAN and also cg/wags relative to CAN/GSD
+SV_counts <- read.csv2("SV_numbers.csv",header=TRUE,sep="\t")
+ggplot(data=SV_counts, mapping = aes(x=Reference,y=Indels,fill=LongReads))  + stat_summary(fun="mean",geom="bar") + ggtitle("Basenji and German Shepherd Long Read SVs vs 3 Reference Genomes")
+
+Export as SV_calls_vs_3_reference_genomes.pdf
+
+
+Synteny:
+
+Compare BAS to CanFam and to GSD
+
+Issues with chr 8,18 (twice as big) and missing chr 13,30
+
+
+#Wes SV ideas
+Agree with Bill’s notes below. Matt I would add the SV results in as well if you have the calls based on Sniffles output. We can plot total numbers for each type to hopefully show interesting differences in the basal breed of Basenji compared to boxer and German shepard. This can nicely compliment the SNV comparison. Rich or Matt do either of you have the synteny plots of China aligned to boxer and German shepard. This figure can show the high level of chromosome synteny but then set up the differences that exist when we look closer, ie. SNVs and SVs. Matt I assume you will parse out the SVs that disrupt gene function that is defined differently ways in the literature. I have most often prioritized reporting any disruption of exons but there are fairly standard ways to report all. I attach our great apes paper that provides some figure examples

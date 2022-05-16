@@ -1,0 +1,26 @@
+In two of the attached papers they show that trisomy for chromosome 3 occurs in more than 50% of salivary gland MALT lymphomas, which typically evolve from rheumatoid-factor producing cells in Sjogren’s syndrome patients. This may be the most common cytogenetic abnormality, so reasonable to ask if it has already risen in rogue one.
+
+Could we test for trisomy 3 in rogue 1 by the following?
+
+    Identify all common rs SNPs that appear to be heterozygous in normal memory B cell pool.
+    Test for consistent distortion of the reads for these SNPs from the expected 50:50 allelic ratio.
+
+#First get mpileups and then base strings from BAMS
+~/g/variantdb/v2.1/ext/bin/samtools mpileup -A -E  -f /g/data/u86/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -d 20000 -r 3  /g/data2/pw1/BAM/Goodnow_sample21_sg1_humansingle1_1914.gatk.bam > sample21.mpileup
+
+./get_bases.pl sample21.mpileup
+>perl -i.bak -pe 's/other_del/otherdel/' sample2*
+
+#Then find SNVs only with reasonable variant fraction
+./vep_prep.pl
+
+#Then sort and make vep.in
+cat vep.in | sort -n | uniq | grep -v N > vep_parsed.in
+/drive2/variantdb/trunk/utils/vep_wrapper.pl -vep_in vep_parsed.in > vep_exon
+/drive2/variantdb/trunk/utils/vep_wrapper.pl -vep_in vep_parsed.in -all > vep_all
+
+cat vep.in | awk '{print $1,$2,$3,$4":"$2}' | grep -v N  > coord.overlap
+/drive2/variantdb/trunk/utils/overlap_files.pl  -coord coord.overlap -ref /drive2/variantdb/trunk/conf/human/hs37d5/dbsnp/137_138_142/hs37d5.dbsnp.overlap.snv.3 -just_overlap -full > coord.overlap.dbsnp
+
+
+

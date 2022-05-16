@@ -1,0 +1,37 @@
+#Five samples from contest (3x mouse, 1x human, 1x helio) + existing sample CarT_test
+
+#####fastqc first -> standarize fastq names for cellranger
+fastqc Eomes_10X_S1_L001_R1_001.fastq.gz  Eomes_10X_S1_L001_R2_001.fastq.gz -t 32
+#etc....
+
+
+#####cellranger analysis
+#mouse
+~/g/software/cellranger/cellranger count --id=Balbc_10X --fastqs=/g/data/u86/mxf221/10X/BalbC/ --transcriptome=/g/data/u86/software/cellranger/refdata-gex-mm10-2020-A/ --localcores=32 --localmem=128
+
+~/g/software/cellranger/cellranger count --id=TB_10X --fastqs=/g/data/u86/mxf221/10X/TB/ --transcriptome=/g/data/u86/software/cellranger/refdata-gex-mm10-2020-A/ --localcores=32 --localmem=128
+
+~/g/software/cellranger/cellranger count --id=Eomes_10X --fastqs=/g/data/u86/mxf221/10X/Eomes/ --transcriptome=/g/data/u86/software/cellranger/refdata-gex-mm10-2020-A/ --localcores=32 --localmem=128
+
+#human
+~/g/software/cellranger/cellranger count --id=Buffy_10X --fastqs=/g/data/u86/mxf221/10X/Buffy/ --transcriptome=/g/data/u86/software/cellranger/refdata-gex-GRCh38-2020-A/ --localcores=32 --localmem=128
+
+#helio
+#need to first build gtf from augustus gff (try 2 methods) -> first method generated larger files and fewer warnings so use 
+
+agat_convert_sp_gff2gtf.pl --gff /drive3/work/assembly/coral/reference/helio_v1.0/augustus.hints.gff -o /drive3/work/assembly/coral/reference/helio_v1.0/augustus.hints2.gtf
+
+~/software/suites/gffread/gffread /drive3/work/assembly/coral/reference/helio_v1.0/augustus.hints.gff -T -o /drive3/work/assembly/coral/reference/helio_v1.0/augustus.hints.gtf
+
+#Follow docs for filtering gtf (made no difference....)
+~/g/software/cellranger/cellranger mkgtf augustus.hints2.gtf augustus.filtered.gtf   --attribute=gene_biotype:protein_coding
+
+#Build ref for coral -> bug doesn't allow multi-thread for STAR genome build so takes long time
+~/g/software/cellranger/cellranger mkref --memgb=100 --genome=refdata-gex-helio --fasta=/g/data/u86/mxf221/coral/helio/helio_1.0.fasta --genes=/g/data/u86/mxf221/coral/helio/augustus.filtered.gtf
+
+~/g/software/cellranger/cellranger count --id=Coral_10X --fastqs=/g/data/u86/mxf221/10X/Coral/ --transcriptome=/g/data/u86/software/cellranger/refdata-gex-helio/ --localcores=32 --localmem=128
+
+
+#### Alignment stats
+for f in Balbc Eomes TB Coral Buffy; do echo $f; samtools flagstat /g/data/u86/mxf221/10X/${f}/${f}_10X/outs/possorted_genome_bam.bam > /g/data/u86/mxf221/10X/${f}/${f}_10X.flagstat; samtools view --threads 32 -h /g/data/u86/mxf221/10X/${f}/${f}_10X/outs/possorted_genome_bam.bam | /g/data/u86/software/bbmap/pileup.sh in=stdin > /g/data/u86/mxf221/10X/${f}/${f}_10X.mapstats; done
+

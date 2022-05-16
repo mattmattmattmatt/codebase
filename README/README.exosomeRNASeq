@@ -1,0 +1,11 @@
+~/software/aligner/STAR/bin/Linux_x86_64/STAR --runThreadN 4 --runMode genomeGenerate --genomeDir ~/work/exosome_RNASeq/tri --genomeFastaFiles ~/work/exosome_RNASeq/tri/trichuris_muris.PRJEB126.WBPS6.genomic.fa --sjdbGTFfile trichuris_muris.PRJEB126.WBPS6.annotations.gff3  --sjdbGTFtagExonParentTranscript Parent
+
+~/software/aligner/STAR/bin/Linux_x86_64/STAR --runThreadN 4  --genomeDir ~/work/exosome_RNASeq/tri --outFileNamePrefix tri_star --outSAMtype BAM SortedByCoordinate --readFilesCommand zcat --readFilesIn Tm_lane1_R1.fastq.gz Tm_lane1_R2.fastq.gz --quantMode TranscriptomeSAM --outFilterScoreMinOverLread 0 --outFilterMatchNminOverLread 0 --outFilterMatchNmin 30 
+
+~/software/RNAseq/RSEM-1.2.29/rsem-prepare-reference --gff3 opisthorchis_viverrini.PRJNA222628.WBPS6.annotations.gff3 --star --star-path ~/software/aligner/STAR/bin/Linux_x86_64 -p 3 opisthorchis_viverrini.PRJNA222628.WBPS6.genomic.fa rsem/opi
+
+~/software/RNAseq/RSEM-1.2.29/convert-sam-for-rsem -p 3 opi_trans.bam opi_trans_rsem.bam
+
+~/software/RNAseq/RSEM-1.2.29/rsem-calculate-expression -p 3 --alignments --paired-end --output-genome-bam --estimate-rspd -append-names --bam opi_trans_rsem.bam rsem/opi opi_rsem
+
+~/work/exosome_RNASeq/add_worm_seq.pl -tsv_in opi/opi_genes_sorted.tsv -prot_in opi/opisthorchis_viverrini.PRJNA222628.WBPS6.protein.fa -trans_in opi/opisthorchis_viverrini.PRJNA222628.WBPS6.mRNA_transcripts.fa

@@ -1,0 +1,30 @@
+for f in *A; do for n in 2 4 6 8 10; do echo perl -ne "'@cols = split /\s/; print if \$cols[6] >= $n && \$cols[5]/\$cols[6] >= 0.8' $f > var_lists/$f.reads${n}.txt"  ; done; done | bash
+for f in var_lists/*.txt; do for n in `seq 1 10`; do ./final_summary.pl -filestub `echo $f | sed -e 's/.txt//'` -sm_file $f -min_group $n; done; done
+mv var_lists/*single* var_lists/single
+for f in *tsv; do echo $f; cat $f | sed -e 's/; /;/g' | grep -v '-' | grep -v '+' | awk '{print $2,$3,$4,$1":"$5":"$6}' > `echo $f | sed -e 's/.tsv/.overlap/'`; done
+for f in *overlap;  do echo $f; /g/data/u86/variantdb/trunk/utils/overlap_files.pl -ref $f -just_overlap -coord ../known_mutations.hg19.bed > $f.jurkat; done
+wc -l *overlap.jurkat | grep -v group10 | grep -v total > overlap_jurkat
+wc -l *overlap | grep -v group10 | grep -v total > overlap_total
+paste overlap_* | awk '{print $1"\t"$3"\t"$1/$3*100"\t"$2}' > overlap_jurkat_stats.tsv
+./dbsnp.pl
+paste overlap_* | shrinkwrap | awk '{print $2"\t"$5"\t"$1"\t"$1/$5*100"\t"$3"\t"$3/$5*100}' > ../param_stats.tsv
+
+#Based on this select reads2.group4 as optimised params
+#Create symlinks to use for further analysis
+for f in pbmc jurkat 1_100 1_1000 1_10000; do ln -s var_lists/${f}_RNA.reads2.group4.overlap ${f}_RNA_overlap; done
+Same for DNA
+
+#Now find how well the PBMC variants track through dilutions
+for t in DNA RNA; do for f in 1_10000 1_1000 1_100 jurkat; do /drive2/variantdb/trunk/utils/overlap_files.pl -ref pbmc_${t}_overlap -coord ${f}_${t}_overlap -just_overlap > overlap/pbmc_test_${t}_${f}; done; done
+
+#Finally find out how well the in jurkat not in pbmc track through the dilutions
+>/drive2/variantdb/trunk/utils/overlap_files.pl -ref jurkat_DNA_overlap -coord pbmc_DNA_overlap -fail -just_overlap  > jurkat_DNA_unique_overlap (256)
+>/drive2/variantdb/trunk/utils/overlap_files.pl -ref jurkat_RNA_overlap -coord pbmc_RNA_overlap -fail -just_overlap  > jurkat_RNA_unique_overlap (185)
+
+for t in DNA RNA; do for f in 1_10000 1_1000 1_100; do  /drive2/variantdb/trunk/utils/overlap_files.pl -ref jurkat_${t}_unique_overlap -coord ${f}_${t}_overlap -just_overlap > overlap/jurkat_unique_test_${t}_${f}; done; done
+
+wc overlap/*
+
+for  f in 2 3 4; do grep DNA.reads2.group$f param_stats.tsv  |cut -d'  ' -f2 | stats; done
+for  f in 2 3 4; do grep DNA.reads2.group$f param_stats.tsv  |cut -d'  ' -f4 | stats; done
+Same for RNA

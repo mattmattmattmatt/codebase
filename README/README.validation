@@ -1,0 +1,18 @@
+1) Optimise two cutoff parameters by determining balance between number of reads to make UID group and number of UID groups required.
+
+>cd ~/work/anu/jurkat_stats/validation
+>for f in *.txt; do perl -ne '@cols = split /\s/; print if $cols[6] >= 2 && $cols[5]/$cols[6] >= 0.8' $f > $f.min2reads; done
+
+
+
+
+
+2) Using PBMC_all check how well these variants track through the dilutions. We would expect most to present at all dilutions. Perform this for all variants and dbsnp variants.
+
+3) Identify SNVs in Jurkat and not in PBMC and see how well these track through the dilutions.  Perform this for all variants, dbsnp variants, and jurkat somatic variants.
+
+4) Validation: Devise smart way to validate results of very rare variants.  I think the idea we settled on was using variant(s) expected to be present in certain cell types that are a small fraction of total cells so we can isolate the cell type and reduce the number of sequences required to validate. 
+
+5) When Peter has results compare with my results.
+
+6) See how I can make annotation code available for Manu.

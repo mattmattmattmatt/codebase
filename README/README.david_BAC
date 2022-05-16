@@ -1,0 +1,20 @@
+See raijin ~/g/mxf221/David_BAC
+
+Looking for BAC insertion into mouse genome
+Add bp coord to bac sequence
+
+cat bac_sequence_170920_tidied.fa | awk '{printf("%5d : %s\n", NR*60,$0)}' "$1"  > bac_sequence_170920_tidied_coordinates.fa
+
+Email sent re breakpoints:
+For mouse 12, an SV was called with the following entry:
+
+bac_sequence    28114    MantaBND:12654:1:2:0:0:0:1    G    GTTCAGTGTCTGCACTTCATGCG]7:27915284]    25    PASS    SVTYPE=BND;MATEID=MantaBND:12654:1:2:0:0:0:0;SVINSLEN=22;SVINSSEQ=TTCAGTGTCTGCACTTCATGCG;BND_DEPTH=132;MATE_BND_DEPTH=34    GT:FT:GQ:PL:PR:SR    0/1:PASS:25:75,0,999:88,11:93,12
+
+So this means it thinks the bac_sequence breakpoint is 28114bp and chr7:27915284.  Looking at the images I agree with the BAC breakpoint.
+
+The chr7 breakpoint is a bit trickier (see image).  We can definitely say the breakpoint to the bac is somewhere between 27,915,120 and 27,915,284. Complicating matters however, there is a 282kb section duplicated here as well the runs up the breakpoint (from 27,633,110-27,915,120). If I were you I would design a few primers across the smaller region to increase chances of success as you may have problems with primer design due to the concurrent duplication.
+
+
+For mouse 4, the chr1 breakpoint is very messy and occurs somewhere between 92,590,250-92,590,900 (see image).  There are reads that align to the BAC within this region but also reads that align to another genomic region meaning the event is likely complex. Again, I'd design primers across this region to increase chances of success.
+
+The BAC breakpoint is also complicated and I suspect the BAC may not be complete.  There is one breakpoint that appears to be around 4000-4200bp and another that occurs at 21000-21600bp.  It could be that the region between these breakpoints is missing which may fit with you theory. Again, I'd cover the breakpoint regions with primers.
