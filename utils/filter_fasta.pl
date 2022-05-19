@@ -21,7 +21,8 @@ GetOptions(\%OPT,
 		"range=s",
 		"out_file=s",
 		"out_remove=s",
-		"replaceNs"
+		"replaceNs",
+		"extract"
 	   );
 pod2usage(-verbose => 2) if $OPT{man};
 pod2usage(1) if ($OPT{help} || !$OPT{fasta});
@@ -148,7 +149,8 @@ while ( my $dna = $sequences->next_seq ){
 				}
    			}
    		} else {
-   			#Don't touch these ones
+   			#Don't touch these ones unless just extracting
+   			next if $OPT{extract};
    			print OUTFASTA join ("\n",
 								'>'. $dna->id. ' '.$desc,
 								$dna->seq
