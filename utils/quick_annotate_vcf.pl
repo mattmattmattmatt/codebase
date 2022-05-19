@@ -339,7 +339,14 @@ while (<PARSED>) {
 	for (my $count = 0; $count < @genotypes; $count++) {
 		my @geno_fields = split(':',$genotypes[$count]);
 		$sample = $samples[$count];
-		my ($allele1,$allele2) = split('/',$geno_fields[0]);
+		my ($allele1,$allele2);
+		if ($geno_fields[0] =~ /\//) {
+			($allele1,$allele2) = split('/',$geno_fields[0]);
+		} elsif ($geno_fields[0] =~ /\|/) {
+			($allele1,$allele2) = split('|',$geno_fields[0]);
+		} else {
+			modules::Exception->throw("ERROR: Can't handle genotype $geno_fields[0]\n");
+		}
 		if ($allele1 eq '0' && $allele2 eq '0') {
 			$zyg = 'ref';
 			$data{$key}{ref_count}++;
