@@ -343,7 +343,7 @@ while (<PARSED>) {
 		if ($allele1 eq '0' && $allele2 eq '0') {
 			$zyg = 'ref';
 			$data{$key}{ref_count}++;
-		} elsif ($geno_fields[0] eq './.') {
+		} elsif ($geno_fields[0] eq './.' || $geno_fields[0] eq '.|.') {
 			$zyg = 'no_call';
 			$data{$key}{no_data_count}++;
 		} elsif ($allele1 == $allele2) {

@@ -45,7 +45,6 @@ $totalNFreeLength += $NfreeLength;
 
 my ($contig_number) = @arr;
 
-close(FH);
 
 my @sort = sort {$b <=> $a} @arr;
 my $n50_count;

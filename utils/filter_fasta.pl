@@ -73,6 +73,9 @@ Matt Field
 #Same but save chr1:2-5 in file and replace with Ns in original file
 /drive2/variantdb/trunk/utils/filter_fasta.pl -fasta test.fa -header chr1 -range 2-5 -keep -replaceNs
 
+#Just extract a sequence and save it to a specific file
+/drive2/variantdb/trunk/utils/filter_fasta.pl -fasta test.fa -header chr1 -keep -extract -out_remove extract.fasta
+
 =cut
 
 
