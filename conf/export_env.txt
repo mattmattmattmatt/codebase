@@ -1,26 +1,16 @@
-SOFTWARE="/g/data/xx92/software" #directory to location of the software not controled by svn
-echo "using software location: $SOFTWARE"
 if [ $# != 1 ]; then
-	echo "ERROR: Need to pass the path to the svn base directory"
+   	echo "ERROR: Need to pass the path to the svn base directory"
 elif [ ! -d $1 ]; then
-	echo "ERROR: Passed argument '$1' isn't a directory"
+   	echo "Svn directory $1 isn't a directory"
 elif [ ! -e $1/modules ]; then
-	echo "ERROR: Directory $1 isn't a working svn directory"
+	echo "Svn directory $1 isn't a working svn directory"
 else 
 	export SVNDIR=$(readlink -f $1)
 	export BIOPERL="${SVNDIR}/ext/modules/bioperl/1.2.3"
-	export ENSEMBLLIB="${SVNDIR}/ext/modules/ens/94/ensembl/modules:${SVNDIR}/ext/modules/ens/94/ensembl-variation/modules:${SVNDIR}/ext/modules/ens/94/ensembl-funcgen/modules:${SVNDIR}/ext/modules/ens/94/ensembl-io/modules"
+   	export ENSEMBLLIB="${SVNDIR}/ext/modules/ens/94/ensembl/modules:${SVNDIR}/ext/modules/ens/94/ensembl-variation/modules:${SVNDIR}/ext/modules/ens/94/ensembl-funcgen/modules:${SVNDIR}/ext/modules/ens/94/ensembl-io/modules"
 	export ENSEMBL_REGISTRY="${SVNDIR}/conf/ensembl_registry.conf"
 	export ENSEMBL_REGISTRY_LOAD="${SVNDIR}/conf/ensembl_registry_load.conf"
-
-	#export PYTHONPATH=$PYTHONPATH:${SVNDIR}/ext/pythonlib/lib/python/
-	export PYTHONPATH="$PYTHONPATH:${SVNDIR}/ext/pythonlib/lib64/python2.7/site-packages/:${SVNDIR}/ext/pythonlib/lib/python2.7/site-packages/"
-
-	eval PATH="$SOFTWARE/perl5/bin${PATH:+:${PATH}}:${SVNDIR}/scripts"; export PATH;
-	CLUSTERPERL="$SOFTWARE/perl5:$SOFTWARE/perl5/lib/perl5:$SOFTWARE/perl5/lib/perl5/x86_64-linux-thread-multi:$SOFTWARE/perl5/lib/perl5/x86_64-linux-thread-multi/auto";  export PERL5LIB;
-	PERL_LOCAL_LIB_ROOT="$SOFTWARE/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
-	PERL_MB_OPT="--install_base \"$SOFTWARE/perl5\""; export PERL_MB_OPT;
-	PERL_MM_OPT="INSTALL_BASE=$SOFTWARE/perl5"; export PERL_MM_OPT;
-	export MANPATH=$SOFTWARE/perl5/man:/opt/pbs/default/man:/usr/share/man:/opt/man:/opt/Modules/default/man
-	export PERL5LIB="${SVNDIR}:${BIOPERL}:${ENSEMBLLIB}:${CLUSTERPERL}"
+	export CLUSTERPERL="/home/221/mxf221/perl5/lib/perl5:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi/auto"
+	export PERL5LIB="${SVNDIR}:${BIOPERL}:${ENSEMBLLIB}:${CLUSTERPERL}:${PERL5LIB}"
+	export PYTHONPATH=$PYTHONPATH:${SVNDIR}/ext/pythonlib/lib/python/
 fi
