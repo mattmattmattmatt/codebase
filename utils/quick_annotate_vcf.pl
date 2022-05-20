@@ -667,12 +667,13 @@ for my $key (@keys) {
 	my $clin = !exists $data{$key}{clin} || $data{$key}{clin} eq 'N/A'?'NO_CLIN':$data{$key}{clin};
 	my $rs = !exists $data{$key}{rs} || $data{$key}{rs} eq 'N/A'?'NO_DBSNP':$data{$key}{rs};
 	my $gmaf = !exists $data{$key}{gmaf} || $data{$key}{gmaf} eq 'N/A'?'NO_GMAF':$data{$key}{gmaf};	
+	my $var_samples;
 	if (!exists $data{$key}{var_samples}) {
-		print Dumper $data{$key};
-		modules::Exception->throw("ERROR with samples for key $key\n");
-	} 
+		$var_samples = "Complex overlapping event";
+	} else {
+		$var_samples = join(",",@{$data{$key}{var_samples}});
+	}
 	
-	my $var_samples = join(",",@{$data{$key}{var_samples}});
 	my $het_count = exists $data{$key}{het_count}?$data{$key}{het_count}:0;
 	my $hom_count = exists $data{$key}{hom_count}?$data{$key}{hom_count}:0;
 	my $ref_count = exists $data{$key}{ref_count}?$data{$key}{ref_count}:0;
