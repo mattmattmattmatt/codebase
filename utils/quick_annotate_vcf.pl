@@ -379,7 +379,7 @@ while (<PARSED>) {
 				$data{$key}{het_count}++;
 				$data{$key}{var_count}++;
 				push @{$data{$key}{var_samples}},$sample;
-			}
+			} 
 		}  else {
 			modules::Exception->throw("ERROR with $genotypes[$count]\n");
 		}
@@ -667,6 +667,11 @@ for my $key (@keys) {
 	my $clin = !exists $data{$key}{clin} || $data{$key}{clin} eq 'N/A'?'NO_CLIN':$data{$key}{clin};
 	my $rs = !exists $data{$key}{rs} || $data{$key}{rs} eq 'N/A'?'NO_DBSNP':$data{$key}{rs};
 	my $gmaf = !exists $data{$key}{gmaf} || $data{$key}{gmaf} eq 'N/A'?'NO_GMAF':$data{$key}{gmaf};	
+	if (!exists $data{$key}{var_samples}) {
+		print Dumper $data{$key};
+		modules::Exception->throw("ERROR with samples for key $key\n");
+	} 
+	
 	my $var_samples = join(",",@{$data{$key}{var_samples}});
 	my $het_count = exists $data{$key}{het_count}?$data{$key}{het_count}:0;
 	my $hom_count = exists $data{$key}{hom_count}?$data{$key}{hom_count}:0;
