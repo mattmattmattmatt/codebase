@@ -304,6 +304,9 @@ my $line_count = 0;
 #vartrix doesn't report variant base so need to record it
 my %vartrix_lookup = ();
 
+#multiple allele handling for counting
+my %mult_allele = ();
+
 while (<PARSED>) {
     $_ =~ s/^chr//;
 	chomp;
@@ -324,6 +327,16 @@ while (<PARSED>) {
 	} 
 	my $key = "$chr:$start:$end:$var_base";
 	
+	my $allele_count = 1;
+	
+	#Search for next allele (i.e. 0/2 not 0/1)
+	if (exists $mult_allele{"$chr:$start:$end"}) {
+		$mult_allele{"$chr:$start:$end"}++;
+		$allele_count = $mult_allele{"$chr:$start:$end"};
+	} else {
+		$mult_allele{"$chr:$start:$end"} = 1;
+	}
+	
 	if ($vartrix_summary) {
 		$vartrix_lookup{"$chr:$start"} = $key;
 	}
@@ -343,7 +356,7 @@ while (<PARSED>) {
 		if ($geno_fields[0] =~ /\//) {
 			($allele1,$allele2) = split('/',$geno_fields[0]);
 		} elsif ($geno_fields[0] =~ /\|/) {
-			($allele1,$allele2) = split('|',$geno_fields[0]);
+			($allele1,$allele2) = split('\|',$geno_fields[0]);
 		} else {
 			modules::Exception->throw("ERROR: Can't handle genotype $geno_fields[0]\n");
 		}
@@ -354,15 +367,19 @@ while (<PARSED>) {
 			$zyg = 'no_call';
 			$data{$key}{no_data_count}++;
 		} elsif ($allele1 == $allele2) {
-			$zyg = 'hom';
-			$data{$key}{hom_count}++;
-			$data{$key}{var_count}++;
-			push @{$data{$key}{var_samples}},$sample;
+			if ($allele_count == $allele1) {
+				$zyg = 'hom';
+				$data{$key}{hom_count}++;
+				$data{$key}{var_count}++;
+				push @{$data{$key}{var_samples}},$sample;
+			}
 		} elsif ($allele1 != $allele2) {
-			$zyg = 'het';
-			$data{$key}{het_count}++;
-			$data{$key}{var_count}++;
-			push @{$data{$key}{var_samples}},$sample;
+			if ($allele1 == $allele_count || $allele2 == $allele_count) {
+				$zyg = 'het';
+				$data{$key}{het_count}++;
+				$data{$key}{var_count}++;
+				push @{$data{$key}{var_samples}},$sample;
+			}
 		}  else {
 			modules::Exception->throw("ERROR with $genotypes[$count]\n");
 		}
