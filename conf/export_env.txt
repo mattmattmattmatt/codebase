@@ -13,4 +13,5 @@ else
 	export CLUSTERPERL="/home/221/mxf221/perl5/lib/perl5:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi/auto"
 	export PERL5LIB="${SVNDIR}:${BIOPERL}:${ENSEMBLLIB}:${CLUSTERPERL}:${PERL5LIB}"
 	export PYTHONPATH=$PYTHONPATH:${SVNDIR}/ext/pythonlib/lib/python/
+	export PATH=$PATH:"${SVNDIR}/bin"
 fi

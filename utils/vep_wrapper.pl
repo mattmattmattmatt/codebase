@@ -171,7 +171,7 @@ my $vep = modules::VEP->new(-input_file      => $vep_input,
 $vep->run;
 	
 my $results = $vep->parse_result;
-	
+
 foreach my $result (@$results){
 	if ($exon) {
 		my ($snv_chr,
@@ -188,11 +188,12 @@ foreach my $result (@$results){
 		    $poly_predict,
 		    $poly_score,
 		    $sift_predict,
-		    $sift_score) = @$result;
-		    
+		    $sift_score,
+	    	    $cadd_phred) = @$result;
+
+
 		my $ref_base = $ref_base_map{"$snv_chr:$snv_start-$snv_end"};
 		my $aa_string = $snv_ref_aa.$snv_aa_pos.$snv_var_aa;
-		
 		print join("\t",
 					$snv_chr,
 					$snv_start,
@@ -205,7 +206,8 @@ foreach my $result (@$results){
 					$poly_predict,
 	    			$poly_score,
 	    			$sift_predict,
-	    			$sift_score
+	    			$sift_score,
+				$cadd_phred
 					) ."\n";
 	    
 	} else {

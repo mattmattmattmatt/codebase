@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE page [
-<!ENTITY pipeline_version "v2.3"><!ENTITY basedir "/drive2/variantdb"><!ENTITY readdir "/drive2/reads"><!ENTITY resultdir "/drive2/variantdb/results"><!ENTITY svndir "&basedir;/trunk">
-<!--<!ENTITY pipeline_version "v2.3"><!ENTITY basedir "/g/data/u86/variantdb"><!ENTITY readdir "/short/u86/reads"><!ENTITY resultdir "/g/data/u86/massdata_tmp/variantdb/results">-->
-<!ENTITY svndir "&basedir;/&pipeline_version;"><!ENTITY shortdir "/short/u86/variantdb_out">
+<!ENTITY pipeline_version "v2.38">
+<!ENTITY basedir "/g/data/u86/variantdb">
+<!ENTITY readdir "/g/data/u86/variantdb/reads">
+<!ENTITY resultdir "/g/data/u86/massdata_tmp/variantdb/results">
+<!ENTITY svndir "&basedir;/&pipeline_version;">
 ]>
 <cluster_resources>	
 
@@ -11,10 +13,11 @@
 		<scheduler>PBS</scheduler>
 		<svndir>&svndir;</svndir>
 		<script_dir>&svndir;/scripts</script_dir>
-		<qsub_vars><thread_num>2</thread_num><max_memory>4GB</max_memory></qsub_vars><mdss><mdss_flag>0</mdss_flag>
-		<!--<qsub_vars><thread_num>16</thread_num><max_memory>32GB</max_memory></qsub_vars><mdss><mdss_flag>1</mdss_flag>-->
+		<!--<qsub_vars><thread_num>2</thread_num><max_memory>4GB</max_memory></qsub_vars><mdss><mdss_flag>0</mdss_flag>-->
+		<qsub_vars><thread_num>16</thread_num><max_memory>32GB</max_memory></qsub_vars><mdss><mdss_flag>1</mdss_flag>
 			<mdss_results>variantdb/results/&pipeline_version;</mdss_results>
-			<mdss_reads>variantdb/reads</mdss_reads>
+			<!--<mdss_reads>variantdb/reads</mdss_reads>-->
+			<mdss_reads>reads</mdss_reads>
 		</mdss>
 		<archive>
 			<archive_command>cp</archive_command>
@@ -22,63 +25,14 @@
 		</archive>
 	</common>
 	
-	<human_cancer>
-		<svn>
-			<conf_dir>&svndir;/conf/human/hs37d5</conf_dir>
-			<fasta_file>&svndir;/conf/human/hs37d5/fasta/single_file/hs37d5.fa</fasta_file>
-			<bwa_index>&svndir;/conf/human/hs37d5/bwa_index/hs37d5</bwa_index>
-		</svn>
-	
-	
-		<base_directories>
-			<base_read_directory>&readdir;</base_read_directory>
-			<base_results_directory>&resultdir;/&pipeline_version;/human_cancer</base_results_directory>
-			<base_qsub_directory>&basedir;/qsub/&pipeline_version;/human_cancer</base_qsub_directory>
-			<base_run_directory>&basedir;/runs/&pipeline_version;/human_cancer</base_run_directory>
-		</base_directories>
-	
-	</human_cancer>
-
-	<mouse_cancer>
-		<svn>
-			<conf_dir>&svndir;/conf/mouse/mm10</conf_dir>
-			<fasta_file>&svndir;/conf/mouse/mm10/fasta/single_file/mm10.fa</fasta_file>
-			<bwa_index>&svndir;/conf/mouse/mm10/bwa_index/mm10</bwa_index>
-		</svn>
-	
-	
-		<base_directories>
-			<base_read_directory>&readdir;</base_read_directory>
-			<base_results_directory>&resultdir;/&pipeline_version;/mouse_cancer</base_results_directory>
-			<base_qsub_directory>&basedir;/qsub/&pipeline_version;/mouse_cancer</base_qsub_directory>
-			<base_run_directory>&basedir;/runs/&pipeline_version;/mouse_cancer</base_run_directory>
-		</base_directories>
-	
-	</mouse_cancer>
-	
-	<human_related>
-		<svn>
-			<conf_dir>&svndir;/conf/human/hs37d5</conf_dir>
-			<fasta_file>&svndir;/conf/human/hs37d5/fasta/single_file/hs37d5.fa</fasta_file>
-			<bwa_index>&svndir;/conf/human/hs37d5/bwa_index/hs37d5</bwa_index>
-		</svn>
-	
-	
-		<base_directories>
-			<base_read_directory>&readdir;</base_read_directory>
-			<base_results_directory>&resultdir;/&pipeline_version;/human_related</base_results_directory>
-			<base_qsub_directory>&basedir;/qsub/&pipeline_version;/human_related</base_qsub_directory>
-			<base_run_directory>&basedir;/runs/&pipeline_version;/human_related</base_run_directory>
-		</base_directories>
-	</human_related>
-
     <human_related_gatk>
             <svn>
-            	<conf_dir>&svndir;/conf/human/hs37d5</conf_dir>
-            	<fasta_file>&svndir;/conf/human/hs37d5/fasta/single_file/hs37d5.fa</fasta_file>
-            	<bwa_index>&svndir;/conf/human/hs37d5/bwa_index/hs37d5</bwa_index>
-            	<gatk_resources>&svndir;/conf/human/hs37d5/gatk_resources/</gatk_resources>
-                <chr_intervals_dir>&svndir;/conf/human/hs37d5/fasta/intervals</chr_intervals_dir>   
+            	<conf_dir>&svndir;/conf/human/GRCh38</conf_dir>
+            	<fasta_file>&svndir;/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa</fasta_file>
+            	<bwa_index>&svndir;/conf/human/GRCh38/bwa_index/GRCh38d1_noalt</bwa_index>
+            	<gatk_resources>&svndir;/conf/human/GRCh38/resources/</gatk_resources>
+              <chr_intervals_dir>&svndir;/conf/human/GRCh38/fasta/intervals</chr_intervals_dir>   
+              <vep_index_dir>&svndir;/conf/human/GRCh38/vep_index</vep_index_dir>   
 	     </svn>
 
 
@@ -90,56 +44,21 @@
             </base_directories>
     </human_related_gatk>
 
-	<human_single>
-	  <svn>
-	    <conf_dir>&svndir;/conf/human/hs37d5</conf_dir>
-	    <fasta_file>&svndir;/conf/human/hs37d5/fasta/single_file/hs37d5.fa</fasta_file>
-	    <bwa_index>&svndir;/conf/human/hs37d5/bwa_index/hs37d5</bwa_index>
-	</svn>
-	
-	  <base_directories>
-	    <base_read_directory>&readdir;</base_read_directory>
-	    <base_results_directory>&resultdir;/&pipeline_version;/human_single</base_results_directory>
-	    <base_qsub_directory>&basedir;/qsub/&pipeline_version;/human_single</base_qsub_directory>
-	    <base_run_directory>&basedir;/runs/&pipeline_version;/human_single</base_run_directory>
-	  </base_directories>
-	</human_single>
-	
 	<human_single_gatk>
 	  <svn>
-	    <conf_dir>&svndir;/conf/human/hs37d5</conf_dir>
-	    <fasta_file>&svndir;/conf/human/hs37d5/fasta/single_file/hs37d5.fa</fasta_file>
-	    <bwa_index>&svndir;/conf/human/hs37d5/bwa_index/hs37d5</bwa_index>
-	    <gatk_resources>&svndir;/conf/human/hs37d5/gatk_resources/</gatk_resources>
-	    <chr_intervals_dir>&svndir;/conf/human/hs37d5/fasta/intervals</chr_intervals_dir>
+	    <conf_dir>&svndir;/conf/human/GRCh38</conf_dir>
+	    <fasta_file>&svndir;/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa</fasta_file>
+	    <bwa_index>&svndir;/conf/human/GRCh38/bwa_index/GRCh38d1_noalt</bwa_index>
+	    <gatk_resources>&svndir;/conf/human/GRCh38/resources/</gatk_resources>
+	    <chr_intervals_dir>&svndir;/conf/human/GRCh38/fasta/intervals</chr_intervals_dir>
+      <vep_index_dir>&svndir;/conf/human/GRCh38/vep_index</vep_index_dir>   
 	  </svn>
 	  <base_directories>
 	    <base_read_directory>&readdir;</base_read_directory>
-
-            <!--Aaron: out to /short/u86/variantdb_out, uncomment this block & comment block below Vicky
-	    <base_results_directory>&shortdir;/results/&pipeline_version;/human_single_gatk</base_results_directory>
-	    <base_qsub_directory>&shortdir;/qsub/&pipeline_version;/human_single_gatk</base_qsub_directory>
-	    <base_run_directory>&shortdir;/runs/&pipeline_version;/human_single_gatk</base_run_directory>--> 
-            
-            <!--Vicky: out to /g/data2/u86/variantdb, uncomment this block & comment block below Aaron -->
             <base_results_directory>&resultdir;/&pipeline_version;/human_single_gatk</base_results_directory>
             <base_qsub_directory>&basedir;/qsub/&pipeline_version;/human_single_gatk</base_qsub_directory>
             <base_run_directory>&basedir;/runs/&pipeline_version;/human_single_gatk</base_run_directory> 	 
 	 </base_directories>
 	</human_single_gatk>
 
-	<mouse_single>
-	  <svn>
-	    <conf_dir>&svndir;/conf/mouse/mm10</conf_dir>
-	    <fasta_file>&svndir;/conf/mouse/mm10/fasta/single_file/mm10.fa</fasta_file>
-	    <bwa_index>&svndir;/conf/mouse/mm10/bwa_index/mm10</bwa_index>
-	  </svn>
-	  <base_directories>
-	    <base_read_directory>&readdir;</base_read_directory>
-	    <base_results_directory>&resultdir;/&pipeline_version;/mouse_single</base_results_directory>
-	    <base_qsub_directory>&basedir;/qsub/&pipeline_version;/mouse_single</base_qsub_directory>
-	    <base_run_directory>&basedir;/runs/&pipeline_version;/mouse_single</base_run_directory>
-	  </base_directories>
-	</mouse_single>
-	
 </cluster_resources>

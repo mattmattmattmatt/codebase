@@ -451,6 +451,7 @@ while (<VEPEXON>) {
     $data{$key}{poly_score} = $poly_score;
 	$data{$key}{sift_cat} = $fields[10];
     $data{$key}{sift_score} = $sift_score;
+    $data{$key}{cadd_phred} = $fields[12];
 }
 
 print "Parsed VEP...\n";
@@ -614,6 +615,7 @@ for my $fh ( @fhs ) {
 					'poly_score',
 					'sift_cat',
 					'sift_score',
+					'cadd_phred',
 					'domain',
 					'pubmed',
 					'clinical',
@@ -661,6 +663,7 @@ for my $key (@keys) {
 	my $poly_score = exists $data{$key}{poly_score}?$data{$key}{poly_score}:'NO_POLY_SCORE';
 	my $sift_cat = exists $data{$key}{sift_cat}?$data{$key}{sift_cat}:'NO_SIFT_CAT';
 	my $sift_score = exists $data{$key}{sift_score}?$data{$key}{sift_score}:'NO_SIFT_SCORE';
+	my $cadd_phred = exists $data{$key}{cadd_phred}?$data{$key}{cadd_phred}:'NO_CADD_SCORE';
 	my $gnomad = exists $data{$key}{gnomad}?$data{$key}{gnomad}:'NO_GNOMAD';
 	my $domain = !exists $data{$key}{domain} || $data{$key}{domain} eq 'N/A'?'NO_DOMAIN':$data{$key}{domain};
 	my $pubmed = !exists $data{$key}{pubmed} || $data{$key}{pubmed} eq 'N/A'?'NO_PUBMED':$data{$key}{pubmed};
@@ -831,6 +834,7 @@ for my $key (@keys) {
 						$poly_score,
 						$sift_cat,
 						$sift_score,
+						$cadd_phred,
 						$domain,
 						$pubmed,
 						$clin,
@@ -863,6 +867,7 @@ for my $key (@keys) {
 									$poly_score,
 									$sift_cat,
 									$sift_score,
+									$cadd_phred,
 									$domain,
 									$pubmed,
 									$clin,
@@ -892,6 +897,7 @@ for my $key (@keys) {
 						$poly_score,
 						$sift_cat,
 						$sift_score,
+						$cadd_phred,
 						$domain,
 						$pubmed,
 						$clin,
@@ -920,6 +926,7 @@ for my $key (@keys) {
 									$poly_score,
 									$sift_cat,
 									$sift_score,
+									$cadd_phred,
 									$domain,
 									$pubmed,
 									$clin,
