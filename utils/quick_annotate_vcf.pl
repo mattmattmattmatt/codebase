@@ -394,7 +394,11 @@ while (<PARSED>) {
 		
 	}
 	
-	$total_alleles{"$chr:$start:$end"} += $total_alleles{"$chr:$start:$end"};
+	if (exists $total_alleles{"$chr:$start:$end"}) {
+		$total_alleles{"$chr:$start:$end"} += $data{$key}{var_count};
+	} else {
+		$total_alleles{"$chr:$start:$end"} = $data{$key}{var_count}
+	}
 	$line_count++;
 
   if ($line_count % 100000 == 0) {
