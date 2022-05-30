@@ -697,8 +697,17 @@ for my $key (@keys) {
 	my $control_count = exists $data{$key}{control_count}?$data{$key}{control_count}:0;
 	my $nd_count = exists $data{$key}{no_data_count}?$data{$key}{no_data_count}:0;
 	my $var_str = $data{$key}{var_count} . ' ('.$het_count . '/'. $hom_count .')';
+	my $average_score;
 	
-	my $average_score = $data{$key}{qual} / $total_alleles{"$chr:$start:$end"};
+	if (exists $total_alleles{"$chr:$start:$end"}) {
+		$average_score = $data{$key}{qual} / $total_alleles{"$chr:$start:$end"};
+	} else {
+		$average_score = "ERROR";
+	}
+	
+	
+	
+	
 	
 	
 	if ($nd_count > $max_nocall_count) {
