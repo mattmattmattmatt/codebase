@@ -184,13 +184,14 @@ foreach my $result (@$results){
 		    $snv_exon,
 		    $snv_ref_aa,
 		    $snv_var_aa,
+		    $snv_aa_pos,
 		    $poly_predict,
 		    $poly_score,
 		    $sift_predict,
 		    $sift_score) = @$result;
 		    
 		my $ref_base = $ref_base_map{"$snv_chr:$snv_start-$snv_end"};
-		my $aa_string = $snv_ref_aa .'->'.$snv_var_aa;
+		my $aa_string = $snv_ref_aa.$snv_aa_pos.$snv_var_aa;
 		
 		print join("\t",
 					$snv_chr,
