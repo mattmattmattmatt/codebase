@@ -34,7 +34,8 @@ GetOptions(\%OPT,
        "vartrix_summary=s",
        "sc_min_var=i",
        "sc_min_total=i",
-       "sc_min_portion=s"
+       "sc_min_portion=s",
+       "missionbio"
    );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -99,7 +100,11 @@ if ( !-e $vcf ) {
 	modules::Exception->throw("File $vcf doesn't exist");	
 }
 
+#Vartrix flag
 my $vartrix_summary = defined $OPT{vartrix_summary}?$OPT{vartrix_summary}:0;
+
+#MissionBio flag
+my $mb = defined $OPT{mb}?1:0;
 
 my ($vcf_short) = basename($vcf);
 (my $vcf_out = $vcf_short) =~ s/.vcf/.txt/;
@@ -306,6 +311,7 @@ my %vartrix_lookup = ();
 
 #multiple allele handling for counting
 my %mult_allele = ();
+my %total_alleles = (); #Use for generating average score per variant cell
 
 while (<PARSED>) {
     $_ =~ s/^chr//;
@@ -387,6 +393,8 @@ while (<PARSED>) {
 		$data{$key}{zyg}{$sample} = $zyg;
 		
 	}
+	
+	$total_alleles{"$chr:$start:$end"} += $total_alleles{"$chr:$start:$end"};
 	$line_count++;
 
   if ($line_count % 100000 == 0) {
@@ -578,7 +586,8 @@ for my $fh ( @fhs ) {
 					'chr',
 					'start',
 					'end',
-					'sample_quals',
+					'total_sample_quals',
+					'average_qual_per_sample',
 					'variant_count (het/hom)',
 					'ref_count',
 					'no_data_count') ."\t";
@@ -684,6 +693,9 @@ for my $key (@keys) {
 	my $control_count = exists $data{$key}{control_count}?$data{$key}{control_count}:0;
 	my $nd_count = exists $data{$key}{no_data_count}?$data{$key}{no_data_count}:0;
 	my $var_str = $data{$key}{var_count} . ' ('.$het_count . '/'. $hom_count .')';
+	
+	my $average_score = $data{$key}{qual} / $total_alleles{"$chr:$start:$end"};
+	
 	
 	if ($nd_count > $max_nocall_count) {
 		next;
@@ -814,6 +826,7 @@ for my $key (@keys) {
 						$start,
 						$end,
 						$data{$key}{qual},
+						$average_score,
 						$var_str,
 						$ref_count,
 						$nd_count,
@@ -847,6 +860,7 @@ for my $key (@keys) {
 									$start,
 									$end,
 									$data{$key}{qual},
+									$average_score,
 									$var_str,
 									$ref_count,
 									$nd_count,
@@ -880,6 +894,7 @@ for my $key (@keys) {
 						$start,
 						$end,
 						$data{$key}{qual},
+						$average_score,
 						$var_str,
 						$ref_count,
 						$nd_count,
@@ -909,6 +924,7 @@ for my $key (@keys) {
 									$start,
 									$end,
 									$data{$key}{qual},
+									$average_score,
 									$var_str,
 									$ref_count,
 									$nd_count,
