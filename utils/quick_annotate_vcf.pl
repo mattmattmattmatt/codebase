@@ -104,7 +104,7 @@ if ( !-e $vcf ) {
 my $vartrix_summary = defined $OPT{vartrix_summary}?$OPT{vartrix_summary}:0;
 
 #MissionBio flag
-my $mb = defined $OPT{mb}?1:0;
+my $mb = defined $OPT{missionbio}?1:0;
 
 my ($vcf_short) = basename($vcf);
 (my $vcf_out = $vcf_short) =~ s/.vcf/.txt/;
@@ -699,8 +699,8 @@ for my $key (@keys) {
 	my $var_str = $data{$key}{var_count} . ' ('.$het_count . '/'. $hom_count .')';
 	my $average_score;
 	
-	if (exists $total_alleles{"$chr:$start:$end"}) {
-		$average_score = $data{$key}{qual} / $total_alleles{"$chr:$start:$end"};
+	if (exists $total_alleles{"$chr:$start:$end"} && $total_alleles{"$chr:$start:$end"} > 0) {
+		$average_score = sprintf("%.2f",$data{$key}{qual} / $total_alleles{"$chr:$start:$end"});
 	} else {
 		$average_score = "ERROR";
 	}
