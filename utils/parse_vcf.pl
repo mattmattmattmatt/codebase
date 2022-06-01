@@ -114,10 +114,9 @@ if ($OPT{bed}) {
 #print Dumper $vcf_data;
 
 open(FILE,">$out") || modules::Exception->throw("Can't open file to write $out\n");
-
+my @vcf_order;
 	
-for my $var_key (sort {my ($a_chr,$a_start) = $a =~ /([0-9XYMT]+):(\d+)/; my ($b_chr,$b_start) = $b =~ /([0-9XYMT]+):(\d+)/; $a_chr cmp $b_chr || $a_start <=> $b_start} keys %{$vcf_data}) {
-	
+for my $var_key (@vcf_order) {	
 	if ($OPT{variant_type}) {
 		next unless $OPT{variant_type} eq $vcf_data->{$var_key}{type};
 	}
@@ -129,12 +128,17 @@ for my $var_key (sort {my ($a_chr,$a_start) = $a =~ /([0-9XYMT]+):(\d+)/; my ($b
 		}
 	}
 	$chr =~ s/chr//;
-	
+
+	my $var_count = 0;
+	if (exists $vcf_data->{$var_key} && defined $vcf_data->{$var_key}{var_count}) {
+		$var_count = $vcf_data->{$var_key}{var_count};
+	}	
+
 	my $vcf_str;
 	if ($OPT{keep_allele_freq}) {
-		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual} . ';ALLELE='.$vcf_data->{$var_key}{allele};
+		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual} . ';AC='.$var_count.';ALLELE='.$vcf_data->{$var_key}{allele};
 	} else {
-		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual};
+		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual}. ';AC='.$var_count;
 	}
 	
 	if ($OPT{keep_zyg}) {
@@ -162,6 +166,7 @@ sub parse_vcf {
        
     my %vcf_data = ();
     
+
     open(VCF,$vcf) || modules::Exception->throw("Can't open file $vcf\n");
     
    	#Genotype quality index
@@ -182,7 +187,9 @@ sub parse_vcf {
     	my ($chr,$first_coord,undef,$ref,$var_str,$qual,undef,$rest,$gt_fields,@alleles) = split;
     	my $line = $_;
    		my @fields = split;
-    	
+        my @gt_fields = split(':',$gt_fields);
+	my @details = split(';',$rest);	
+
     	if (/CHROM/ && $sample_name) {
     		#Get the sample_index
     		for ( my $count = 0 ; $count < @fields ; $count++ ) {
@@ -225,6 +232,8 @@ sub parse_vcf {
 	    	my $var_index = 0;
 			my ($zyg_str) = split(':',$fields[$sample_index]);
     		next if $zyg_str eq '0/0';
+		next if $zyg_str eq '0|0';
+		next if $zyg_str eq '.|.';
     		next if $zyg_str eq './.';
     		my @nums = split('/',$zyg_str);
     		#Get the index from the gt string (eg 0/1 or 0/2 etc)
@@ -244,9 +253,9 @@ sub parse_vcf {
     		
     		push @vars,$tmp_vars[$var_index-1];
     		
+
     		if ($geno_qual && !$gq_index) {
     			#only do this once with the first non-header line; get the index of the GQ field
-    			my @gt_fields = split(':',$gt_fields);
     			for ( my $count = 0 ; $count < @gt_fields ; $count++ ) {
     			    if ($gt_fields[$count] eq 'GQ') {
     			    	$gq_index = $count;
@@ -260,10 +269,23 @@ sub parse_vcf {
 			@vars = split(",",$var_str);
 		}
 
+				
+
+
+		my @ac_fields =  ();
+
+		for my $detail (@details) {
+			if ($detail =~ /^AC=/) {
+				$detail =~ s/AC=//;
+				@ac_fields = split(",",$detail);
+			}
+		}
+
+
+		
 		for my $var ( @vars ) {
 			next if $var eq '*'; #Due to upstream deletion
 			my ($var_key,$var_type) = _get_variant_key(-type=>'vcf',-chrom=>$chr,-first=>$first_coord,-ref_seq=>$ref,-var_seq=>$var);
-
 
 			my ($start,$end) = $var_key =~ /(\d+)-(\d+)/;
 
@@ -288,6 +310,8 @@ sub parse_vcf {
 				}
 				
 			}
+
+	                $vcf_data{$var_key}{var_count} = shift @ac_fields;
 
 			
 			if ($qual eq '.') {
@@ -316,7 +340,7 @@ sub parse_vcf {
 				}
 				$vcf_data{$var_key}{allele} = $allele_count . '/' . $allele_total . '('. $allele_freq .')';
 			}
-			
+			push @vcf_order, $var_key;
 		}
     }
     return \%vcf_data;

@@ -323,7 +323,7 @@ while (<PARSED>) {
     	next unless $chr_filter eq $chr;
   	}
 
-	my ($var_type,$var_base_str,$qual) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+)/;
+	my ($var_type,$var_base_str,$qual,$var_count) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+)/;
 	my $var_base = my $ref_base;
 	if ($var_type eq 'SNV') {
 		($ref_base,$var_base) = split('->',$var_base_str); 
@@ -350,10 +350,12 @@ while (<PARSED>) {
 	$data{$key}{ref} = $ref_base;
 	$data{$key}{var} = $var_base; 
 	$data{$key}{qual} = $qual;
-	
+	$data{$key}{var_count} = $var_count;
+
 	my $zyg;
 	my $sample;
-	
+
+
 	#only if zygosity is included
 	for (my $count = 0; $count < @genotypes; $count++) {
 		my @geno_fields = split(':',$genotypes[$count]);
@@ -376,14 +378,12 @@ while (<PARSED>) {
 			if ($allele_count == $allele1) {
 				$zyg = 'hom';
 				$data{$key}{hom_count}++;
-				$data{$key}{var_count}++;
 				push @{$data{$key}{var_samples}},$sample;
 			}
 		} elsif ($allele1 != $allele2) {
 			if ($allele1 == $allele_count || $allele2 == $allele_count) {
 				$zyg = 'het';
 				$data{$key}{het_count}++;
-				$data{$key}{var_count}++;
 				push @{$data{$key}{var_samples}},$sample;
 			} 
 		}  else {
@@ -394,11 +394,12 @@ while (<PARSED>) {
 		
 	}
 	
-	if (exists $total_alleles{"$chr:$start:$end"}) {
-		$total_alleles{"$chr:$start:$end"} += $data{$key}{var_count};
-	} else {
-		$total_alleles{"$chr:$start:$end"} = $data{$key}{var_count}
-	}
+	$total_alleles{"$chr:$start:$end"} += $var_count;
+	#if (exists $data{$key}{var_count}) {
+	#	$total_alleles{"$chr:$start:$end:$var_type"} += $data{$key}{var_count};
+	#} else {
+	#	$total_alleles{"$chr:$start:$end:$var_type"} = $data{$key}{var_count}
+	#}
 	$line_count++;
 
   if ($line_count % 100000 == 0) {
@@ -535,6 +536,7 @@ while (<GNOMAD>) {
     $data{$key}{gnomad} = $match;
     $data{$key}{gnomad} =~ s/^\d+://;
 }
+close GNOMAD;
 
 print "Parsed GNOMAD...\n";
 
@@ -665,7 +667,7 @@ my @keys = sort { my ($a_chr,$a_coord) = $a =~ /([0-9X]+):(\d+)/; my ($b_chr,$b_
 for my $key (@keys) {
 	my ($chr,$start,$end,$var_base) = split(":",$key);
 	if ($chr_filter =~ /[0-9X]/) {
-    	next unless $chr_filter eq $chr;
+    		next unless $chr_filter eq $chr;
   	}
 
   	next unless $chr =~ /^[0-9X]/;
@@ -696,25 +698,31 @@ for my $key (@keys) {
 	my $rogue_count = exists $data{$key}{rogue_count}?$data{$key}{rogue_count}:0;
 	my $control_count = exists $data{$key}{control_count}?$data{$key}{control_count}:0;
 	my $nd_count = exists $data{$key}{no_data_count}?$data{$key}{no_data_count}:0;
-	my $var_str = $data{$key}{var_count} . ' ('.$het_count . '/'. $hom_count .')';
-	my $average_score;
-	
-	if (exists $total_alleles{"$chr:$start:$end"} && $total_alleles{"$chr:$start:$end"} > 0) {
-		$average_score = sprintf("%.2f",$data{$key}{qual} / $total_alleles{"$chr:$start:$end"});
-	} else {
-		$average_score = "ERROR";
+	my $var_count = 0;
+	if (exists $data{$key}{var_count}) {
+		$var_count =  $data{$key}{var_count};
 	}
-	
-	
-	
-	
+	my $var_str = $var_count . ' ('.$het_count . '/'. $hom_count .')';
+	my $average_score = 'COMPLEX EVENT';
+
+	my $alleles_key = "$chr:$start:$end";
+
+	if (exists  $total_alleles{$alleles_key}) {
+		if ($total_alleles{$alleles_key} > 0) {
+			$average_score = sprintf("%.2f",$data{$key}{qual} / $total_alleles{$alleles_key});
+		} else {
+			print "No >0 allele key $key $alleles_key $total_alleles{$alleles_key}\n";
+		}	
+	} else {
+		print "Doesn't exist allele key $key $alleles_key $total_alleles{$alleles_key}\n";
+	}
 	
 	
 	if ($nd_count > $max_nocall_count) {
 		next;
 	}
 	
-	if ($min_sample_count > $data{$key}{var_count}) {
+	if (exists $data{$key}{var_count} && $min_sample_count > $data{$key}{var_count}) {
 		next;
 	}
 	
