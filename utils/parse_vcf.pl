@@ -134,11 +134,17 @@ for my $var_key (@vcf_order) {
 		$var_count = $vcf_data->{$var_key}{var_count};
 	}	
 
+	my $zyg_count = 0;
+        if (exists $vcf_data->{$var_key} && defined $vcf_data->{$var_key}{zyg_count}) {
+                $zyg_count = $vcf_data->{$var_key}{zyg_count};
+        }
+
+
 	my $vcf_str;
 	if ($OPT{keep_allele_freq}) {
-		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual} . ';AC='.$var_count.';ALLELE='.$vcf_data->{$var_key}{allele};
+		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual} . ';AC='.$var_count.';ZC='.$zyg_count.';ALLELE='..$vcf_data->{$var_key}{allele};
 	} else {
-		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual}. ';AC='.$var_count;
+		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual}. ';AC='.$var_count . ';ZC='.$zyg_count;
 	}
 	
 	if ($OPT{keep_zyg}) {
@@ -282,7 +288,7 @@ sub parse_vcf {
 		}
 
 
-		
+	        my $zyg_num = 1;	
 		for my $var ( @vars ) {
 			next if $var eq '*'; #Due to upstream deletion
 			my ($var_key,$var_type) = _get_variant_key(-type=>'vcf',-chrom=>$chr,-first=>$first_coord,-ref_seq=>$ref,-var_seq=>$var);
@@ -312,7 +318,7 @@ sub parse_vcf {
 			}
 
 	                $vcf_data{$var_key}{var_count} = shift @ac_fields;
-
+			$vcf_data{$var_key}{zyg_count} = $zyg_num;
 			
 			if ($qual eq '.') {
 				$vcf_data{$var_key}{qual} = "N/A";				
@@ -341,6 +347,7 @@ sub parse_vcf {
 				$vcf_data{$var_key}{allele} = $allele_count . '/' . $allele_total . '('. $allele_freq .')';
 			}
 			push @vcf_order, $var_key;
+		$zyg_num++;
 		}
     }
     return \%vcf_data;

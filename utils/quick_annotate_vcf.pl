@@ -323,7 +323,7 @@ while (<PARSED>) {
     	next unless $chr_filter eq $chr;
   	}
 
-	my ($var_type,$var_base_str,$qual,$var_count) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+)/;
+	my ($var_type,$var_base_str,$qual,$allele_count,$zyg_count) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+);ZC=(\d)/;
 	my $var_base = my $ref_base;
 	if ($var_type eq 'SNV') {
 		($ref_base,$var_base) = split('->',$var_base_str); 
@@ -333,15 +333,6 @@ while (<PARSED>) {
 	} 
 	my $key = "$chr:$start:$end:$var_base";
 	
-	my $allele_count = 1;
-	
-	#Search for next allele (i.e. 0/2 not 0/1)
-	if (exists $mult_allele{"$chr:$start:$end"}) {
-		$mult_allele{"$chr:$start:$end"}++;
-		$allele_count = $mult_allele{"$chr:$start:$end"};
-	} else {
-		$mult_allele{"$chr:$start:$end"} = 1;
-	}
 	
 	if ($vartrix_summary) {
 		$vartrix_lookup{"$chr:$start"} = $key;
@@ -350,7 +341,6 @@ while (<PARSED>) {
 	$data{$key}{ref} = $ref_base;
 	$data{$key}{var} = $var_base; 
 	$data{$key}{qual} = $qual;
-	$data{$key}{var_count} = $var_count;
 
 	my $zyg;
 	my $sample;
@@ -375,15 +365,17 @@ while (<PARSED>) {
 			$zyg = 'no_call';
 			$data{$key}{no_data_count}++;
 		} elsif ($allele1 == $allele2) {
-			if ($allele_count == $allele1) {
+			if ($allele1 == $zyg_count) {
 				$zyg = 'hom';
 				$data{$key}{hom_count}++;
+				$data{$key}{var_count}++;
 				push @{$data{$key}{var_samples}},$sample;
 			}
 		} elsif ($allele1 != $allele2) {
-			if ($allele1 == $allele_count || $allele2 == $allele_count) {
+			if ($zyg_count == $allele1 || $zyg_count == $allele2) {
 				$zyg = 'het';
 				$data{$key}{het_count}++;
+				$data{$key}{var_count}++;
 				push @{$data{$key}{var_samples}},$sample;
 			} 
 		}  else {
@@ -393,13 +385,11 @@ while (<PARSED>) {
 		$data{$key}{zyg}{$sample} = $zyg;
 		
 	}
-	
-	$total_alleles{"$chr:$start:$end"} += $var_count;
-	#if (exists $data{$key}{var_count}) {
-	#	$total_alleles{"$chr:$start:$end:$var_type"} += $data{$key}{var_count};
-	#} else {
-	#	$total_alleles{"$chr:$start:$end:$var_type"} = $data{$key}{var_count}
-	#}
+  	my $allele_add = 0;
+	if (exists $data{$key}{var_count}){
+		$allele_add = $data{$key}{var_count};
+	}	
+	$total_alleles{"$chr:$start:$end"} += $allele_count;
 	$line_count++;
 
   if ($line_count % 100000 == 0) {
@@ -978,7 +968,11 @@ for my $key (@keys) {
 		print PRIORITY "\t" if $priority_flag;
 		my @sample_zyg;
 		for my $sample (@samples) {
-			push @sample_zyg, $data{$key}{zyg}{$sample};
+			my $zyg = '?';
+			if (defined $data{$key}{zyg}{$sample}) {
+				$zyg = $data{$key}{zyg}{$sample};
+			}
+			push @sample_zyg, $zyg;
 		}
 		print OUT join("\t",@sample_zyg);
 		print PRIORITY join("\t",@sample_zyg) if $priority_flag;
