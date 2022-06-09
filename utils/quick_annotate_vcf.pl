@@ -652,6 +652,19 @@ for my $fh ( @fhs ) {
 	print $fh "\n\n";
 }
 
+#Create matrix
+if ($mb) {
+	my $mb_out = $out_short . '_tapestri.tsv';
+	open(MB,"$mb_out") || modules::Exception->throw("Can't open file $mb_out\n");
+}
+
+my %map = (
+			"no_call" => 0,
+			"ref" => 1,
+			"hom" => 2,
+			"het" => 3
+				);
+				
 my @keys = sort { my ($a_chr,$a_coord) = $a =~ /([0-9X]+):(\d+)/; my ($b_chr,$b_coord) = $b =~ /([0-9X]+):(\d+)/; $a_chr cmp $b_chr || $a_coord <=> $b_coord } keys(%data);
 
 for my $key (@keys) {
@@ -962,7 +975,11 @@ for my $key (@keys) {
 		}
 	}
 	
-				
+	my @mb_values = ();	
+	if ($mb) {
+		push @mb_values, $key;
+	}
+			
 	if ($zyg) {
 		print OUT "\t";
 		print PRIORITY "\t" if $priority_flag;
@@ -972,8 +989,24 @@ for my $key (@keys) {
 			if (defined $data{$key}{zyg}{$sample}) {
 				$zyg = $data{$key}{zyg}{$sample};
 			}
+			
+			if ($mb) {
+				if (exists $map{$zyg}) {
+					push @mb_values, $map{$zyg};
+				} else {
+					push @mb_values, "no_call";
+				}
+			}
+			
 			push @sample_zyg, $zyg;
 		}
+		
+		if ($mb) {
+			print MB join("\t",
+						@mb_values
+						) ."\n"
+		}
+		
 		print OUT join("\t",@sample_zyg);
 		print PRIORITY join("\t",@sample_zyg) if $priority_flag;
 	}
