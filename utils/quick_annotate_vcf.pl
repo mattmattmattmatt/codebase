@@ -641,22 +641,28 @@ for my $fh ( @fhs ) {
 }
 
 
+#Create matrix
+if ($mb) {
+	my $mb_out = $out_short . '_tapestri.tsv';
+	open(MB,">$mb_out") || modules::Exception->throw("Can't open file $mb_out\n");
+}
 
 if ($zyg) {
 	for my $fh ( @fhs ) {
 		print $fh "\t";
 		print $fh join("\t",@samples);
+		if ($mb) {
+			print MB join("\t",
+						"ID",
+						@samples
+						) ."\n";
+		}
 	}
 } 
 for my $fh ( @fhs ) {
 	print $fh "\n\n";
 }
 
-#Create matrix
-if ($mb) {
-	my $mb_out = $out_short . '_tapestri.tsv';
-	open(MB,"$mb_out") || modules::Exception->throw("Can't open file $mb_out\n");
-}
 
 my %map = (
 			"no_call" => 0,
