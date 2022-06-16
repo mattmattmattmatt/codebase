@@ -31,11 +31,12 @@ GetOptions(\%OPT,
 	   "max_nocall_count=i",
 	   "min_sample_count=i",
        "chr=s",
-       "vartrix_summary=s",
        "sc_min_var=i",
        "sc_min_total=i",
        "sc_min_portion=s",
-       "missionbio"
+       "vartrix_input=s",
+       "mb_matrix",
+       "mb_cluster"
    );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -45,7 +46,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{vcf_in});
 
 =head1 SYNOPSIS
 
-quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vatrix_summary vartrix_file(from_vartrix_count.pl) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant
+quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant
 
 Required flags: -vcf_in 
 
@@ -70,6 +71,37 @@ a script that ...
 Matthew Field
 
 =head1 EXAMPLE
+
+#All variants 
+./quick_annotate_vcf.pl -outdir results/ -outfile patient2_WGS_all_variants  -vcf joint_calls.vcf 
+
+#Variants in 50 samples (or cells)
+./quick_annotate_vcf.pl -outdir results/ -outfile patient2_WGS_min50samples  -vcf joint_calls.vcf -min_sample_count 50
+
+#Rerun with new filters on existing dir
+./quick_annotate_vcf.pl -skip_vep -no_run -outdir results/ -outfile patient2_WGS_min10samples  -vcf joint_calls.vcf -min_sample_count 10
+
+#Find somatic variants (in sample_list only)
+./quick_annotate_vcf.pl -outdir results/ -outfile celiac4_somatic_2samples -vcf joint_call_chr.vcf -sample_file celiac4_samples_rogue -somatic -min_sample_count 2
+
+#In sample_list but not in controls
+./quick_annotate_vcf.pl -outdir results_all/ -outfile patient2_WGS_nodonor  -vcf joint_calls.vcf -control_file sample_control -sample_file sample_noncontrols 
+
+#Max no_data and min sample count cutoffs applied
+./quick_annotate_vcf.pl -outdir results_all/ -outfile patient2_WGS_1nodata_2orMoreSamples  -vcf joint_calls.vcf -control_file sample_control -sample_file sample_noncontrols -max_nocall_count 1 -min_sample_count 2
+
+#MB generate matrix
+./quick_annotate_vcf.pl -outdir results_1912/  -outfile 1912_all -vcf 1912.cells.hg38.vcf -mb_matrix
+
+#MB cluster stats
+./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_rogue -skip_vep -no_run -mb_matrix -mb_cluster -sample_file Rogue_barcodes.txt
+
+#Vartrix
+/drive2/codebase/utils/quick_annotate_vcf.pl -skip_vep -no_run -vcf_in CarT_nochr.vcf -outdir gatk_results/ -outfile CarT_vartrix -vartrix_input vartrix/snv_matrix.tsv
+
+#Vartrix with sc cutoffs applied
+./quick_annotate_vcf.pl -outdir results/ -outfile patient2_Product_10X_v3t10p20 -vcf Product_10X_chr.vcf -vartrix_input  vartrix/snv_matrix.tsv -sc_min_portion 0.2 -sc_min_var 3 -sc_min_total 10
+
 
 =cut
 
@@ -100,11 +132,13 @@ if ( !-e $vcf ) {
 	modules::Exception->throw("File $vcf doesn't exist");	
 }
 
-#Vartrix flag
-my $vartrix_summary = defined $OPT{vartrix_summary}?$OPT{vartrix_summary}:0;
 
-#MissionBio flag
-my $mb = defined $OPT{missionbio}?1:0;
+
+#MissionBio flag for creating matrix
+my $mb = defined $OPT{mb_matrix}?1:0;
+
+#MissionBio flag for reporting single cluster
+my $cluster = defined $OPT{mb_cluster}?1:0;
 
 my ($vcf_short) = basename($vcf);
 (my $vcf_out = $vcf_short) =~ s/.vcf/.txt/;
@@ -117,6 +151,70 @@ $outdir = abs_path($outdir);
 
 if (!-d $outdir) {
         modules::Exception->throw("Dir $outdir doesn't exist");
+}
+
+my %map = (
+				"0" => "No Call",
+				"1" => "Ref",
+				"2" => "Hom",
+				"3" => "Het"
+				);
+
+#Vartrix input file
+my $vartrix_input = defined $OPT{vartrix_input}?$OPT{vartrix_input}:0;
+my $vartrix_summary = $outdir."/vartrix_summary.txt";
+if ($vartrix_input) {
+	
+	if ( !-e $vartrix_input ) {
+		modules::Exception->throw("File $vartrix_input doesn't exist");
+	}
+	
+	#Create the vartrix summary file we're expecting later if it doesn't exist
+	if (!-e $vartrix_summary) {
+		
+	
+		open(MATRIX,$vartrix_input) || modules::Exception->throw("Can't open file $vartrix_input\n");
+		open(VAROUT,">$vartrix_summary") || modules::Exception->throw("Can't open file to write $vartrix_summary\n");
+		
+	
+		print VAROUT join("\t",
+							"Coord",
+							"No data",
+							"Ref",
+							"Hom",
+							"Het",
+							"% Calls",
+							"% Variant"
+							) ."\n\n";
+	
+		while (<MATRIX>) {
+			next unless /chr/;
+			chomp;
+			my @fields = split("\t");
+			my $coord = shift @fields;
+			$coord =~ s/"//g;
+			my %line_count = ();
+			for my $call (@fields) {
+				$line_count{$map{$call}}++;
+			}
+			
+			my $nd = defined $line_count{'No Call'}?$line_count{'No Call'}:0;
+			my $ref = defined $line_count{'Ref'}?$line_count{'Ref'}:0;
+			my $hom = defined $line_count{'Hom'}?$line_count{'Hom'}:0;
+			my $het = defined $line_count{'Het'}?$line_count{'Het'}:0;
+			my $var_sum = $het+$hom;
+			my $called_sum = $var_sum + $ref;
+			
+			
+			my $pc_total = sprintf("%.2f",$var_sum/4958 *100);
+			my $pc_called = $called_sum>0?sprintf("%.2f",$var_sum/$called_sum *100):0.00;
+			
+			print VAROUT join("\t", "$coord", $nd, $ref, $hom, $het, $pc_called, $pc_total) . "\n";
+			#print Dumper \%line_count;
+		}
+		close VAROUT;
+	}
+	print "Parsed vartrix....\n";
 }
 
 #Either pass sample file with -somatic flag (everything else treated as control) or pass in control AND sample file for more complex subsetting
@@ -132,6 +230,11 @@ if ($OPT{somatic} && !$OPT{sample_file}) {
 if ($OPT{control_file} && !$OPT{sample_file}) {
 	modules::Exception->throw("ERROR: Can't use control option without sample_file\n");
 }
+
+if ($OPT{mb_cluster} && !$OPT{sample_file}) {
+	modules::Exception->throw("ERROR: Can't use mb_clsuter option without sample_file\n");
+}
+
 
 
 my $parse_vcf = "$svndir/utils/parse_vcf.pl";
@@ -301,6 +404,12 @@ my $max_nocall_count = defined $OPT{max_nocall_count}?$OPT{max_nocall_count}:$sa
 my $min_sample_count = defined $OPT{min_sample_count}?$OPT{min_sample_count}:1;
 
 
+#Single cell specific filters to check; set to -1 to account for 0 cases (use for MissionBio and 10X)
+my $sc_min_var = defined $OPT{sc_min_var}?$OPT{sc_min_var}:-1;
+my $sc_min_total = defined $OPT{sc_min_total}?$OPT{sc_min_total}:-1;      
+my $sc_min_portion = defined $OPT{sc_min_portion}?$OPT{sc_min_portion}:-1;
+
+
 my %data = ();
 
 open(PARSED,"$outdir/$vcf_out") || modules::Exception->throw("Can't open file\n");
@@ -334,7 +443,7 @@ while (<PARSED>) {
 	my $key = "$chr:$start:$end:$var_base";
 	
 	
-	if ($vartrix_summary) {
+	if ($vartrix_input) {
 		$vartrix_lookup{"$chr:$start"} = $key;
 	}
 	$data{$key}{var_type} = $var_type;
@@ -454,7 +563,10 @@ while (<VEPEXON>) {
     $data{$key}{poly_score} = $poly_score;
 	$data{$key}{sift_cat} = $fields[10];
     $data{$key}{sift_score} = $sift_score;
-    $data{$key}{cadd_phred} = $fields[12];
+	#Handle old veps w/o CADD
+    if ($fields[12] && $fields[12] =~ /\d/) {
+	    $data{$key}{cadd_phred} = $fields[12];
+    }
 }
 
 print "Parsed VEP...\n";
@@ -530,11 +642,8 @@ close GNOMAD;
 
 print "Parsed GNOMAD...\n";
 
-if ($vartrix_summary) {
+if ($vartrix_input) {
 	open(VARTRIX,"$vartrix_summary") || modules::Exception->throw("Can't open file $vartrix_summary\n");
-	my $sc_min_var = defined $OPT{sc_min_var}?$OPT{sc_min_var}:0;
- 	my $sc_min_total = defined $OPT{sc_min_total}?$OPT{sc_min_total}:0;      
-   	my $sc_min_portion = defined $OPT{sc_min_portion}?$OPT{sc_min_portion}:0;
 
 	while (<VARTRIX>) {
 		chomp;
@@ -556,7 +665,6 @@ if ($vartrix_summary) {
 		    $data{$key}{sc_variants} = $fields[3] + $fields[4] . ' ( '. $fields[5] .'% )';
 	    }
 	}
-	print "Parsed VARTRIX...\n";
 }
 
 
@@ -586,14 +694,15 @@ for my $fh ( @fhs ) {
 					'average_qual_per_sample',
 					'variant_count (het/hom)',
 					'ref_count',
-					'no_data_count') ."\t";
+					'no_data_count'
+					) ."\t";
     
 }
 
 
 
 
-if ($vartrix_summary) {
+if ($vartrix_input) {
 	#Extra colums reported
 	for my $fh ( @fhs ) {
 		print $fh join("\t",
@@ -603,6 +712,18 @@ if ($vartrix_summary) {
 						) ."\t";
 	}
 } 
+
+if ($mb) {
+	for my $fh ( @fhs ) {
+		print $fh join("\t",
+						'cluster_variant_count',
+						'cluster_variant_freq',
+						'nocluster_variant_count',
+						'nocluster_variant_freq',
+						'cluster_nocluster_freq_diff'
+						) ."\t";
+	}
+}
 
 for my $fh ( @fhs ) {	
 	print $fh join("\t",			
@@ -641,36 +762,41 @@ for my $fh ( @fhs ) {
 }
 
 
-#Create matrix
+#Create matrix; count cluster members / non-members
+my $cluster_count = my $noncluster_count = 0;
+
 if ($mb) {
 	my $mb_out = $out_short . '_tapestri.tsv';
 	open(MB,">$mb_out") || modules::Exception->throw("Can't open file $mb_out\n");
+	for my $sample (@samples) {
+		if (exists $samples{$sample}) {
+			$cluster_count++;
+		} else {
+			$noncluster_count++;
+		}
+	}
 }
+
+
 
 if ($zyg) {
 	for my $fh ( @fhs ) {
 		print $fh "\t";
 		print $fh join("\t",@samples);
-		if ($mb) {
-			print MB join("\t",
-						"ID",
-						@samples
-						) ."\n";
-		}
+	}
+	
+	if ($mb) {
+		print MB join("\t",
+					"ID",
+					@samples
+					) ."\n";
 	}
 } 
+
 for my $fh ( @fhs ) {
 	print $fh "\n\n";
 }
 
-
-my %map = (
-			"no_call" => 0,
-			"ref" => 1,
-			"hom" => 2,
-			"het" => 3
-				);
-				
 my @keys = sort { my ($a_chr,$a_coord) = $a =~ /([0-9X]+):(\d+)/; my ($b_chr,$b_coord) = $b =~ /([0-9X]+):(\d+)/; $a_chr cmp $b_chr || $a_coord <=> $b_coord } keys(%data);
 
 for my $key (@keys) {
@@ -704,8 +830,6 @@ for my $key (@keys) {
 	my $het_count = exists $data{$key}{het_count}?$data{$key}{het_count}:0;
 	my $hom_count = exists $data{$key}{hom_count}?$data{$key}{hom_count}:0;
 	my $ref_count = exists $data{$key}{ref_count}?$data{$key}{ref_count}:0;
-	my $rogue_count = exists $data{$key}{rogue_count}?$data{$key}{rogue_count}:0;
-	my $control_count = exists $data{$key}{control_count}?$data{$key}{control_count}:0;
 	my $nd_count = exists $data{$key}{no_data_count}?$data{$key}{no_data_count}:0;
 	my $var_count = 0;
 	if (exists $data{$key}{var_count}) {
@@ -817,16 +941,113 @@ for my $key (@keys) {
 		$sift_score = 'N/A';
 	}
 	
+	#Here we divide variants into cluster and non-cluster
+	if ($mb) {
+		
+		
+		
+		#New MB variables needed;  set defaults to account to few complex overlapping cases...	
+		my $cluster_freq = 'N/A';
+		my $noncluster_freq = 'N/A';
+		my $cluster_var_str = 'N/A';
+		my $noncluster_var_str = 'N/A';
+		my $diff = 'N/A';
+		
+		if (exists $data{$key}{var_samples}) {
+			my $cluster_var_count = my $noncluster_var_count = 0;
+			for my $variant_sample	(@{$data{$key}{var_samples}}) {
+				if (exists $samples{$variant_sample}) {
+					$cluster_var_count++;
+				} else {
+					$noncluster_var_count++;
+				}
+			}
+			$cluster_var_str = $cluster_var_count .' / '.$cluster_count;
+			$noncluster_var_str = $noncluster_var_count .' / '.$noncluster_count;
+			$cluster_freq = sprintf("%.3f",$cluster_var_count/$cluster_count);
+			$noncluster_freq = sprintf("%.3f",$noncluster_var_count/$noncluster_count);
+			$diff = $cluster_freq - $noncluster_freq;
+		} 
+			
+		
+		 print OUT join("\t",
+						$chr,
+						$start,
+						$end,
+						$data{$key}{qual},
+						$average_score,
+						$var_str,
+						$ref_count,
+						$nd_count,
+						$cluster_var_str,
+						$cluster_freq,
+						$noncluster_var_str,
+						$noncluster_freq,
+						$diff,
+						$var_samples,
+						$data{$key}{var_type},
+						$data{$key}{ref},
+						$var_base,
+						$ens_gene,
+						$ens_trans,
+						$rs,
+						$gmaf,
+						$gnomad,
+						$aa_change,
+						$poly_cat,
+						$poly_score,
+						$sift_cat,
+						$sift_score,
+						$cadd_phred,
+						$domain,
+						$pubmed,
+						$clin,
+						@anno
+				);
+				
+			if ($priority_flag) {
+				print PRIORITY join("\t",
+									$chr,
+									$start,
+									$end,
+									$data{$key}{qual},
+									$average_score,
+									$var_str,
+									$ref_count,
+									$nd_count,
+									$cluster_var_str,
+									$cluster_freq,
+									$noncluster_var_str,
+									$noncluster_freq,
+									$diff,
+									$var_samples,
+									$data{$key}{var_type},
+									$data{$key}{ref},
+									$var_base,
+									$ens_gene,
+									$ens_trans,
+									$rs,
+									$gmaf,
+									$gnomad,
+									$aa_change,
+									$poly_cat,
+									$poly_score,
+									$sift_cat,
+									$sift_score,
+									$cadd_phred,
+									$domain,
+									$pubmed,
+									$clin,
+									@anno
+									);
+			}
+	}
+	
+	#Here we add additional vartrix singlecell counts and optionally filter
 	if ($vartrix_summary) {
 		my $sc_nd = defined $data{$key}{sc_nd}?$data{$key}{sc_nd}:"N/A";
 		my $sc_ref = defined $data{$key}{sc_ref}?$data{$key}{sc_ref}:"N/A";
 		my $sc_var = defined $data{$key}{sc_variants}?$data{$key}{sc_variants}:"N/A";
-		
-		#Vartrix specific filters to check; set to -1 to account for 0 cases
-		my $sc_min_var = defined $OPT{sc_min_var}?$OPT{sc_min_var}:-1;
- 		my $sc_min_total = defined $OPT{sc_min_total}?$OPT{sc_min_total}:-1;      
-   		my $sc_min_portion = defined $OPT{sc_min_portion}?$OPT{sc_min_portion}:-1;
-		
 		
 		#Skip filters for unreported SC variants 
 		if ($sc_nd ne 'N/A') {
