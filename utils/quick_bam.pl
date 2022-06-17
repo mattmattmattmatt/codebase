@@ -109,12 +109,10 @@ print "QSUB $qsub BAM $bam_name\n";
 
 print QSUB <<EOF;
 #!/bin/bash
-#PBS -P u86
-#PBS -q normal
-#PBS -l walltime=48:00:00,mem=32GB,jobfs=200Gb,ncpus=16
-#PBS -l other=gdata2
-#PBS -W umask=0007
-#PBS -W group_list=u86
+#PBS -P pq84
+#PBS -q normalbw
+#PBS -l walltime=48:00:00,mem=64GB,jobfs=200Gb,ncpus=24
+#PBS -l storage=gdata/u86+scratch/u86+gdata/xx92+gdata/pw1+gdata/pq84
 module load samtools
 EOF
 
