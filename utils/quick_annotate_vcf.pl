@@ -36,7 +36,8 @@ GetOptions(\%OPT,
        "sc_min_portion=s",
        "vartrix_input=s",
        "mb_matrix",
-       "mb_cluster"
+       "mb_cluster",
+       "sort_column=s"
    );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -46,7 +47,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{vcf_in});
 
 =head1 SYNOPSIS
 
-quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant
+quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant -sort_column columnname_to_sort_by
 
 Required flags: -vcf_in 
 
@@ -160,8 +161,16 @@ my %map = (
 				"3" => "Het"
 				);
 
+
+
 #Vartrix input file
 my $vartrix_input = defined $OPT{vartrix_input}?$OPT{vartrix_input}:0;
+
+
+
+
+
+
 my $vartrix_summary = $outdir."/vartrix_summary.txt";
 if ($vartrix_input) {
 	
@@ -320,6 +329,103 @@ while (<ANNO>) {
 
 my @no_anno_line = ();
 push @no_anno_line, 'NO_ANNO' for (1..$anno_count); 
+
+
+
+
+#headers
+my @common_headers = (
+						'chr',
+						'start',
+						'end',
+						'total_sample_quals',
+						'average_qual_per_sample',
+						'variant_count (het/hom)',
+						'ref_count',
+						'no_data_count'
+						);
+
+
+my @vartrix_headers = (
+						'singlecell_nodata',
+						'singlecell_ref',
+						'singlecell_variants (singlecell_variant_%)'
+						);
+
+
+my @missionbio_headers = (
+						'cluster_variant_count',
+						'cluster_variant_freq',
+						'nocluster_variant_count',
+						'nocluster_variant_freq',
+						'cluster_nocluster_freq_diff'
+						);
+
+my @common_headers2 = (			
+						'variant_samples',
+						'var_type',
+						'ref_base',
+						'var_base',
+						'ens_gene',
+						'ens_trans',
+						'dbsnp',
+						'gmaf',
+						'gnomad',
+						'aa_change',
+						'poly_cat',
+						'poly_score',
+						'sift_cat',
+						'sift_score',
+						'cadd_phred',
+						'domain',
+						'pubmed',
+						'clinical',
+						'ensembl_link',
+						'ensembl_canonical_transcript',
+						'gene_name',
+						'cosmic',
+						'vogelstein_gene',
+						'uniprot',
+						'ccds',
+						'refseq',
+						'gene_desc',
+						'omim',
+						'go_term'
+						);
+
+
+my @all_headers = ();
+
+if ($vartrix_input) {
+	@all_headers = (@common_headers, @vartrix_headers, @common_headers2, @anno_headers); 
+} elsif ($mb) {
+	@all_headers = (@common_headers, @missionbio_headers, @common_headers2); 
+} else {
+	@all_headers = (@common_headers,@common_headers2); 
+}
+
+print Dumper \@all_headers;
+
+
+#Get the index for the cut / sort command later
+my $sort_column = defined $OPT{sort_column}?$OPT{sort_column}:0;
+my $col_index = 0;
+
+if ($sort_column) {
+	my $sortcol = $OPT{sort_column};
+	for ( my $colcount = 0 ; $colcount < @all_headers ; $colcount++ ) {
+	    if ($all_headers[$colcount] eq $sortcol) {
+	    	$col_index = $colcount;
+	    }
+	}
+	
+	if ( $col_index == 0 ) {
+		modules::Exception->throw("ERROR: Couldn't find sort_column $sort_column\n");
+	}	
+}
+
+
+
 
 #Gene coord file is used for overlap variants -> vep isn't enough as not run on indels
 
@@ -679,6 +785,8 @@ if ($out !~ /tsv$/) {
 (my $out_short = $out) =~ s/.tsv//;
 my $out_priority = $out_short . '_rare_missense_nonsense.tsv';
 
+
+
 open(OUT,">$out") || modules::Exception->throw("Can't open file to write\n");
 open(PRIORITY,">$out_priority") || modules::Exception->throw("Can't open file to write $out_priority\n");
 
@@ -686,79 +794,7 @@ my @fhs = (*OUT,*PRIORITY);
 
 
 for my $fh ( @fhs ) {
-	print $fh join("\t",
-					'chr',
-					'start',
-					'end',
-					'total_sample_quals',
-					'average_qual_per_sample',
-					'variant_count (het/hom)',
-					'ref_count',
-					'no_data_count'
-					) ."\t";
-    
-}
-
-
-
-
-if ($vartrix_input) {
-	#Extra colums reported
-	for my $fh ( @fhs ) {
-		print $fh join("\t",
-						'singlecell_nodata',
-						'singlecell_ref',
-						'singlecell_variants (singlecell_variant_%)'
-						) ."\t";
-	}
-} 
-
-if ($mb) {
-	for my $fh ( @fhs ) {
-		print $fh join("\t",
-						'cluster_variant_count',
-						'cluster_variant_freq',
-						'nocluster_variant_count',
-						'nocluster_variant_freq',
-						'cluster_nocluster_freq_diff'
-						) ."\t";
-	}
-}
-
-for my $fh ( @fhs ) {	
-	print $fh join("\t",			
-					'variant_samples',
-					'var_type',
-					'ref_base',
-					'var_base',
-					'ens_gene',
-					'ens_trans',
-					'dbsnp',
-					'gmaf',
-					'gnomad',
-					'aa_change',
-					'poly_cat',
-					'poly_score',
-					'sift_cat',
-					'sift_score',
-					'cadd_phred',
-					'domain',
-					'pubmed',
-					'clinical',
-					'ensembl_link',
-					'ensembl_canonical_transcript',
-					'gene_name',
-					'cosmic',
-					'vogelstein_gene',
-					'uniprot',
-					'ccds',
-					'refseq',
-					'gene_desc',
-					'omim',
-					'go_term',
-					'mammalian_phenotype',
-					@anno_headers
-					);
+	print $fh join("\t",@all_headers) ."\t";
 }
 
 
@@ -835,7 +871,7 @@ for my $key (@keys) {
 	if (exists $data{$key}{var_count}) {
 		$var_count =  $data{$key}{var_count};
 	}
-	my $var_str = $var_count . ' ('.$het_count . '/'. $hom_count .')';
+	my $var_str = $var_count . '('.$het_count . '/'. $hom_count .')';
 	my $average_score = 'COMPLEX EVENT';
 
 	my $alleles_key = "$chr:$start:$end";
@@ -864,21 +900,16 @@ for my $key (@keys) {
 	
 	if ($aa_change eq 'NO_AA_CHANGE') {
 		$priority_flag = 0;
-	}
-	
-	if ($gmaf =~ /\d/) {
+	} elsif ($gmaf =~ /\d/) {
 		if ($gmaf > $rare_cutoff) {
 			$priority_flag = 0;
 		}
-	}
-	
-	if ($gnomad =~ /\d/) {
+	} elsif ($gnomad =~ /\d/) {
 		my @fields = split(':',$gnomad);
 		if ($fields[1] > $rare_cutoff) {
 			$priority_flag = 0;
-		}
-	}
-	
+		} 
+	} 
 	
 	
 	
@@ -1041,10 +1072,7 @@ for my $key (@keys) {
 									@anno
 									);
 			}
-	}
-	
-	#Here we add additional vartrix singlecell counts and optionally filter
-	if ($vartrix_summary) {
+	} elsif ($vartrix_input) {
 		my $sc_nd = defined $data{$key}{sc_nd}?$data{$key}{sc_nd}:"N/A";
 		my $sc_ref = defined $data{$key}{sc_ref}?$data{$key}{sc_ref}:"N/A";
 		my $sc_var = defined $data{$key}{sc_variants}?$data{$key}{sc_variants}:"N/A";
@@ -1140,6 +1168,7 @@ for my $key (@keys) {
 									);
 			}
 	} else {
+		
 		print OUT join("\t",
 						$chr,
 						$start,
@@ -1240,6 +1269,26 @@ for my $key (@keys) {
 	
 	print OUT "\n";			
 	print PRIORITY "\n" if $priority_flag;			
+}
+
+
+#Lastly make sorted files
+if ($sort_column) {
+	my $out_priority_sorted = $out_short . '_rare_missense_nonsense_sorted.tsv';
+	my $out_sorted = $out_short . '_sorted.tsv';
+	my $header = $out_short . '_tmp1.tsv';
+	my $col_index_end = $col_index + 1;
+	
+	my $command1 = "head -2 $out > $header; cat $out | grep -v ^chr | sort +${col_index}nr -${col_index_end}nr > ${out_short}_tmp2.tsv; rm -f $out_sorted; cat $header ${out_short}_tmp2.tsv >> $out_sorted";
+	
+	print "$command1\n";
+	`$command1`;
+
+	my $command2 = "cat $out_priority | grep -v ^chr | sort  +${col_index}nr -${col_index_end}nr > ${out_short}_tmp2.tsv; rm -f $out_priority_sorted; cat $header ${out_short}_tmp2.tsv >> $out_priority_sorted; rm -f $header; rm -f ${out_short}_tmp2.tsv";
+	
+	print "$command2\n";
+	`$command2`;
+	
 }
 
 
