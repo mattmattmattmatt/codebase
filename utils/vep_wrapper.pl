@@ -31,7 +31,7 @@ pod2usage(1) if ($OPT{help} || (!$OPT{coord_str} || !$OPT{var_base}) && !$OPT{ve
 
 =head1 SYNOPSIS
 
-./vep_wrapper.pl -coord_str chr:coord -var_base variant_base -vep_bin pass_in_vep_bin -ref_base ref_base(default=use_API) -strand strand(default=+) -all run_on_all -vep_in pass_in_batch_fiel
+./vep_wrapper.pl -coord_str chr:coord -var_base variant_base -vep_bin pass_in_vep_bin -ref_base ref_base(default=use_API) -strand strand(default=+) -all run_on_all -indel run_for_indels(default=SNVs) -vep_in pass_in_batch_fiel
 
 Required flags: (-coord_str && -var_base) || -vep_in
 
@@ -71,7 +71,7 @@ if (defined $OPT{vep_bin}) {
 } else {
 	$vep_executable = $pipe_conf->read($source_type,'binaries','variant_predictor','binary');
 }
-print "VEP $vep_executable\n";
+#print "VEP $vep_executable\n";
 my $vep_db_dir = $clus_conf->read($source_type,'svn','conf_dir') . '/vep_index';
 
 my $organism = $pipe_conf->read($source_type,'organism');
@@ -210,7 +210,7 @@ foreach my $result (@$results){
 				$cadd_phred
 					) ."\n";
 	    
-	} else {
+	}  else {
 		my ($snv_chr,
 		    $snv_start,
 		    $snv_end,
@@ -224,7 +224,9 @@ foreach my $result (@$results){
 		 	$clinical, 
 		 	$exon_str,
 		 	$snv_gene,
-		 	$snv_trans) = @$result;
+		 	$snv_trans,
+		 	$consequence,
+		 	$cadd_phred) = @$result;
 		 my $ref_base = $ref_base_map{"$snv_chr:$snv_start-$snv_end"};
 		 print join("\t",
 					$snv_chr,
@@ -239,7 +241,9 @@ foreach my $result (@$results){
 		 			$clinical, 
 		 			$exon_str,
 		 			$snv_gene,
-		 			$snv_trans
+		 			$snv_trans,
+					$consequence,
+					$cadd_phred
 					) ."\n";
 	}
 	

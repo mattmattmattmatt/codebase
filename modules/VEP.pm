@@ -178,9 +178,9 @@ sub parse_result {
 		}
 		
 		my $var_type;
-		if ($identifier =~ /_\-/) {
+		if ($identifier =~ /\/[ACTG]([ACTG]+)/) {
 			$var_type = 'INS';	
-			$var_base = '+' . $var_base;
+			$var_base = '+' . $1;
 		}  elsif ($identifier =~ /\-$/) {
 			$var_type = 'DEL';
 			($var_base) = $identifier =~ /_(\D+)\/\-$/;
@@ -196,7 +196,7 @@ sub parse_result {
 			$chr = $1;
 			$start = $2;
 			$end = $3;
-			if ($identifier =~ /_\-/) {
+			if ($identifier =~ /\/[ACTG][ACTG]/) {
 				#insertions need to change insert start coord
 				$start++;
 			}
@@ -259,7 +259,7 @@ sub parse_result {
 	    	my $pubmed = "N/A";
 	    	my $clinical = "N/A"; #possibly human only
 	    	my $exon_str = "N/A";
-	    	
+	    	my $cadd_phred = "N/A";
 	    	my $canonical = $attribute_str =~ /CANONICAL/ ? 1:0;
 
 			my @attribute_pairs = split /;/, $attribute_str;
@@ -287,15 +287,17 @@ sub parse_result {
 			    	($exon_str) = $attribute_pair =~ /(INTRON=\d+\/\d+)/;
 			    	$exon_str =~ s/=/->/;
 			    	$intron = 1;
+			    } elsif ($attribute_pair =~ /CADD_PHRED=([^\;]+)/) {
+			    	$cadd_phred = $1;
 			    } 
 			}
 			
 			if ($intron) {
-		    	$grouping_data{$chr}{$start}{$end}{intron} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript];
+		    	$grouping_data{$chr}{$start}{$end}{intron} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript,$aa_type,$cadd_phred];
 			} elsif ($exon) {
-				$grouping_data{$chr}{$start}{$end}{exon} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript];				
+				$grouping_data{$chr}{$start}{$end}{exon} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript,$aa_type,$cadd_phred];				
 			} else {
-				$grouping_data{$chr}{$start}{$end}{neither} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript];
+				$grouping_data{$chr}{$start}{$end}{neither} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript,$aa_type,$cadd_phred];
 			}
 	    	
 	    }

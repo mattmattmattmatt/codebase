@@ -147,6 +147,11 @@ for my $var_key (@vcf_order) {
 		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual}. ';AC='.$var_count . ';ZC='.$zyg_count;
 	}
 	
+	if ($vcf_data->{$var_key}{type} eq 'INS') {
+		$vcf_str .= ";REF=".$vcf_data->{$var_key}{ref_base};
+	}
+	
+	
 	if ($OPT{keep_zyg}) {
 		my $zyg_str = join("\t",@{$vcf_data->{$var_key}{zyg}});
 		print FILE join("\t", 
@@ -194,7 +199,7 @@ sub parse_vcf {
     	my $line = $_;
    		my @fields = split;
         my @gt_fields = split(':',$gt_fields);
-	my @details = split(';',$rest);	
+		my @details = split(';',$rest);	
 
     	if (/CHROM/ && $sample_name) {
     		#Get the sample_index
@@ -238,8 +243,8 @@ sub parse_vcf {
 	    	my $var_index = 0;
 			my ($zyg_str) = split(':',$fields[$sample_index]);
     		next if $zyg_str eq '0/0';
-		next if $zyg_str eq '0|0';
-		next if $zyg_str eq '.|.';
+			next if $zyg_str eq '0|0';
+			next if $zyg_str eq '.|.';
     		next if $zyg_str eq './.';
     		my @nums = split('/',$zyg_str);
     		#Get the index from the gt string (eg 0/1 or 0/2 etc)
@@ -287,11 +292,10 @@ sub parse_vcf {
 			}
 		}
 
-
-	        my $zyg_num = 1;	
+		my $zyg_num = 1;	
 		for my $var ( @vars ) {
 			next if $var eq '*'; #Due to upstream deletion
-			my ($var_key,$var_type) = _get_variant_key(-type=>'vcf',-chrom=>$chr,-first=>$first_coord,-ref_seq=>$ref,-var_seq=>$var);
+			my ($var_key,$var_type,$ref_base) = _get_variant_key(-type=>'vcf',-chrom=>$chr,-first=>$first_coord,-ref_seq=>$ref,-var_seq=>$var);
 
 			my ($start,$end) = $var_key =~ /(\d+)-(\d+)/;
 
@@ -317,7 +321,7 @@ sub parse_vcf {
 				
 			}
 
-	                $vcf_data{$var_key}{var_count} = shift @ac_fields;
+			$vcf_data{$var_key}{var_count} = shift @ac_fields;
 			$vcf_data{$var_key}{zyg_count} = $zyg_num;
 			
 			if ($qual eq '.') {
@@ -326,6 +330,8 @@ sub parse_vcf {
 				$vcf_data{$var_key}{qual} = $qual;
 			}
 			$vcf_data{$var_key}{type} = $var_type;
+			$vcf_data{$var_key}{ref_base} = $ref_base;
+			
 			
 			if ($OPT{keep_zyg}) {
 				if ($sample_name) {
@@ -347,7 +353,7 @@ sub parse_vcf {
 				$vcf_data{$var_key}{allele} = $allele_count . '/' . $allele_total . '('. $allele_freq .')';
 			}
 			push @vcf_order, $var_key;
-		$zyg_num++;
+			$zyg_num++;
 		}
     }
     return \%vcf_data;
@@ -385,6 +391,7 @@ sub _get_variant_key {
     my $length_ref = length($ref);
     my $length_var = length($var);
     my $var_type;
+    my $ref_base = "N/A";
     
     if ($type eq 'vcf') {
 		if ($length_ref > $length_var) {
@@ -402,6 +409,7 @@ sub _get_variant_key {
 			$start_coord = $end_coord = $first_coord;
 			my $ins_length = $length_var - $length_ref;
 			$bases = '+'.substr($var,1,$ins_length);
+			$ref_base = substr($var,0,1);
 		} elsif ($length_ref == $length_var && $length_ref != 1) {
 			#Handling for cases like AT->AC ot ATATA->CTATA; turn first different base into an SNV
 			$var_type = 'SNV';
@@ -462,6 +470,6 @@ sub _get_variant_key {
     }
     
 	my $var_key = $chr . ':'.$start_coord .'-'.$end_coord .':' .$bases;
-	return($var_key,$var_type);
+	return($var_key,$var_type,$ref_base);
 	
 }
