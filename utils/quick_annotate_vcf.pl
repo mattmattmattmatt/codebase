@@ -38,7 +38,8 @@ GetOptions(\%OPT,
        "mb_matrix",
        "mb_cluster",
        "sort_column=s",
-       "priority_genes=s"
+       "priority_genes=s",
+       "group_file=s"
    );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -48,7 +49,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{vcf_in});
 
 =head1 SYNOPSIS
 
-quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant -sort_column columnname_to_sort_by -priority_genes genelist_to_flag
+quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant -sort_column columnname_to_sort_by -priority_genes genelist_to_flag -group_file report_variants_by_groups(filters_applied_at_top_level)
 
 Required flags: -vcf_in 
 
@@ -144,9 +145,6 @@ if ( !-e $vcf ) {
 #MissionBio flag for creating matrix
 my $mb = defined $OPT{mb_matrix}?1:0;
 
-#MissionBio flag for reporting single cluster
-my $cluster = defined $OPT{mb_cluster}?1:0;
-
 my ($vcf_short) = basename($vcf);
 (my $vcf_out = $vcf_short) =~ s/.vcf/.txt/;
 
@@ -175,13 +173,8 @@ my %map = (
 
 #Vartrix input file
 my $vartrix_input = defined $OPT{vartrix_input}?$OPT{vartrix_input}:0;
-
-
-
-
-
-
 my $vartrix_summary = $outdir."/vartrix_summary.txt";
+
 if ($vartrix_input) {
 	
 	if ( !-e $vartrix_input ) {
@@ -254,6 +247,13 @@ if ($OPT{mb_cluster} && !$OPT{sample_file}) {
 	modules::Exception->throw("ERROR: Can't use mb_clsuter option without sample_file\n");
 }
 
+if ($OPT{group_file} && $OPT{somatic}) {
+	modules::Exception->throw("Group_file can't be run with somatic\n");
+}
+
+if ($OPT{group_file} && $mb) {
+	modules::Exception->throw("Group_file can't be run with mb; mb is for single clsuter\n");
+}
 
 my $parse_vcf = "$svndir/utils/parse_vcf.pl";
 my $overlap_bin = "$svndir/utils/overlap_files.pl";
@@ -282,7 +282,6 @@ while (<PRIOR>) {
 	my ($gene) = $_ =~ /(\S+)/;
 	$priority_genes{$gene} = 1;
 }
-
 
 
 
@@ -332,6 +331,20 @@ if ($OPT{control_file}) {
 	}
 }
 
+#Variant groups
+my $group = defined $OPT{group_file}?1:0;
+my %groups = ();
+my %group_counts = ();
+
+if ($group) {
+	open(GROUP,"$OPT{group_file}") || modules::Exception->throw("Can't open file $OPT{group_file}\n");
+	while (<GROUP>) {
+		chomp;
+		my ($sample,$localgroup) = split();
+		$groups{$sample} = $localgroup;
+		$group_counts{$localgroup}++;
+	}
+}
 
 my $anno_count;
 my %gene_anno = ();
@@ -382,6 +395,15 @@ my @missionbio_headers = (
 						'cluster_nocluster_freq_diff'
 						);
 
+my @group_headers = ();
+
+if ($group) {
+	for my $localgroup ( sort keys %group_counts ) {
+	    push @group_headers, "$localgroup var_count", "$localgroup ref_count", "$localgroup nodata_count";
+	}
+}
+
+
 my @common_headers2 = (			
 						'variant_samples',
 						'var_type',
@@ -423,6 +445,8 @@ if ($vartrix_input) {
 	@all_headers = (@common_headers, @vartrix_headers, @common_headers2); 
 } elsif ($mb) {
 	@all_headers = (@common_headers, @missionbio_headers, @common_headers2); 
+} elsif ($group) {
+	@all_headers = (@common_headers, @group_headers, @common_headers2);
 } else {
 	@all_headers = (@common_headers,@common_headers2); 
 }
@@ -445,7 +469,6 @@ if ($sort_column) {
 		modules::Exception->throw("ERROR: Couldn't find sort_column $sort_column\n");
 	}	
 }
-
 
 
 
@@ -602,14 +625,17 @@ while (<PARSED>) {
 		if ($allele1 eq '0' && $allele2 eq '0') {
 			$zyg = 'ref';
 			$data{$key}{ref_count}++;
+			$data{$key}{groups}{$groups{$sample}}{ref_count}++ if $group;
 		} elsif ($geno_fields[0] eq './.' || $geno_fields[0] eq '.|.') {
 			$zyg = 'no_call';
 			$data{$key}{no_data_count}++;
+			$data{$key}{groups}{$groups{$sample}}{nodata_count}++ if $group;
 		} elsif ($allele1 == $allele2) {
 			if ($allele1 == $zyg_count) {
 				$zyg = 'hom';
 				$data{$key}{hom_count}++;
 				$data{$key}{var_count}++;
+				$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
 				push @{$data{$key}{var_samples}},$sample;
 			}
 		} elsif ($allele1 != $allele2) {
@@ -617,6 +643,7 @@ while (<PARSED>) {
 				$zyg = 'het';
 				$data{$key}{het_count}++;
 				$data{$key}{var_count}++;
+				$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
 				push @{$data{$key}{var_samples}},$sample;
 			} 
 		}  else {
@@ -624,6 +651,7 @@ while (<PARSED>) {
 		}
 		
 		$data{$key}{zyg}{$sample} = $zyg;
+		
 		
 	}
   	my $allele_add = 0;
@@ -933,7 +961,20 @@ for my $key (@keys) {
 		$var_samples = join(",",@{$data{$key}{var_samples}});
 	}
 	
-	
+	my @group_numbers = ();
+	if ($group) {
+		for my $localgroup ( sort keys %group_counts ) {
+	    	#push @group_headers, "$group var_count", "$group ref_count", "$group nodata_count";
+	    	if (!exists $data{$key}{groups}{$localgroup}) {
+	    		push @group_numbers, 0, 0, 0;
+	    	} else {
+	    		my $var_count = defined $data{$key}{groups}{$localgroup}{var_count}?$data{$key}{groups}{$localgroup}{var_count}:0;
+	    		my $ref_count = defined $data{$key}{groups}{$localgroup}{ref_count}?$data{$key}{groups}{$localgroup}{ref_count}:0;
+	    		my $nodata_count = defined $data{$key}{groups}{$localgroup}{nodata_count}?$data{$key}{groups}{$localgroup}{nodata_count}:0;
+	    		push @group_numbers, $var_count, $ref_count, $nodata_count;
+	    	}
+		}
+	}
 	
 	
 	my $het_count = exists $data{$key}{het_count}?$data{$key}{het_count}:0;
@@ -1166,7 +1207,17 @@ for my $key (@keys) {
 									$sc_var,
 									) . "\t";
 			}
-	} 
+	} elsif ($group) {
+		 print OUT join("\t",
+		 					@group_numbers
+		 					) . "\t";
+		 if ($priority_flag) {		
+		 	print PRIORITY join("\t",
+		 						@group_numbers
+		 						) ."\t";
+		 }		
+		 
+	}
 		
 	print OUT join("\t",
 						$var_samples,
