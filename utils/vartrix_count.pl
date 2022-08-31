@@ -55,6 +55,7 @@ Matthew Field
 
 my $snv_matrix = defined $OPT{vartrix}?$OPT{vartrix}:'./snv_matrix.tsv';
 
+
 open(MATRIX,$snv_matrix) || modules::Exception->throw("Can't open file $\n");
 
 my %map = (
@@ -70,32 +71,39 @@ print join("\t",
 			"Ref",
 			"Hom",
 			"Het",
-			"% Calls",
-			"% Variant"
+			"% Total With Data",
+			"% of These Variant"
 			) ."\n\n";
 
+my $cell_count;
 while (<MATRIX>) {
-	next unless /chr/;
-	chomp;
-	my @fields = split("\t");
-	my $coord = shift @fields;
-	$coord =~ s/"//g;
-	my %line_count = ();
-	for my $call (@fields) {
-		$line_count{$map{$call}}++;
+	
+	if (/chr/) {
+		next unless /chr/;
+		chomp;
+		my @fields = split("\t");
+		my $coord = shift @fields;
+		$coord =~ s/"//g;
+		my %line_count = ();
+		for my $call (@fields) {
+			$line_count{$map{$call}}++;
+		}
+		
+		my $nd = defined $line_count{'No Call'}?$line_count{'No Call'}:0;
+		my $ref = defined $line_count{'Ref'}?$line_count{'Ref'}:0;
+		my $hom = defined $line_count{'Hom'}?$line_count{'Hom'}:0;
+		my $het = defined $line_count{'Het'}?$line_count{'Het'}:0;
+		my $var_sum = $het+$hom;
+		my $called_sum = $var_sum + $ref;
+		
+		
+		my $pc_data = $cell_count>0?sprintf("%.2f",$called_sum/$cell_count *100):0.00;
+		my $pc_var = $called_sum>0?sprintf("%.2f",$var_sum/$called_sum *100):0.00;
+		
+		print join("\t", "$coord", $nd, $ref, $hom, $het, $pc_data, $pc_var) . "\n";
+		#print Dumper \%line_count;
+	} else {
+		chomp;
+		$cell_count = split("\t");
 	}
-	
-	my $nd = defined $line_count{'No Call'}?$line_count{'No Call'}:0;
-	my $ref = defined $line_count{'Ref'}?$line_count{'Ref'}:0;
-	my $hom = defined $line_count{'Hom'}?$line_count{'Hom'}:0;
-	my $het = defined $line_count{'Het'}?$line_count{'Het'}:0;
-	my $var_sum = $het+$hom;
-	my $called_sum = $var_sum + $ref;
-	
-	
-	my $pc_total = sprintf("%.2f",$var_sum/4958 *100);
-	my $pc_called = $called_sum>0?sprintf("%.2f",$var_sum/$called_sum *100):0.00;
-	
-	print join("\t", "$coord", $nd, $ref, $hom, $het, $pc_called, $pc_total) . "\n";
-	#print Dumper \%line_count;
 }

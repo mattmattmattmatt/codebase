@@ -36,7 +36,6 @@ GetOptions(\%OPT,
        "sc_min_portion=s",
        "vartrix_input=s",
        "mb_matrix",
-       "mb_cluster",
        "sort_column=s",
        "priority_genes=s",
        "group_file=s"
@@ -61,7 +60,7 @@ Required flags: -vcf_in
 
 =head1 NAME
 
-quick_annotate_vcf.pl -> annotate a vcf from multiple samples
+quick_annotate_vcf.pl -> generate annotated report files from a vcf containing multiple samples for WGS, singlecell, etc
 
 =head1 DESCRIPTION
 
@@ -99,11 +98,14 @@ Matthew Field
 #MB generate matrix
 ./quick_annotate_vcf.pl -outdir results_1912/  -outfile 1912_all -vcf 1912.cells.hg38.vcf -mb_matrix
 
-#MB cluster stats
-./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_rogue -skip_vep -no_run -mb_matrix -mb_cluster -sample_file Rogue_barcodes.txt
+#MB for single cluster
+./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_rogue -no_run -mb_matrix -sample_file Rogue_barcodes.txt
+
+#MB with all cluster groups and no sample zygosities and 25 samples and sorted by avg_variant_score
+./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_cat1groups_min25samples -group_file group_file_cat1.tsv -no_run -no_zyg -min_sample_count 25 -sort_column average_qual_per_sample
 
 #Vartrix
-/drive2/codebase/utils/quick_annotate_vcf.pl -skip_vep -no_run -vcf_in CarT_nochr.vcf -outdir gatk_results/ -outfile CarT_vartrix -vartrix_input vartrix/snv_matrix.tsv
+./quick_annotate_vcf.pl -skip_vep -no_run -vcf_in CarT_nochr.vcf -outdir gatk_results/ -outfile CarT_vartrix -vartrix_input vartrix/snv_matrix.tsv
 
 #Vartrix with sc cutoffs applied
 ./quick_annotate_vcf.pl -outdir results/ -outfile patient2_Product_10X_v3t10p20 -vcf Product_10X_chr.vcf -vartrix_input  vartrix/snv_matrix.tsv -sc_min_portion 0.2 -sc_min_var 3 -sc_min_total 10
@@ -126,7 +128,8 @@ if (!-d $svndir) {
 
 my $ref = defined $OPT{ref}?$OPT{ref}:"GRCh38";
 
-
+#Whether to include sample columns; for single cell this isn't useful for example creating huge number of columns
+my $incl_sample = defined $OPT{no_sample}?0:1;
 
 
 my $gnomad_version = defined $OPT{gnomad_version}?$OPT{gnomad_version}:"2.0.1";
@@ -162,12 +165,19 @@ if (!-d $outdir) {
         modules::Exception->throw("Dir $outdir doesn't exist");
 }
 
-my %map = (
-				"0" => "No Call",
-				"1" => "Ref",
-				"2" => "Hom",
-				"3" => "Het"
+my %vartrix_map = (
+				"0" => "no_call",
+				"1" => "ref",
+				"2" => "hom",
+				"3" => "het"
 				);
+
+my %mb_map = (
+				"no_call" => 0,
+				"ref" => 1,
+				"hom" => 2,
+				"het" => 3
+			);
 
 
 
@@ -207,21 +217,21 @@ if ($vartrix_input) {
 			$coord =~ s/"//g;
 			my %line_count = ();
 			for my $call (@fields) {
-				$line_count{$map{$call}}++;
+				$line_count{$vartrix_map{$call}}++;
 			}
 			
-			my $nd = defined $line_count{'No Call'}?$line_count{'No Call'}:0;
-			my $ref = defined $line_count{'Ref'}?$line_count{'Ref'}:0;
-			my $hom = defined $line_count{'Hom'}?$line_count{'Hom'}:0;
-			my $het = defined $line_count{'Het'}?$line_count{'Het'}:0;
+			my $nd = defined $line_count{'no_call'}?$line_count{'no_call'}:0;
+			my $ref = defined $line_count{'ref'}?$line_count{'ref'}:0;
+			my $hom = defined $line_count{'hom'}?$line_count{'hom'}:0;
+			my $het = defined $line_count{'het'}?$line_count{'het'}:0;
 			my $var_sum = $het+$hom;
 			my $called_sum = $var_sum + $ref;
 			
 			
-			my $pc_total = sprintf("%.2f",$var_sum/4958 *100);
+			#my $pc_total = sprintf("%.2f",$var_sum/4958 *100);
 			my $pc_called = $called_sum>0?sprintf("%.2f",$var_sum/$called_sum *100):0.00;
 			
-			print VAROUT join("\t", "$coord", $nd, $ref, $hom, $het, $pc_called, $pc_total) . "\n";
+			print VAROUT join("\t", "$coord", $nd, $ref, $hom, $het, $pc_called) . "\n";
 			#print Dumper \%line_count;
 		}
 		close VAROUT;
@@ -243,16 +253,12 @@ if ($OPT{control_file} && !$OPT{sample_file}) {
 	modules::Exception->throw("ERROR: Can't use control option without sample_file\n");
 }
 
-if ($OPT{mb_cluster} && !$OPT{sample_file}) {
-	modules::Exception->throw("ERROR: Can't use mb_clsuter option without sample_file\n");
-}
-
 if ($OPT{group_file} && $OPT{somatic}) {
 	modules::Exception->throw("Group_file can't be run with somatic\n");
 }
 
 if ($OPT{group_file} && $mb) {
-	modules::Exception->throw("Group_file can't be run with mb; mb is for single clsuter\n");
+	modules::Exception->throw("Group_file can't be run with mb; mb is for single cluster\n");
 }
 
 my $parse_vcf = "$svndir/utils/parse_vcf.pl";
@@ -289,7 +295,7 @@ my @var_types = qw(snv indel);
 
 my $gene_coord_file = my $gene_anno_file;
 
-my $zyg = defined $OPT{no_zyg}?0:1;
+my $incl_zyg = defined $OPT{no_zyg}?0:1;
 
 #First parse the annotations file -> this is joined on ENSEMBL gene name
 
@@ -487,7 +493,7 @@ if ( !-e $gene_coord_file ) {
 
 #Build up command list
 my @commands = ();
-my $zyg_str = $zyg?' -keep_zyg ':'';
+my $zyg_str = $incl_zyg?' -keep_zyg ':'';
 
 my $vep_in_command ="cat $outdir/$vcf_out.snv". ' | sed -e "s/:/ /g" -e "s/;/ /g" -e "s/->/ /" | awk \'{print $1,$2,$3,$7,$8,"+"}'."' > $outdir/vep.in"; 
 my $vep_indel_command1 = "cat $outdir/$vcf_out.indel". ' | grep DEL |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/-/ /g" | awk \'{print $1,$2,$3,$8,"-","+"}'."' > $outdir/vep.indel.in";
@@ -912,19 +918,20 @@ if ($mb) {
 
 
 
-if ($zyg) {
+if ($incl_zyg) {
 	for my $fh ( @fhs ) {
 		print $fh "\t";
 		print $fh join("\t",@samples);
 	}
 	
-	if ($mb) {
-		print MB join("\t",
-					"ID",
-					@samples
-					) ."\n";
-	}
 } 
+
+if ($mb) {
+	print MB join("\t",
+				"ID",
+				@samples
+				) ."\n";
+}
 
 for my $fh ( @fhs ) {
 	print $fh "\n\n";
@@ -957,24 +964,12 @@ for my $key (@keys) {
 	my $var_samples;
 	if (!exists $data{$key}{var_samples}) {
 		$var_samples = "Complex overlapping event";
+	} elsif (@{$data{$key}{var_samples}} > 100) {
+		$var_samples = ">100 samples";
 	} else {
 		$var_samples = join(",",@{$data{$key}{var_samples}});
 	}
 	
-	my @group_numbers = ();
-	if ($group) {
-		for my $localgroup ( sort keys %group_counts ) {
-	    	#push @group_headers, "$group var_count", "$group ref_count", "$group nodata_count";
-	    	if (!exists $data{$key}{groups}{$localgroup}) {
-	    		push @group_numbers, 0, 0, 0;
-	    	} else {
-	    		my $var_count = defined $data{$key}{groups}{$localgroup}{var_count}?$data{$key}{groups}{$localgroup}{var_count}:0;
-	    		my $ref_count = defined $data{$key}{groups}{$localgroup}{ref_count}?$data{$key}{groups}{$localgroup}{ref_count}:0;
-	    		my $nodata_count = defined $data{$key}{groups}{$localgroup}{nodata_count}?$data{$key}{groups}{$localgroup}{nodata_count}:0;
-	    		push @group_numbers, $var_count, $ref_count, $nodata_count;
-	    	}
-		}
-	}
 	
 	
 	my $het_count = exists $data{$key}{het_count}?$data{$key}{het_count}:0;
@@ -985,6 +980,22 @@ for my $key (@keys) {
 	if (exists $data{$key}{var_count}) {
 		$var_count =  $data{$key}{var_count};
 	}
+	
+	my @group_numbers = ();
+	if ($group) {
+		for my $localgroup ( sort keys %group_counts ) {
+	    	#push @group_headers, "$group var_count", "$group ref_count", "$group nodata_count";
+	    	if (!exists $data{$key}{groups}{$localgroup}) {
+	    		push @group_numbers, 0, 0, 0;
+	    	} else {
+	    		my $group_var_count = defined $data{$key}{groups}{$localgroup}{var_count}?$data{$key}{groups}{$localgroup}{var_count}:0;
+	    		my $group_ref_count = defined $data{$key}{groups}{$localgroup}{ref_count}?$data{$key}{groups}{$localgroup}{ref_count}:0;
+	    		my $group_nodata_count = defined $data{$key}{groups}{$localgroup}{nodata_count}?$data{$key}{groups}{$localgroup}{nodata_count}:0;
+				my $group_var_percent = $var_count == 0?'0':sprintf("%.2f",$group_var_count/$var_count *100);
+	    		push @group_numbers, $group_var_count ." (${group_var_percent}%)", $group_ref_count, $group_nodata_count;
+	    	}
+		}
+	}
 	my $var_str = $var_count . '('.$het_count . '/'. $hom_count .')';
 	my $average_score = 'COMPLEX EVENT';
 
@@ -994,7 +1005,7 @@ for my $key (@keys) {
 		if ($total_alleles{$alleles_key} > 0) {
 			$average_score = sprintf("%.2f",$data{$key}{qual} / $total_alleles{$alleles_key});
 		} else {
-			print "No >0 allele key $key $alleles_key $total_alleles{$alleles_key}\n";
+			#print "No >0 allele key $key $alleles_key $total_alleles{$alleles_key}\n";
 		}	
 	} else {
 		print "Doesn't exist allele key $key $alleles_key $total_alleles{$alleles_key}\n";
@@ -1132,7 +1143,8 @@ for my $key (@keys) {
 		my $noncluster_var_str = 'N/A';
 		my $diff = 'N/A';
 		
-		if (exists $data{$key}{var_samples}) {
+		#Check we're running it with -sample_flag (without just gives N/A's)
+		if (exists $data{$key}{var_samples} && keys %samples) {
 			my $cluster_var_count = my $noncluster_var_count = 0;
 			for my $variant_sample	(@{$data{$key}{var_samples}}) {
 				if (exists $samples{$variant_sample}) {
@@ -1143,8 +1155,8 @@ for my $key (@keys) {
 			}
 			$cluster_var_str = $cluster_var_count .' / '.$cluster_count;
 			$noncluster_var_str = $noncluster_var_count .' / '.$noncluster_count;
-			$cluster_freq = sprintf("%.3f",$cluster_var_count/$cluster_count);
-			$noncluster_freq = sprintf("%.3f",$noncluster_var_count/$noncluster_count);
+			$cluster_freq = $cluster_count>0?sprintf("%.3f",$cluster_var_count/$cluster_count):0;
+			$noncluster_freq = $noncluster_count>0?sprintf("%.3f",$noncluster_var_count/$noncluster_count):0;
 			$diff = $cluster_freq - $noncluster_freq;
 		} 
 			
@@ -1270,12 +1282,27 @@ for my $key (@keys) {
 	}
 	
 	
-	my @mb_values = ();	
 	if ($mb) {
+		my @mb_values = ();	
 		push @mb_values, $key;
+		for my $sample (@samples) {
+			my $zyg = '?';
+			if (defined $data{$key}{zyg}{$sample}) {
+				$zyg = $data{$key}{zyg}{$sample};
+			}
+			
+			if (exists $mb_map{$zyg}) {
+				push @mb_values, $mb_map{$zyg};
+			} else {
+				push @mb_values, "?";
+			}
+		}
+		print MB join("\t",
+					@mb_values
+					) ."\n"
 	}
 			
-	if ($zyg) {
+	if ($incl_zyg) {
 		print OUT "\t";
 		print PRIORITY "\t" if $priority_flag;
 		my @sample_zyg;
@@ -1284,24 +1311,8 @@ for my $key (@keys) {
 			if (defined $data{$key}{zyg}{$sample}) {
 				$zyg = $data{$key}{zyg}{$sample};
 			}
-			
-			if ($mb) {
-				if (exists $map{$zyg}) {
-					push @mb_values, $map{$zyg};
-				} else {
-					push @mb_values, "no_call";
-				}
-			}
-			
 			push @sample_zyg, $zyg;
 		}
-		
-		if ($mb) {
-			print MB join("\t",
-						@mb_values
-						) ."\n"
-		}
-		
 		print OUT join("\t",@sample_zyg);
 		print PRIORITY join("\t",@sample_zyg) if $priority_flag;
 	}
@@ -1317,13 +1328,13 @@ if ($sort_column) {
 	my $out_sorted = $out_short . '_sorted.tsv';
 	my $header = $out_short . '_tmp1.tsv';
 	my $col_index_end = $col_index + 1;
-	
-	my $command1 = "head -2 $out > $header; cat $out | grep -v ^chr | sort +${col_index}nr -${col_index_end}nr > ${out_short}_tmp2.tsv; rm -f $out_sorted; cat $header ${out_short}_tmp2.tsv >> $out_sorted";
+	my $tab = "'\t\'";
+	my $command1 = "head -2 $out > $header; cat $out | grep -v ^chr | sort -t${tab} +${col_index}nr -${col_index_end}nr > ${out_short}_tmp2.tsv; rm -f $out_sorted; cat $header ${out_short}_tmp2.tsv >> $out_sorted";
 	
 	print "$command1\n";
 	`$command1`;
 
-	my $command2 = "cat $out_priority | grep -v ^chr | sort  +${col_index}nr -${col_index_end}nr > ${out_short}_tmp2.tsv; rm -f $out_priority_sorted; cat $header ${out_short}_tmp2.tsv >> $out_priority_sorted; rm -f $header; rm -f ${out_short}_tmp2.tsv";
+	my $command2 = "cat $out_priority | grep -v ^chr | sort -t${tab} +${col_index}nr -${col_index_end}nr > ${out_short}_tmp2.tsv; rm -f $out_priority_sorted; cat $header ${out_short}_tmp2.tsv >> $out_priority_sorted; rm -f $header; rm -f ${out_short}_tmp2.tsv";
 	
 	print "$command2\n";
 	`$command2`;
