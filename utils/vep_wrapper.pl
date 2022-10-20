@@ -71,7 +71,7 @@ if (defined $OPT{vep_bin}) {
 } else {
 	$vep_executable = $pipe_conf->read($source_type,'binaries','variant_predictor','binary');
 }
-#print "VEP $vep_executable\n";
+print "VEP $vep_executable\n";
 my $vep_db_dir = $clus_conf->read($source_type,'svn','conf_dir') . '/vep_index';
 
 my $organism = $pipe_conf->read($source_type,'organism');

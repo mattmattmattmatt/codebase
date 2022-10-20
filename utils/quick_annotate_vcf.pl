@@ -38,7 +38,8 @@ GetOptions(\%OPT,
        "mb_matrix",
        "sort_column=s",
        "priority_genes=s",
-       "group_file=s"
+       "group_file=s",
+       "min_mean_af=s"
    );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -48,7 +49,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{vcf_in});
 
 =head1 SYNOPSIS
 
-quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant -sort_column columnname_to_sort_by -priority_genes genelist_to_flag -group_file report_variants_by_groups(filters_applied_at_top_level)
+quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant -sort_column columnname_to_sort_by -priority_genes genelist_to_flag -group_file report_variants_by_groups(filters_applied_at_top_level) -min_mean_af min_allele_frequency_from_variant_samples
 
 Required flags: -vcf_in 
 
@@ -99,7 +100,7 @@ Matthew Field
 ./quick_annotate_vcf.pl -outdir results_1912/  -outfile 1912_all -vcf 1912.cells.hg38.vcf -mb_matrix
 
 #MB for single cluster
-./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_rogue -no_run -mb_matrix -sample_file Rogue_barcodes.txt
+./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_rogue -no_run -mb_matrix -sample_file Rogue_barcodes.txt -sort_column portion_in_cluster
 
 #MB with all cluster groups and no sample zygosities and 25 samples and sorted by avg_variant_score
 ./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_cat1groups_min25samples -group_file group_file_cat1.tsv -no_run -no_zyg -min_sample_count 25 -sort_column average_qual_per_sample
@@ -121,6 +122,8 @@ if (!exists $ENV{'SVNDIR'}) {
 }
 
 my $rare_cutoff = 0.02;
+
+my $min_mean_af = defined $OPT{min_mean_af}?$OPT{min_mean_af}:0;
 
 if (!-d $svndir) {
 	modules::Exception->throw("ERROR: $svndir doesn't exist\n");
@@ -382,7 +385,9 @@ my @common_headers = (
 						'average_qual_per_sample',
 						'variant_count (het/hom)',
 						'ref_count',
-						'no_data_count'
+						'no_data_count',
+						'mean_variant_af',
+						'median_variant_af'
 						);
 
 
@@ -398,7 +403,8 @@ my @missionbio_headers = (
 						'cluster_variant_freq',
 						'nocluster_variant_count',
 						'nocluster_variant_freq',
-						'cluster_nocluster_freq_diff'
+						'cluster_nocluster_freq_diff',
+						'portion_in_cluster'
 						);
 
 my @group_headers = ();
@@ -493,14 +499,13 @@ if ( !-e $gene_coord_file ) {
 
 #Build up command list
 my @commands = ();
-my $zyg_str = $incl_zyg?' -keep_zyg ':'';
 
 my $vep_in_command ="cat $outdir/$vcf_out.snv". ' | sed -e "s/:/ /g" -e "s/;/ /g" -e "s/->/ /" | awk \'{print $1,$2,$3,$7,$8,"+"}'."' > $outdir/vep.in"; 
 my $vep_indel_command1 = "cat $outdir/$vcf_out.indel". ' | grep DEL |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/-/ /g" | awk \'{print $1,$2,$3,$8,"-","+"}'."' > $outdir/vep.indel.in";
 my $vep_indel_command2 = "cat $outdir/$vcf_out.indel". ' | grep INS |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/+/ /g" -e "s/REF=//" | awk \'{print $1,$2,$3,$11,$11$7,"+"}'."' >> $outdir/vep.indel.in";
 
 
-push @commands, "$parse_vcf -vcf $vcf $zyg_str -out $outdir/$vcf_out";
+push @commands, "$parse_vcf -vcf $vcf -keep_zyg -mean_var_freq -out $outdir/$vcf_out";
 push @commands, "grep SNV $outdir/$vcf_out > $outdir/$vcf_out.snv";
 push @commands, "grep -v SNV $outdir/$vcf_out > $outdir/$vcf_out.indel";
 push @commands, $vep_in_command, $vep_indel_command1, $vep_indel_command2;
@@ -593,7 +598,7 @@ while (<PARSED>) {
     	next unless $chr_filter eq $chr;
   	}
 
-	my ($var_type,$var_base_str,$qual,$allele_count,$zyg_count) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+);ZC=(\d)/;
+	my ($var_type,$var_base_str,$qual,$allele_count,$zyg_count,$mean_af,$median_af) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+);ZC=(\d);MEANAF=(\S+);MEDAF=([0-9\.]+)/;
 	my $var_base = my $ref_base;
 	if ($var_type eq 'SNV') {
 		($ref_base,$var_base) = split('->',$var_base_str); 
@@ -611,7 +616,9 @@ while (<PARSED>) {
 	$data{$key}{ref} = $ref_base;
 	$data{$key}{var} = $var_base; 
 	$data{$key}{qual} = $qual;
-
+	$data{$key}{mean_af} = $mean_af =~ /\d/?$mean_af:'N/A';
+	$data{$key}{median_af} = $median_af =~ /\d/?$median_af:'N/A';
+	
 	my $zyg;
 	my $sample;
 
@@ -961,6 +968,15 @@ for my $key (@keys) {
 	my $clin = !exists $data{$key}{clin} || $data{$key}{clin} eq 'N/A'?'NO_CLIN':$data{$key}{clin};
 	my $rs = !exists $data{$key}{rs} || $data{$key}{rs} eq 'N/A'?'NO_DBSNP':$data{$key}{rs};
 	my $gmaf = !exists $data{$key}{gmaf} || $data{$key}{gmaf} eq 'N/A'?'NO_GMAF':$data{$key}{gmaf};	
+	my $var_mean_af = !exists $data{$key}{mean_af} || $data{$key}{mean_af} eq 'N/A'?'NO_MEAN_AF':$data{$key}{mean_af};	
+	my $var_median_af = !exists $data{$key}{median_af} || $data{$key}{median_af} eq 'N/A'?'NO_MEDIAN_AF':$data{$key}{median_af};	
+	
+	#If below min_mean_af
+	if ($var_mean_af =~ /\d/ && $min_mean_af > $var_mean_af) {
+		next;
+	}
+	
+	
 	my $var_samples;
 	if (!exists $data{$key}{var_samples}) {
 		$var_samples = "Complex overlapping event";
@@ -1117,7 +1133,9 @@ for my $key (@keys) {
 						$average_score,
 						$var_str,
 						$ref_count,
-						$nd_count
+						$nd_count,
+						$var_mean_af,
+						$var_median_af
 						) ."\t";
 	
 	if ($priority_flag) {
@@ -1129,8 +1147,9 @@ for my $key (@keys) {
 									$average_score,
 									$var_str,
 									$ref_count,
-									$nd_count
-									) ."\t";
+									$nd_count,
+									$var_mean_af,
+									$var_median_af) ."\t";
 	}
 	
 	#Here we divide variants into cluster and non-cluster
@@ -1142,6 +1161,7 @@ for my $key (@keys) {
 		my $cluster_var_str = 'N/A';
 		my $noncluster_var_str = 'N/A';
 		my $diff = 'N/A';
+		my $portion_cluster = 'N/A';
 		
 		#Check we're running it with -sample_flag (without just gives N/A's)
 		if (exists $data{$key}{var_samples} && keys %samples) {
@@ -1158,6 +1178,7 @@ for my $key (@keys) {
 			$cluster_freq = $cluster_count>0?sprintf("%.3f",$cluster_var_count/$cluster_count):0;
 			$noncluster_freq = $noncluster_count>0?sprintf("%.3f",$noncluster_var_count/$noncluster_count):0;
 			$diff = $cluster_freq - $noncluster_freq;
+			$portion_cluster = sprintf("%.2f",$cluster_var_count/$var_count);
 		} 
 			
 		
@@ -1167,6 +1188,7 @@ for my $key (@keys) {
 						$noncluster_var_str,
 						$noncluster_freq,
 						$diff,
+						$portion_cluster
 						) . "\t";
 				
 			if ($priority_flag) {
@@ -1176,6 +1198,7 @@ for my $key (@keys) {
 									$noncluster_var_str,
 									$noncluster_freq,
 									$diff,
+									$portion_cluster
 									) . "\t";
 			}
 	} elsif ($vartrix_input) {

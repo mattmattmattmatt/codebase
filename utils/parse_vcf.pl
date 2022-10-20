@@ -7,6 +7,7 @@ use Pod::Usage;
 use Data::Dumper;
 use Set::IntSpan;
 use vars qw(%OPT);
+use Statistics::Descriptive::Full;
 
 # Command line arguments
 GetOptions(\%OPT, 
@@ -20,7 +21,8 @@ GetOptions(\%OPT,
 	   "keep_zyg",
 	   "sample_name=s",
 	   "genotype_qual=i",
-	   "keep_allele_freq"
+	   "keep_allele_freq",
+	   "mean_var_freq"
 	   );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -30,7 +32,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{vcf});
 
 =head1 SYNOPSIS
 
-parse_vcf.pl -vcf vcf_file -vcf_cutoff vcf_cutoff_score(default=40) -sample_name only_get_vars_for_this_sample -genotype_quality min_genotype_quality_cutoff -bed only_include_vars_in_bed -variant_type report_only_this_variant_type(del, ins, or snv) -out outfile(default=vcf_name.out) -keep_zyg keep_original_zyg_info 
+parse_vcf.pl -vcf vcf_file -vcf_cutoff vcf_cutoff_score(default=40) -sample_name only_get_vars_for_this_sample -genotype_quality min_genotype_quality_cutoff -bed only_include_vars_in_bed -variant_type report_only_this_variant_type(del, ins, or snv) -out outfile(default=vcf_name.out) -keep_zyg keep_original_zyg_info -mean_var_freq report_mean_var_freq_across_all_var_samples
 
 Required flags: -vcf 
 
@@ -140,12 +142,15 @@ for my $var_key (@vcf_order) {
         }
 
 
-	my $vcf_str;
+	my $vcf_str  = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual}. ';AC='.$var_count . ';ZC='.$zyg_count;
 	if ($OPT{keep_allele_freq}) {
-		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual} . ';AC='.$var_count.';ZC='.$zyg_count.';ALLELE='..$vcf_data->{$var_key}{allele};
-	} else {
-		$vcf_str = $vcf_data->{$var_key}{type}.';'.$var_key.';Q='.$vcf_data->{$var_key}{qual}. ';AC='.$var_count . ';ZC='.$zyg_count;
+		$vcf_str .= ";ALLELE=".$vcf_data->{$var_key}{allele};
+	} 
+	
+	if ($OPT{mean_var_freq}) {
+		$vcf_str .= ";MEANAF=".$vcf_data->{$var_key}{mean_af}.";MEDAF=".$vcf_data->{$var_key}{median_af};
 	}
+	
 	
 	if ($vcf_data->{$var_key}{type} eq 'INS') {
 		$vcf_str .= ";REF=".$vcf_data->{$var_key}{ref_base};
@@ -340,18 +345,46 @@ sub parse_vcf {
 					$vcf_data{$var_key}{zyg} = \@alleles;
 				}
 			}
-			
+
+			#Get the number of variant samples
 			if ($OPT{keep_allele_freq}) {
 				my ($allele_count) = $rest =~ /AC=(\d+)/;
 				my ($allele_total) = $rest =~ /AN=(\d+)/;
-				my $allele_freq;
-				if ($rest =~ /AF=([0-9\.]+)/) {
-					$allele_freq = $1;
+				$allele_count = 0 if !defined $allele_count;
+				$allele_total = 0 if !defined $allele_total;
+				
+				my $sample_var_freq = 0;
+				if ($rest =~ /AF=([0-9\.e-]+)/) {
+					$sample_var_freq = $1;
 				} else {
-					$allele_freq = sprintf("%2f",$allele_count/$allele_total);
+					$sample_var_freq = sprintf("%2f",$allele_count/$allele_total) if $allele_total != 0;
 				}
-				$vcf_data{$var_key}{allele} = $allele_count . '/' . $allele_total . '('. $allele_freq .')';
+				$vcf_data{$var_key}{allele} = $allele_count . '/' . $allele_total . '('. $sample_var_freq .')';
 			}
+			
+			#Get the frequency across all the samples containing the variant
+			if ($OPT{mean_var_freq}) {
+				
+				my $stats = Statistics::Descriptive::Full->new();
+				for my $allele_str (@alleles) {
+					my @gt_fields = split(':',$allele_str);
+    				next unless $gt_fields[0] =~ /$zyg_num/; #Make sure it's correct allele
+    				my @ads = split(',',$gt_fields[1]);
+    				my $sum = 0;
+    				for my $element (@ads) {
+    					$sum += $element;
+					}	
+    				my $sample_af = $sum != 0?sprintf("%.4f",$ads[$zyg_num]/$sum):0;
+    				$stats->add_data($sample_af);
+				}
+				
+				my $mean = defined $stats->mean?$stats->mean:0;
+				my $median = defined $stats->median?$stats->median:0;
+				
+				$vcf_data{$var_key}{mean_af} = sprintf("%.3f",$mean);
+				$vcf_data{$var_key}{median_af} = sprintf("%.3f",$median);
+			}
+			
 			push @vcf_order, $var_key;
 			$zyg_num++;
 		}

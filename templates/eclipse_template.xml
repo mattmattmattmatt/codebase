@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><templates><template context="perl" description="Perl Script Starter" enabled="true" name="perl">#!${interpreter}
+use strict;
+use warnings;
+
+${cursor}</template><template context="perl" description="Perl Package Starter" enabled="true" name="package">package ${packagename};
+
+${cursor}</template><template context="perl" description="template containing documentation" enabled="true" name="startcode">start
+#!${interpreter}
+use strict;
+use Data::Dumper;
+use Getopt::Long;
+use Pod::Usage;
+use vars qw(%OPT);
+
+GetOptions(\%OPT,
+  "help|h",
+  "man|m",
+  );
+pod2usage(-verbose =&gt; 2) if $$${OPT}{man};
+pod2usage(1) if $$${OPT}{help};
+
+ 
+=pod
+
+=head1 SYNOPSIS
+
+$$${scriptname} [options]
+
+Required flags: NONE
+
+=head1 OPTIONS
+
+    -help  brief help message
+
+    -man   full documentation
+
+=head1 NAME
+
+$$${scriptname} -&gt; One line description
+
+=head1 DESCRIPTION
+
+${date}
+
+a script that ...
+
+=head1 AUTHOR
+
+Matthew Field
+
+=head1 EXAMPLE
+
+$$${scriptname}
+
+=cut</template><template context="perl" description="C-style for loop" enabled="true" name="for">for ( my $$${var} = 0 ; $$${var} &lt; max ; $$${var}++ ) {
+    ${cursor}
+}</template><template context="perl" description="perl-ish for loop array" enabled="true" name="array">for my $$${var} ( @${array} ) {
+    ${cursor}
+}</template><template context="perl" description="if statement" enabled="true" name="if">if ( ${cursor} ) {
+}</template><template context="perl" description="if-elsif-else statement" enabled="true" name="if-elsif-else">if ( ${cursor} ) {
+
+} elsif ( ) {
+} else {
+}</template><template context="perl" description="if-else statement" enabled="true" name="if-else">if ( ${cursor} ) {
+} else {
+}</template><template context="perl" description="subroutine template" enabled="true" name="sub">sub ${cursor} {
+my $$self = shift;
+    my %args = @_;
+     my @required_args = (
+            -args
+);
+
+    foreach my $$required_arg (@required_args){
+
+if (! defined $$args{$$required_arg}){
+   IGLPipeline::Exception-&gt;throw("Required argument [$$required_arg] not set");
+}
+    }
+   
+}</template><template context="perl" description="subroutine as method template" enabled="true" name="method">sub ${cursor} {;
+    my $$self = shift;
+    my ( ) = @_;
+   
+}</template><template context="perl" description="while diamond" enabled="true" name="while">while (&lt;&gt;) {
+    ${cursor};
+}</template><template context="perl" description="switch construction from perlsyn" enabled="true" name="switch">SWITCH: {
+    (${cursor}) &amp;&amp; do {  last SWITCH};
+    // &amp;&amp; do {  last SWITCH};
+}</template><template context="perl" description="map" enabled="true" name="map">map { ${cursor} }</template><template context="perl" description="grep" enabled="true" name="grep">grep { ${cursor} }</template><template context="perl" description="open " enabled="true" name="openfile">open(FILE,"$$${file}") || modules::Exception-&gt;throw("Can't open file $$${file}\n");</template><template context="perl" description="open and parse file" enabled="true" name="parsefile">open(FILE,"$$${file}") || modules::Exception-&gt;throw("Can't open file $$${file}\n");
+
+while (&lt;FILE&gt;) {
+${cursor}
+}</template><template context="perl" description="write file" enabled="true" name="writefile">open(FILE,"&gt;$$${file}") || modules::Exception-&gt;throw("Can't open file to write $$${file}\n");</template><template context="perl" description="print here marker" enabled="true" name="here">print "HERE\n";</template><template context="perl" description="Add DBAdaptor module path" enabled="true" name="DBA">modules::Adaptor::${cursor}</template><template context="perl" description="exception" enabled="true" name="exception">modules::Exception-&gt;throw("${cursor}");</template><template context="perl" description="print" enabled="true" name="pr">print "${cursor}\n";</template><template context="perl" description="if defined C style" enabled="true" name="defined">my $$${var} = defined $$OPT{$$${var}}?$$OPT{$$${var}}:'';</template><template context="perl" description="perl-ish for loop hash" enabled="true" name="hash">for my $$${var} ( keys %${array} ) {
+    ${cursor}
+}</template><template context="perl" description="Check if file exists" enabled="true" name="file_exists">if ( !-e $$${file} ) {
+modules::Exception-&gt;throw("File $$${file} doesn't exist");
+}</template><template context="perl" description="nested hash iteration" enabled="true" name="hash of hash">for my $$${var} ( keys %${array} ) {
+    for my $$${var2} ( keys %{$$${array}{$$${var}}} ) {
+    ${cursor}
+}
+}</template><template context="perl" description="iterate over hash of arrays" enabled="true" name="hash of array">for my $$${var} ( keys %${array} ) {
+    for my $$${var2} ( @{$$${array}{$$${var}}} ) {
+    ${cursor}
+}
+}</template><template context="perl" description="use modules statement" enabled="true" name="use">use modules::${cursor};</template></templates>
