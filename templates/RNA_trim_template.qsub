@@ -8,6 +8,6 @@ module load samtools
 
 SOFT/TrimGalore/trim_galore --paired --output_dir READDIR --path_to_cutadapt SOFT/cutadapt/cutadapt READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz 
 
-SOFT/STAR/bin/Linux_x86_64_static/STAR --outSAMattrRGline ID:SAMPLE SM:SAMPLE_l1 PL:ILLUMINA --sjdbOverhang SJDB_value --readFilesCommand zcat --runThreadN 16 --genomeDir SOFT/GRCh38/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1_val_1.fq.gz READDIR/SAMPLE_R2_val_2.fq.gz
+SOFT/STAR/bin/Linux_x86_64_static/STAR --outSAMattrRGline ID:SAMPLE SM:SAMPLE_l1 PL:ILLUMINA --sjdbOverhang SJDB_value --readFilesCommand zcat --runThreadN 16 --genomeDir SOFT/STAR/GRCh38/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1_val_1.fq.gz READDIR/SAMPLE_R2_val_2.fq.gz
 
 samtools index OUTDIR/SAMPLE_Aligned.sortedByCoord.out.bam
