@@ -21,17 +21,18 @@ GetOptions(\%OPT,
 		"sample_list=s",
 		"templates=s",
 		"qsubdir=s",
+		"softdir=s",
 		"run"
 	   );
 pod2usage(-verbose => 2) if $OPT{man};
-pod2usage(1) if ($OPT{help} || !$OPT{readdir} || !$OPT{outdir} || !$OPT{sample_list} || !$OPT{templates});
+pod2usage(1) if ($OPT{help} || !$OPT{readdir} || !$OPT{outdir} || !$OPT{sample_list} || !$OPT{templates} || !$OPT{softdir});
 
 	   
 =pod
 
 =head1 SYNOPSIS
 
-quick_gatk_qsub.pl -template template_qsub(default=var_template.qsub in cwd) -qsubdir qsub_dir(default=outdir) -readdir readdir(fastq_must_be_named_'sample_R[12]_fastq.gz') -outdir outdir -sample_list sample_list_file -run submit_single_jobs(except_joint.qsub)
+quick_gatk_qsub.pl -template template_qsub(default=var_template.qsub in cwd) -qsubdir qsub_dir(default=outdir) -readdir readdir(fastq_must_be_named_'sample_R[12]_fastq.gz') -outdir outdir -sample_list sample_list_file -run submit_single_jobs(except_joint.qsub) -softdir software_directory
 
 Required flags: -readdir -outdir -sample_list
 
@@ -98,6 +99,15 @@ while (<SAMPLE>) {
 	push @samples, $sample;
 }
 
+my $readlength = defined $OPT{readlength}?$OPT{readlength}:'100';
+
+my $softdir = $OPT{softdir};
+$softdir = abs_path($softdir);
+
+if (!-d $softdir) {
+        modules::Exception->throw("Dir $softdir doesn't exist");
+}
+
 
 my @g_vcfs = ();
 
@@ -126,8 +136,9 @@ for my $sample (@samples) {
 			$_ =~ s/OUTDIR/$outdir/g;
 			$_ =~ s/READDIR/$readdir/g;
 			$_ =~ s/QSUBNEXT/$next_qsub/g;
+			$_ =~ s/READLENGTH/$readlength/g;
+			$_ =~ s/SOFT/$softdir/g;
 			
-		
 			print QSUB $_;
 			if ($_ =~ /(\S+g.vcf.gz$)/) {
 				push @g_vcfs, $1;
