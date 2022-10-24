@@ -24,7 +24,8 @@ GetOptions(\%OPT,
 			"notrim",
 			"run",
 			"ref=s",
-			"rlib=s"
+			"rlib=s",
+			"softdir=s"
 		   );
 		   
 pod2usage(-verbose => 2) if $OPT{man};
@@ -35,7 +36,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{readdir} || !$OPT{outdir} || !$OPT{sample_l
 
 =head1 SYNOPSIS
 
-quick_RNASeq_qsub.pl -template template_qsub(default=RNASEQ_template_trim.qsub in cwd) -ref ref_genome(default=GRCh38) -notrim skip_trim_step -read_length read_length(default=150bp) -qsubdir qsub_dir(default=outdir) -readdir readdir(fastq_must_be_named_'sample_R[12]_fastq.gz') -outdir outdir -sample_list sample_list_file -run submit_single_jobs(except_joint.qsub) -rlib path_to_use
+quick_RNASeq_qsub.pl -template template_qsub(default=RNASEQ_template_trim.qsub in cwd) -ref ref_genome(default=GRCh38) -notrim skip_trim_step -read_length read_length(default=150bp) -qsubdir qsub_dir(default=outdir) -readdir readdir(fastq_must_be_named_'sample_R[12]_fastq.gz') -outdir outdir -sample_list sample_list_file -run submit_single_jobs(except_joint.qsub) -rlib path_to_use -softdir software_basedir
 
 Required flags: -readdir -outdir -sample_list
 
@@ -69,7 +70,10 @@ scp_results.pl
 
 my $template;
 
-my $refdir = defined $OPT{refdir}?$OPT{refdir}:'/g/data/u86/mxf221/ref_genomes/';
+my $softdir = defined $OPT{softdir}?$OPT{softdir}:'/g/data/u86/software/';
+$softdir = abs_path($softdir);
+
+my $refdir = defined $OPT{refdir}?$OPT{refdir}:$softdir;
 
 if ($OPT{template}) {
 	$template = $OPT{template};
@@ -114,10 +118,10 @@ my $read_length = defined $OPT{read_length}?$OPT{read_length}:150;
 my $sj = $read_length - 1;
 
 
-my $gtf = $refdir .'/'.$ref .'/'.$ref .'.gtf';
+my $gtf = $refdir .'/STAR/'.$ref .'/'.$ref .'.gtf';
 
 if ( !-e $gtf ) {
-	#modules::Exception->throw("File $gtf doesn't exist");	
+	modules::Exception->throw("File $gtf doesn't exist");	
 }
 
 
@@ -144,7 +148,9 @@ for my $sample (@samples) {
 		$_ =~ s/READLENGTH/$read_length/g;
 		$_ =~ s/SJDB_value/$sj/g;
 		$_ =~ s/REFDIR/$refdir/g;
-		$_ =~ s/REF/$ref/g;
+		$_ =~ s/REF/$ref/g;			
+		$_ =~ s/SOFT/$softdir/g;
+		
 		print QSUB $_;
 	}	
 	push @sample_groups, '"Group1"';

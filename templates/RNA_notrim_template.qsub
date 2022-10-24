@@ -4,7 +4,7 @@
 #PBS -l walltime=4:00:00,mem=64GB,jobfs=10GB,ncpus=16
 #PBS -l storage=gdata/pq84+gdata/u86+scratch/u86+gdata/xx92
 
-SOFT/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang SJDB_value --readFilesCommand zcat --runThreadN 16 --genomeDir SOFT/STAR/GRCh38/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz
+SOFT/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang SJDB_value --readFilesCommand zcat --runThreadN 16 --genomeDir SOFT/STAR/REF/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz
 
 samtools index OUTDIR/SAMPLE_Aligned.sortedByCoord.out.bam
 
