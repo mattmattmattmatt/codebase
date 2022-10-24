@@ -23,7 +23,8 @@ GetOptions(\%OPT,
 			"read_length=i",
 			"notrim",
 			"run",
-			"ref=s"
+			"ref=s",
+			"rlib=s"
 		   );
 		   
 pod2usage(-verbose => 2) if $OPT{man};
@@ -34,7 +35,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{readdir} || !$OPT{outdir} || !$OPT{sample_l
 
 =head1 SYNOPSIS
 
-quick_RNASeq_qsub.pl -template template_qsub(default=RNASEQ_template_trim.qsub in cwd) -ref ref_genome(default=GRCh38) -notrim skip_trim_step -read_length read_length(default=150bp) -qsubdir qsub_dir(default=outdir) -readdir readdir(fastq_must_be_named_'sample_R[12]_fastq.gz') -outdir outdir -sample_list sample_list_file -run submit_single_jobs(except_joint.qsub)
+quick_RNASeq_qsub.pl -template template_qsub(default=RNASEQ_template_trim.qsub in cwd) -ref ref_genome(default=GRCh38) -notrim skip_trim_step -read_length read_length(default=150bp) -qsubdir qsub_dir(default=outdir) -readdir readdir(fastq_must_be_named_'sample_R[12]_fastq.gz') -outdir outdir -sample_list sample_list_file -run submit_single_jobs(except_joint.qsub) -rlib path_to_use
 
 Required flags: -readdir -outdir -sample_list
 
@@ -74,9 +75,9 @@ if ($OPT{template}) {
 	$template = $OPT{template};
 } else {
 	if ($OPT{notrim}) {
-		$template = './RNA_template_notrim.qsub';
+		$template = '../templates/RNA_template_notrim.qsub';
 	} else {
-		$template = './RNA_template_trim.qsub';
+		$template = '../templates/RNA_template_trim.qsub';
 	}
 }
 
@@ -86,7 +87,7 @@ if (!-e $template) {
 
 my $ref = defined $OPT{ref}?$OPT{ref}:'GRCh38';
 
-
+my $rlib = defined $OPT{rlib}?$OPT{rlib}:'/g/data/u86/mxf221/R';
 
 my $sample_file = $OPT{sample_list};
 
@@ -155,7 +156,7 @@ for my $sample (@samples) {
 
 
 open(ENV,">$qsubdir/env.txt");
-print ENV "export R_LIBS_USER=\"/g/data/u86/mxf221/R\"\n";
+print ENV "export R_LIBS_USER=\"$rlib\"\n";
 
 
 my $sample_string = join(",",@sample_groups);
@@ -180,13 +181,12 @@ close DE_R;
 open(DE,">$qsubdir/ConsensusDE.qsub") || modules::Exception->throw("Can't open file $qsubdir/consensusDE.qsub\n");
 print DE <<EOF;
 #!/bin/bash
-#PBS -P u86
-#PBS -q express
+#PBS -P pq84
+#PBS -q normalbw
 #PBS -l walltime=24:00:00,mem=128GB,jobfs=100GB,ncpus=16
-#PBS -l other=gdata2
-#PBS -l other=hyperthread
+#PBS -l storage=gdata/pq84+gdata/u86+scratch/u86+gdata/xx92
 
-module load R/3.5.1
+module load R/3.6.1
 EOF
 
 print DE "source $qsubdir/env.txt\n";
