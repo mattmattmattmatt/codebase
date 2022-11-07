@@ -502,7 +502,7 @@ my @commands = ();
 
 my $vep_in_command ="cat $outdir/$vcf_out.snv". ' | sed -e "s/:/ /g" -e "s/;/ /g" -e "s/->/ /" | awk \'{print $1,$2,$3,$7,$8,"+"}'."' > $outdir/vep.in"; 
 my $vep_indel_command1 = "cat $outdir/$vcf_out.indel". ' | grep DEL |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/-/ /g" | awk \'{print $1,$2,$3,$8,"-","+"}'."' > $outdir/vep.indel.in";
-my $vep_indel_command2 = "cat $outdir/$vcf_out.indel". ' | grep INS |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/+/ /g" -e "s/REF=//" | awk \'{print $1,$2,$3,$11,$11$7,"+"}'."' >> $outdir/vep.indel.in";
+my $vep_indel_command2 = "cat $outdir/$vcf_out.indel". ' | grep INS |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/+/ /g" -e "s/REF=//" | awk \'{print $1,$2,$3,$13,$13$7,"+"}'."' >> $outdir/vep.indel.in";
 
 
 push @commands, "$parse_vcf -vcf $vcf -keep_zyg -mean_var_freq -out $outdir/$vcf_out";

@@ -26,7 +26,7 @@ pod2usage(1) if ($OPT{help} || (!$OPT{dir} && !$OPT{tsv_in}) || !$OPT{anno_file}
 
 =head1 SYNOPSIS
 
-annotate_consensusDE.pl -tsv_in input_tsv -anno_file -dir dir_of_tsvs -anno_file annotation_file_starting_with_ENSID_in_first_column [options]
+annotate_consensusDE.pl -tsv_in input_tsv -dir dir_of_tsvs -anno_file annotation_file_starting_with_ENSID_in_first_column [options]
 
 Required flags: (-dir || -tsv_in) -anno_file
 
@@ -52,8 +52,8 @@ Matthew Field
 
 =head1 EXAMPLE
 
-/drive3/work/RNASeq/annotate_consensusDE.pl -anno /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/mm10_anno.gene -dir /drive3/work/paragen/output_group_filter
-
+annotate_consensusDE.pl -anno_file /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/mm10_anno.gene -dir /drive3/work/paragen/output_group_filter
+annotate_consensusDE.pl -anno_file /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/mm10_anno.gene -tsv_in /drive3/work/paragen/output_group_filter/DE.tsv
 
 =cut
 
