@@ -1,12 +1,12 @@
 #!/bin/bash
-#PBS -P u86
-#PBS -q normal
+#PBS -P pq84
+#PBS -q normalbw
 #PBS -l walltime=4:00:00,mem=64GB,jobfs=10GB,ncpus=16
 #PBS -l storage=gdata/pq84+gdata/u86+scratch/u86+gdata/xx92
 
 module load samtools
 
 
-/g/data/u86/software/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang SJDB_value --readFilesCommand zcat  --outFilterMultimapNmax 10 --outFilterMismatchNmax 1 --alignIntronMax 1 --alignSJDBoverhangMin 0 --outFilterMultimapScoreRange 0 --outFilterScoreMinOverLread 0 --outFilterMatchNminOverLread 0 --outFilterMatchNmin 16  --runThreadN 16 --genomeDir REFDIR/REF/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1_trimmed.fq.gz
+SOFT/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang SJDB_value --readFilesCommand zcat  --outFilterMultimapNmax 10 --outFilterMismatchNmax 1 --alignIntronMax 1 --alignSJDBoverhangMin 0 --outFilterMultimapScoreRange 0 --outFilterScoreMinOverLread 0 --outFilterMatchNminOverLread 0 --outFilterMatchNmin 16  --runThreadN 16 --genomeDir REFDIR/REF/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1_trimmed.fq.gz
 
 samtools index OUTDIR/SAMPLE_Aligned.sortedByCoord.out.bam

@@ -73,6 +73,11 @@ while (<PILEUP>) {
     $pl->ref_base($fields[2]);
 	$pl->base_string($fields[4]);
 	
+	if ($fields[3] == 0) {
+		print join ("\t",$fields[0],$fields[1],$fields[3],"NO_READS")."\n";
+		next; 
+	}
+	
 	my %freq = ();
 	$freq{$fields[2]."(ref)"} = %{$pl->base_frequencies->lookup}{$fields[2]};
 	
@@ -88,12 +93,13 @@ while (<PILEUP>) {
 
 	next if ($max_alt < $min_freq);
 
-	print join ("\t",$fields[0],$fields[1]);
 
+	my $base_str;
  	for my $base ( sort {$freq{$b}<=>$freq{$a}} keys %freq ) {
- 	    print "\t".	$base.":".sprintf("%.5f",$freq{$base});
+ 	    $base_str .= $base.":".sprintf("%.5f",$freq{$base}).';';
  	}
-	print "\n";
+ 	$base_str =~ s/;$//;
+	print join ("\t",$fields[0],$fields[1],$fields[3],$base_str) . "\n";
 	
 	#my @counts = @{$pl->base_frequencies->counts};
 	#my @freqs = @{$pl->base_frequencies->counts};
