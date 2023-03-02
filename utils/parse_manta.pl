@@ -16,7 +16,8 @@ GetOptions(\%OPT,
 	   "no_filter",
 	   "outfile_base=s",
 	   "outdir=s",
-	   "joint"
+	   "joint",
+	   "no_human"
 	   );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -179,11 +180,12 @@ sub parse_manta_result {
 		$chr1 =~ s/chr//;
 		my $chr2 = $chr1;
 		
-		next unless $chr1 =~ /^([0-9XYM]+)/;
-		next unless $chr2 =~ /^([0-9XYM]+)/;
-		next if $chr1 =~ /random/;
-		next if $chr2 =~ /random/;
-		
+		if (!$OPT{no_human}) {
+			next unless $chr1 =~ /^([0-9XYM]+)/;
+			next unless $chr2 =~ /^([0-9XYM]+)/;
+			next if $chr1 =~ /random/;
+			next if $chr2 =~ /random/;
+		}
 		
 		my ($start2) = $gff_str =~ /END=(\d+);/; 
 		my ($length) = $gff_str =~ /SVLEN=\-?(\d+)/;
@@ -218,7 +220,6 @@ sub parse_manta_result {
 				}
 					
 				if ($evidence_fields =~ /PR:SR/) {
-					print "HERE\n";
 					my (undef, $sr_tmp) = split(",",$fields[-1]);
 					my (undef, $pe_tmp) = split(",",$fields[-2]);
 					push @sr_counts, $sr_tmp;
@@ -246,9 +247,11 @@ sub parse_manta_result {
 		}
 		
 		if ($event_type eq 'bnd') {
-			($chr2,$start2) = $var_base =~ /([0-9A-Z\.]+):(\d+)/;
+			($chr2,$start2) = $var_base =~ /([0-9a-zA-Z\.]+):(\d+)/;
 			#Don't record SVs twice
-			next unless $chr2 =~ /^([0-9XYM]+)/;
+			if ($chr2 !~ /^([0-9XYM]+)/) {
+				next unless $OPT{no_human};
+			}
 			next if $chr2 =~ /random/;
 			
 			if (exists $sv_data{$event_type}{"$chr2:$start2"}) {
@@ -286,6 +289,7 @@ sub parse_manta_result {
 			}
 		}
 	}
+
 
 	
     return \%sv_data;

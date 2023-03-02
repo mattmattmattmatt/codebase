@@ -39,7 +39,8 @@ GetOptions(\%OPT,
        "sort_column=s",
        "priority_genes=s",
        "group_file=s",
-       "min_mean_af=s"
+       "min_mean_af=s",
+       "plot_genes=s"
    );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -49,7 +50,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{vcf_in});
 
 =head1 SYNOPSIS
 
-quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant -sort_column columnname_to_sort_by -priority_genes genelist_to_flag -group_file report_variants_by_groups(filters_applied_at_top_level) -min_mean_af min_allele_frequency_from_variant_samples
+quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant -sort_column columnname_to_sort_by -priority_genes genelist_to_flag -group_file report_variants_by_groups(filters_applied_at_top_level) -min_mean_af min_allele_frequency_from_variant_samples -plot_genes file_of_genes_to_plot_for_MB
 
 Required flags: -vcf_in 
 
@@ -135,6 +136,7 @@ my $ref = defined $OPT{ref}?$OPT{ref}:"GRCh38";
 my $incl_sample = defined $OPT{no_sample}?0:1;
 
 
+
 my $gnomad_version = defined $OPT{gnomad_version}?$OPT{gnomad_version}:"2.0.1";
 
 my $gnomad_base = $svndir.'/conf/human/'.$ref.'/gnomad/'.$gnomad_version.'/'.$ref.'.gnomAD.overlap';
@@ -146,7 +148,8 @@ if ( !-e $vcf ) {
 	modules::Exception->throw("File $vcf doesn't exist");	
 }
 
-
+#Keep track of total var/sample to allow potential filtering (rerun with reduced sample list)
+my %sample_varcount = ();
 
 #MissionBio flag for creating matrix
 my $mb = defined $OPT{mb_matrix}?1:0;
@@ -322,7 +325,7 @@ if ($OPT{sample_file}) {
 	open(SAMPLE,"$OPT{sample_file}") || modules::Exception->throw("Can't open file $OPT{sample_file}\n");
 	while (<SAMPLE>) {
 		chomp;
-		my ($sample) = $_ =~ /(\S+)/;
+		my ($sample) = $_ =~ /^(\S+)/;
 		$samples{$sample} = 1;
 	}
 }
@@ -345,9 +348,28 @@ my $group = defined $OPT{group_file}?1:0;
 my %groups = ();
 my %group_counts = ();
 
+#Generate per gene plots
+my $plot = defined $OPT{plot_genes}?1:0;
+my %genes_to_plot = ();
+
+if ($plot) {
+	open(PLOTGENES,$OPT{plot_genes}) || modules::Exception->throw("Can't open file $OPT{plot_genes}\n");
+
+	while (<PLOTGENES>) {
+		chomp;
+		my ($gene) = $_ =~ /(\S+)/;
+		$genes_to_plot{$gene} = 1;
+	}
+}
+
+if (!$group && $plot) {
+	modules::Exception->throw("ERROR: Need to use groups to genereate per gene plots");
+}
+
+
 if ($group) {
-	open(GROUP,"$OPT{group_file}") || modules::Exception->throw("Can't open file $OPT{group_file}\n");
-	while (<GROUP>) {
+	open(GROUPFILE,"$OPT{group_file}") || modules::Exception->throw("Can't open file $OPT{group_file}\n");
+	while (<GROUPFILE>) {
 		chomp;
 		my ($sample,$localgroup) = split();
 		$groups{$sample} = $localgroup;
@@ -578,7 +600,7 @@ my $sc_min_portion = defined $OPT{sc_min_portion}?$OPT{sc_min_portion}:-1;
 
 my %data = ();
 
-open(PARSED,"$outdir/$vcf_out") || modules::Exception->throw("Can't open file\n");
+open(PARSED,"$outdir/$vcf_out") || modules::Exception->throw("Can't open file $outdir/$vcf_out\n");
 
 my $line_count = 0;
 #vartrix doesn't report variant base so need to record it
@@ -627,6 +649,7 @@ while (<PARSED>) {
 	for (my $count = 0; $count < @genotypes; $count++) {
 		my @geno_fields = split(':',$genotypes[$count]);
 		$sample = $samples[$count];
+		
 		my ($allele1,$allele2);
 		if ($geno_fields[0] =~ /\//) {
 			($allele1,$allele2) = split('/',$geno_fields[0]);
@@ -650,6 +673,7 @@ while (<PARSED>) {
 				$data{$key}{var_count}++;
 				$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
 				push @{$data{$key}{var_samples}},$sample;
+				$sample_varcount{$sample}++;
 			}
 		} elsif ($allele1 != $allele2) {
 			if ($zyg_count == $allele1 || $zyg_count == $allele2) {
@@ -658,6 +682,7 @@ while (<PARSED>) {
 				$data{$key}{var_count}++;
 				$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
 				push @{$data{$key}{var_samples}},$sample;
+				$sample_varcount{$sample}++;
 			} 
 		}  else {
 			modules::Exception->throw("ERROR with $genotypes[$count]\n");
@@ -895,6 +920,65 @@ if ($out !~ /tsv$/) {
 (my $out_short = $out) =~ s/.tsv//;
 my $out_priority = $out_short . '_rare_missense_nonsense.tsv';
 
+my $sample_count_file = $out_short."_sample_varcount.tsv";
+my $sample_group_count = $out_short."_group_count.tsv";
+my $sample_group_count_priority = $out_short."_rare_missense_nonsense_group_count.tsv";
+my $plot_gene_pdf = $out_short."_rare_missense_nonsense_gene_plots.pdf";
+
+open(VARCOUNT,">$sample_count_file") || modules::Exception->throw("Can't open file to write $sample_count_file \n");
+open(GROUP,">$sample_group_count") || modules::Exception->throw("Can't open file to write $sample_group_count \n") if $group;
+open(GROUPPRIORITY,">$sample_group_count_priority") || modules::Exception->throw("Can't open file to write $sample_group_count_priority \n") if $group;
+open(GENES_RSCRIPT,">${outdir}/gene_plot.R") || modules::Exception->throw("Can't open gene plot R script") if $plot; 
+
+if ($group) {
+	print GROUP join("\t","Coord",sort keys %group_counts) ."\n";
+	print GROUPPRIORITY join("\t","Coord",sort keys %group_counts) ."\n";
+	if ($plot) {
+		print GENES_RSCRIPT join("\n",
+								"library(dplyr)",
+								"library(ggplot2)",
+								"library(tidyr)",
+								'pdf(file="'.$plot_gene_pdf.'")'
+								) . "\n";
+								
+		for my $r_gene (sort keys %genes_to_plot) {
+			print GENES_RSCRIPT $r_gene.' <- read.csv2("'.$r_gene.'_cell_count.tsv", header=TRUE,sep="\t")'."\n";
+			my $font_size = 5;
+			if ($r_gene eq 'KMT2D') {
+				$font_size = 1;
+			}
+			print GENES_RSCRIPT $r_gene.' %>% pivot_longer(-Coord,names_to="type") %>% ggplot(aes(Coord,value,fill=type)) + geom_col() + coord_cartesian(ylim=c(0,20)) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1,size='.$font_size.')) + ggtitle("'.$r_gene. ' Range_to_20")'."\n";
+			print GENES_RSCRIPT $r_gene.' %>% pivot_longer(-Coord,names_to="type") %>% ggplot(aes(Coord,value,fill=type)) + geom_col() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1,size='.$font_size.')) + ggtitle("'.$r_gene. ' Full_Range")'."\n";
+		}
+		print GENES_RSCRIPT "dev.off()\n";
+	}
+    print VARCOUNT join("\t",
+    						"Sample",
+    						"Varcount",
+    						"Group"
+    						) . "\n";
+} else {
+    print VARCOUNT join("\t",
+    						"Sample",
+    						"Varcount"
+    						) . "\n";
+}
+
+
+for my $sample ( keys %sample_varcount ) {
+    if ($group) {
+    	print VARCOUNT join("\t",
+    							$sample,
+    							$sample_varcount{$sample},
+    							$groups{$sample}
+    							) . "\n";
+    } else {
+    	print VARCOUNT join("\t",
+    							$sample,
+    							$sample_varcount{$sample}
+    							) . "\n";
+    }
+}
 
 
 open(OUT,">$out") || modules::Exception->throw("Can't open file to write\n");
@@ -906,7 +990,6 @@ my @fhs = (*OUT,*PRIORITY);
 for my $fh ( @fhs ) {
 	print $fh join("\t",@all_headers) ."\t";
 }
-
 
 #Create matrix; count cluster members / non-members
 my $cluster_count = my $noncluster_count = 0;
@@ -971,10 +1054,7 @@ for my $key (@keys) {
 	my $var_mean_af = !exists $data{$key}{mean_af} || $data{$key}{mean_af} eq 'N/A'?'NO_MEAN_AF':$data{$key}{mean_af};	
 	my $var_median_af = !exists $data{$key}{median_af} || $data{$key}{median_af} eq 'N/A'?'NO_MEDIAN_AF':$data{$key}{median_af};	
 	
-	#If below min_mean_af
-	if ($var_mean_af =~ /\d/ && $min_mean_af > $var_mean_af) {
-		next;
-	}
+	
 	
 	
 	my $var_samples;
@@ -998,19 +1078,23 @@ for my $key (@keys) {
 	}
 	
 	my @group_numbers = ();
+	my @group_vars = ();
 	if ($group) {
 		for my $localgroup ( sort keys %group_counts ) {
 	    	#push @group_headers, "$group var_count", "$group ref_count", "$group nodata_count";
 	    	if (!exists $data{$key}{groups}{$localgroup}) {
 	    		push @group_numbers, 0, 0, 0;
+	    		push @group_vars,0;
 	    	} else {
 	    		my $group_var_count = defined $data{$key}{groups}{$localgroup}{var_count}?$data{$key}{groups}{$localgroup}{var_count}:0;
 	    		my $group_ref_count = defined $data{$key}{groups}{$localgroup}{ref_count}?$data{$key}{groups}{$localgroup}{ref_count}:0;
 	    		my $group_nodata_count = defined $data{$key}{groups}{$localgroup}{nodata_count}?$data{$key}{groups}{$localgroup}{nodata_count}:0;
 				my $group_var_percent = $var_count == 0?'0':sprintf("%.2f",$group_var_count/$var_count *100);
 	    		push @group_numbers, $group_var_count ." (${group_var_percent}%)", $group_ref_count, $group_nodata_count;
+	    		push @group_vars,$group_var_count;
 	    	}
 		}
+		print GROUP join("\t", $key,@group_vars) . "\n";
 	}
 	my $var_str = $var_count . '('.$het_count . '/'. $hom_count .')';
 	my $average_score = 'COMPLEX EVENT';
@@ -1027,6 +1111,15 @@ for my $key (@keys) {
 		print "Doesn't exist allele key $key $alleles_key $total_alleles{$alleles_key}\n";
 	}
 	
+	
+	
+	
+	
+	#Start filtering here
+	#If below min_mean_af
+	if ($var_mean_af =~ /\d/ && $min_mean_af > $var_mean_af) {
+		next;
+	}
 	
 	if ($nd_count > $max_nocall_count) {
 		next;
@@ -1279,6 +1372,18 @@ for my $key (@keys) {
 						);
 						
 	if ($priority_flag) {
+		if ($group) {
+			my $group_key = $key;
+			if ($aa_change ne 'NO_AA_CHANGE') {
+				$group_key .= ":$gene_name:$aa_change";
+			} else {
+				$group_key .= ":$gene_name:$indel_result";
+			}
+			print GROUPPRIORITY join("\t", $group_key,@group_vars) . "\n";
+					
+			
+			
+		}
 			print PRIORITY join("\t",
 								$var_samples,
 								$data{$key}{var_type},

@@ -11,7 +11,8 @@ use Bio::SearchIO;
 GetOptions(\%OPT, 
 	   "help|h",
 	   "man|m",
-	   "vartrix=s"
+	   "vartrix=s",
+	   "min_var_count=i"
 	   );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -23,7 +24,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{vartrix});
 
 =head1 SYNOPSIS
 
-vartrix_count.pl -vatrix snv_matrix.tsv(from_R) [options]
+vartrix_count.pl -vatrix snv_matrix.tsv(from_R) -min_var_count min_variant_count_to_include [options]
 
 Required flags: -vartrix
 
@@ -54,7 +55,7 @@ Matthew Field
 =cut
 
 my $snv_matrix = defined $OPT{vartrix}?$OPT{vartrix}:'./snv_matrix.tsv';
-
+my $min_var_count = defined $OPT{min_var_count}?$OPT{min_var_count}:1;
 
 open(MATRIX,$snv_matrix) || modules::Exception->throw("Can't open file $\n");
 
@@ -94,6 +95,7 @@ while (<MATRIX>) {
 		my $hom = defined $line_count{'Hom'}?$line_count{'Hom'}:0;
 		my $het = defined $line_count{'Het'}?$line_count{'Het'}:0;
 		my $var_sum = $het+$hom;
+		next if ($var_sum <= $min_var_count);
 		my $called_sum = $var_sum + $ref;
 		
 		
