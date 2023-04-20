@@ -2,7 +2,8 @@
 #PBS -P pq84
 #PBS -q normalbw
 #PBS -l walltime=48:00:00,mem=16GB,jobfs=100Gb,ncpus=1
-#PBS -l storage=gdata/pq84+gdata/u86+scratch/u86+gdata/xx92
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84
+
 
 module load java/jdk-8.40
 java -Xms9200m -Xmx9600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T MuTect2 -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -L /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/intervals/CHR.intervals -I:tumor OUTDIR/SAMPLE_tumor_md_realign_recal.bam -I:normal OUTDIR/SAMPLE_normal_md_realign_recal.bam -o OUTDIR/SAMPLE.CHR.vcf

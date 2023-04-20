@@ -1,14 +1,15 @@
 #!/bin/bash
 #PBS -P pq84
 #PBS -q normalbw
-#PBS -l walltime=48:00:00,mem=128GB,jobfs=200GB,ncpus=32
-#PBS -l storage=gdata/u86+scratch/u86+gdata/xx92+gdata/pw1
+#PBS -l walltime=48:00:00,mem=128GB,jobfs=200GB,ncpus=28
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84
+
 
 module load java/jdk-8.40
-source /g/data/u86/variantdb/v2.3/conf/export_env.txt /g/data/u86/variantdb/v2.3
 module load bwa
+module load samtools
 
-bwa mem -M -R "@RG\tID:SAMPLE\tSM:SAMPLE_l1\tPL:ILLUMINA" -t 32  /g/data/u86/variantdb/v2.38/conf/human/GRCh38/bwa_index/GRCh38d1_noalt READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz |  /g/data/u86/variantdb/v2.3/ext/bin/samtools view -u -S - | /g/data/u86/software/bin/novosort --md --kt -c 8 -x 6 -m 10G -t $PBS_JOBFS -i -o OUTDIR/SAMPLE.bam -
+bwa mem -M -R "@RG\tID:SAMPLE\tSM:SAMPLE_l1\tPL:ILLUMINA" -t 28  /g/data/u86/variantdb/v2.38/conf/human/GRCh38/bwa_index/GRCh38d1_noalt READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz |  samtools view -u -S - | /g/data/u86/software/bin/novosort --md --kt -c 8 -x 6 -m 10G -t $PBS_JOBFS -i -o OUTDIR/SAMPLE.bam -
 
 qsub QSUBDIR/QSUBNEXT
 

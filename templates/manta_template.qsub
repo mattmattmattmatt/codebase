@@ -1,9 +1,9 @@
 #!/bin/bash
 #PBS -P pq84
-#PBS -q normal
-#PBS -l walltime=48:00:00,mem=64GB,jobfs=100GB,ncpus=16
-#PBS -l storage=gdata/pq84+gdata/u86+scratch/u86+gdata/xx92
+#PBS -q normalbw
+#PBS -l walltime=48:00:00,mem=64GB,jobfs=100GB,ncpus=28
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84
 
-#~/g/software/manta-1.1.1.centos5_x86_64/bin/configManta.py  --normalBam=normal_gatk.bam --tumourBam=rogue_gatk.bam --referenceFasta=/g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa --runDir=RUNDIR
-OUTDIR/runWorkflow.py -g 64 -j 16 -m local
+/g/data/u86/software/manta-1.1.1.centos5_x86_64/bin/configManta.py  --normalBam=normal_gatk.bam --tumourBam=rogue_gatk.bam --referenceFasta=/g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa --runDir=RUNDIR
+OUTDIR/runWorkflow.py -g 64 -j 28 -m local
 
