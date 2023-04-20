@@ -924,11 +924,15 @@ my $sample_count_file = $out_short."_sample_varcount.tsv";
 my $sample_group_count = $out_short."_group_count.tsv";
 my $sample_group_count_priority = $out_short."_rare_missense_nonsense_group_count.tsv";
 my $plot_gene_pdf = $out_short."_rare_missense_nonsense_gene_plots.pdf";
+my $var_sample_count = $out_short."_variant_samplelist.tsv";
+
 
 open(VARCOUNT,">$sample_count_file") || modules::Exception->throw("Can't open file to write $sample_count_file \n");
 open(GROUP,">$sample_group_count") || modules::Exception->throw("Can't open file to write $sample_group_count \n") if $group;
 open(GROUPPRIORITY,">$sample_group_count_priority") || modules::Exception->throw("Can't open file to write $sample_group_count_priority \n") if $group;
-open(GENES_RSCRIPT,">${outdir}/gene_plot.R") || modules::Exception->throw("Can't open gene plot R script") if $plot; 
+open(GENES_RSCRIPT,">${out_short}_gene_plot.R") || modules::Exception->throw("Can't open gene plot R script") if $plot; 
+open(VARSAMPLE,">$var_sample_count") || modules::Exception->throw("Can't open file $var_sample_count\n");
+
 
 if ($group) {
 	print GROUP join("\t","Coord",sort keys %group_counts) ."\n";
@@ -1111,7 +1115,19 @@ for my $key (@keys) {
 		print "Doesn't exist allele key $key $alleles_key $total_alleles{$alleles_key}\n";
 	}
 	
-	
+	#Records samples per variant for upset plots / etc -> needed as we don't report >100 samples in the reports
+	if (!exists $data{$key}{var_samples}) {
+		print VARSAMPLE join ("\t",
+								$key,
+								"COMPLEX_EVENT"
+								) ."\n";
+	} else {
+		print VARSAMPLE join ("\t",
+								$key,
+								join(",",@{$data{$key}{var_samples}})
+								) ."\n";
+		
+	}
 	
 	
 	
