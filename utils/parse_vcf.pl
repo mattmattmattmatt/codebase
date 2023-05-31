@@ -203,7 +203,7 @@ sub parse_vcf {
     	my ($chr,$first_coord,undef,$ref,$var_str,$qual,undef,$rest,$gt_fields,@alleles) = split;
     	my $line = $_;
    		my @fields = split;
-        my @gt_fields = split(':',$gt_fields);
+        my @gt_fields = split(':',$gt_fields) if $gt_fields;
 		my @details = split(';',$rest);	
 
     	if (/CHROM/ && $sample_name) {

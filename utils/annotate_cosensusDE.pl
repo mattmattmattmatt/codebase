@@ -5,8 +5,8 @@ use Getopt::Long;
 use Pod::Usage;
 use File::Basename;
 use vars qw(%OPT);
-use Bio::SearchIO;
-use Bio::SeqIO;
+#use Bio::SearchIO;
+#use Bio::SeqIO;
 use modules::Exception;
 
 GetOptions(\%OPT, 

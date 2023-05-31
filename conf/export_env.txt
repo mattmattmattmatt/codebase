@@ -10,7 +10,7 @@ else
    	export ENSEMBLLIB="${SVNDIR}/ext/modules/ens/94/ensembl/modules:${SVNDIR}/ext/modules/ens/94/ensembl-variation/modules:${SVNDIR}/ext/modules/ens/94/ensembl-funcgen/modules:${SVNDIR}/ext/modules/ens/94/ensembl-io/modules"
 	export ENSEMBL_REGISTRY="${SVNDIR}/conf/ensembl_registry.conf"
 	export ENSEMBL_REGISTRY_LOAD="${SVNDIR}/conf/ensembl_registry_load.conf"
-	export CLUSTERPERL="/home/221/mxf221/perl5/lib/perl5:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi/auto"
+	export CLUSTERPERL="/home/221/mxf221/perl5/lib/perl5:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi:/home/221/mxf221/perl5/lib/perl5/x86_64-linux-thread-multi/auto:/g/data/pq84/software/perl5/lib/perl5:/g/data/pq84/software/perl5/lib/perl5/x86_64-linux-thread-multi:/g/data/pq84/software/perl5/lib/perl5/x86_64-linux-thread-multi/auto"
 	export PERL5LIB="${SVNDIR}:${BIOPERL}:${ENSEMBLLIB}:${CLUSTERPERL}:${PERL5LIB}"
 	export PYTHONPATH=$PYTHONPATH:${SVNDIR}/ext/pythonlib/lib/python/
 	export PATH=$PATH:"${SVNDIR}/bin"
