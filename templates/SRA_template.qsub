@@ -1,0 +1,10 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q copyq
+#PBS -l walltime=10:00:00,mem=4GB,jobfs=10GB
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84
+
+cd /g/data/pq84/sra/
+
+/g/data/pq84/software/sra/bin/fasterq-dump SRA_ID
+
