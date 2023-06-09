@@ -371,11 +371,12 @@ if ($group) {
 	open(GROUPFILE,"$OPT{group_file}") || modules::Exception->throw("Can't open file $OPT{group_file}\n");
 	while (<GROUPFILE>) {
 		chomp;
-		my ($sample,$localgroup) = split();
+		my ($sample,$localgroup) = split("\t");
 		$groups{$sample} = $localgroup;
 		$group_counts{$localgroup}++;
 	}
 }
+
 
 my $anno_count;
 my %gene_anno = ();
@@ -436,6 +437,8 @@ if ($group) {
 	    push @group_headers, "$localgroup var_count", "$localgroup ref_count", "$localgroup nodata_count";
 	}
 }
+
+
 
 
 my @common_headers2 = (			
@@ -650,6 +653,9 @@ while (<PARSED>) {
 		my @geno_fields = split(':',$genotypes[$count]);
 		$sample = $samples[$count];
 		
+		#Don't count if sample not included
+		next unless exists $samples{$sample};
+		
 		my ($allele1,$allele2);
 		if ($geno_fields[0] =~ /\//) {
 			($allele1,$allele2) = split('/',$geno_fields[0]);
@@ -699,7 +705,7 @@ while (<PARSED>) {
 	$total_alleles{"$chr:$start:$end"} += $allele_count;
 	$line_count++;
 
-  if ($line_count % 100000 == 0) {
+  if ($line_count % 10000 == 0) {
     print "Parsing vcf $chr $start\n";
   }
 }

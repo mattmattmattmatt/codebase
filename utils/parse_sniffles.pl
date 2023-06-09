@@ -76,7 +76,7 @@ sub print_files {
 				for my $coord_str2 ( keys %{$results->{$sv_type}{$coord_str1}}) {
 					my ($chr1,$coord1) = split(':',$coord_str1);
 					my ($chr2,$coord2) = split(':',$coord_str2);
-					my $anno_str = join("^^^",'SVTYPE='.$sv_type,
+					my $anno_str = join("\t",'SVTYPE='.$sv_type,
 												'ID='.$results->{$sv_type}{$coord_str1}{$coord_str2}{id},
 												'VAR_READS='.$results->{$sv_type}{$coord_str1}{$coord_str2}{var_reads},
 											  'REF_READS='.$results->{$sv_type}{$coord_str1}{$coord_str2}{ref_reads},
