@@ -1,0 +1,23 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normalbw
+#PBS -l walltime=48:00:00,mem=16GB,jobfs=100GB,ncpus=1
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84
+
+module load java/jdk-8.40
+module load samtools
+module load samtools
+
+SOFT/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang SJDB_value --readFilesCommand zcat --runThreadN 1 --genomeDir SOFT/STAR/REF/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz
+
+samtools index OUTDIR/SAMPLE_Aligned.sortedByCoord.out.bam
+
+java -Djava.io.tmpdir=OUTDIR -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T SplitNCigarReads -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa  -I OUTDIR/SAMPLE.bam -o OUTDIR/SAMPLE_fix.bam  -rf ReassignOneMappingQuality -RMQF 255 -RMQT 60 -U ALLOW_N_CIGAR_READS
+
+java  -Xms3200m -Xmx13600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T BaseRecalibrator -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_fix.bam -knownSites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Mills_and_1000G_gold_standard.indels.hg38.vcf -knownSites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources/Homo_sapiens_assembly38.dbsnp138.vcf -o OUTDIR/SAMPLE.table
+
+java  -Xms3200m -Xmx13600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T PrintReads -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_fix.bam -BQSR OUTDIR/SAMPLE.table -o OUTDIR/SAMPLE.recal.bam
+
+java  -Xms3200m -Xmx13600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -ERC GVCF -dontUseSoftClippedBases -stand_call_conf 20.0 -stand_emit_conf 20.0 -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE.recal.bam -o OUTDIR/SAMPLE.g.vcf.gz
+
+java  -Xms3200m -Xmx13600m -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar  -T GenotypeGVCFs -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V OUTDIR/SAMPLE.g.vcf.gz -o OUTDIR/SAMPLE.vcf

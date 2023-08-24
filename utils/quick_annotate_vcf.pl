@@ -371,7 +371,7 @@ if ($group) {
 	open(GROUPFILE,"$OPT{group_file}") || modules::Exception->throw("Can't open file $OPT{group_file}\n");
 	while (<GROUPFILE>) {
 		chomp;
-		my ($sample,$localgroup) = split("\t");
+		my ($sample,$localgroup) = split();
 		$groups{$sample} = $localgroup;
 		$group_counts{$localgroup}++;
 	}
@@ -653,8 +653,10 @@ while (<PARSED>) {
 		my @geno_fields = split(':',$genotypes[$count]);
 		$sample = $samples[$count];
 		
-		#Don't count if sample not included
-		next unless exists $samples{$sample};
+		#Don't count if sample not included (except with controls)
+		if (keys %samples && !keys %controls) {
+			next unless exists $samples{$sample} ;
+		}
 		
 		my ($allele1,$allele2);
 		if ($geno_fields[0] =~ /\//) {
@@ -695,7 +697,6 @@ while (<PARSED>) {
 		}
 		
 		$data{$key}{zyg}{$sample} = $zyg;
-		
 		
 	}
   	my $allele_add = 0;
