@@ -69,6 +69,7 @@ my $ref = defined $OPT{ref}?$OPT{ref}:'/g/data/u86/variantdb/v2.38/conf/human/GR
 #test here
 my $bam = $OPT{bam};
 my $short_bam = basename($bam);
+$short_bam =~ s/.bam//;
 
 if (!-e $bam) {
 	modules::Exception->throw("ERROR: Bam file $bam doesn't exist");
@@ -77,12 +78,11 @@ if (!-e $bam) {
 #Make sure BAM is full path
 my $bam_full = abs_path($bam);
 
-my $fq1 = defined $OPT{fq1}?$OPT{fq1}:$short_bam.".R1.fq";
-my $fq2 = defined $OPT{fq2}?$OPT{fq2}:$short_bam.".R2.fq";
+my $fq1 = defined $OPT{fq1}?$OPT{fq1}:$short_bam."_R1.fq";
+my $fq2 = defined $OPT{fq2}?$OPT{fq2}:$short_bam."_R2.fq";
 
 my @commands = ();
 #assumes 28 threads (normalbw)
-push @commands, "module load samtools";
 push @commands, "samtools  sort -n -@ 28 $bam | samtools bam2fq -@ 28 -1 $outdir/$fq1  -2 $outdir/$fq2 --reference $ref  -s /dev/null -0 /dev/null -";
 
 
