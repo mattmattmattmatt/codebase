@@ -1,5 +1,4 @@
 #! /usr/bin/perl -w
-
 use strict;
 use modules::Exception;
 use modules::Vcf;
@@ -434,7 +433,7 @@ my @group_headers = ();
 
 if ($group) {
 	for my $localgroup ( sort keys %group_counts ) {
-	    push @group_headers, "$localgroup var_count", "$localgroup ref_count", "$localgroup nodata_count";
+	    push @group_headers, "$localgroup var_count (het/hom)", "$localgroup ref_count", "$localgroup nodata_count";
 	}
 }
 
@@ -680,6 +679,7 @@ while (<PARSED>) {
 				$data{$key}{hom_count}++;
 				$data{$key}{var_count}++;
 				$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
+				$data{$key}{groups}{$groups{$sample}}{hom_count}++ if $group;
 				push @{$data{$key}{var_samples}},$sample;
 				$sample_varcount{$sample}++;
 			}
@@ -689,6 +689,7 @@ while (<PARSED>) {
 				$data{$key}{het_count}++;
 				$data{$key}{var_count}++;
 				$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
+				$data{$key}{groups}{$groups{$sample}}{het_count}++ if $group;
 				push @{$data{$key}{var_samples}},$sample;
 				$sample_varcount{$sample}++;
 			} 
@@ -1098,10 +1099,12 @@ for my $key (@keys) {
 	    		push @group_vars,0;
 	    	} else {
 	    		my $group_var_count = defined $data{$key}{groups}{$localgroup}{var_count}?$data{$key}{groups}{$localgroup}{var_count}:0;
+	    		my $group_het_count = defined $data{$key}{groups}{$localgroup}{het_count}?$data{$key}{groups}{$localgroup}{het_count}:0;
+	    		my $group_hom_count = defined $data{$key}{groups}{$localgroup}{hom_count}?$data{$key}{groups}{$localgroup}{hom_count}:0;
 	    		my $group_ref_count = defined $data{$key}{groups}{$localgroup}{ref_count}?$data{$key}{groups}{$localgroup}{ref_count}:0;
 	    		my $group_nodata_count = defined $data{$key}{groups}{$localgroup}{nodata_count}?$data{$key}{groups}{$localgroup}{nodata_count}:0;
 				my $group_var_percent = $var_count == 0?'0':sprintf("%.2f",$group_var_count/$var_count *100);
-	    		push @group_numbers, $group_var_count ." (${group_var_percent}%)", $group_ref_count, $group_nodata_count;
+	    		push @group_numbers, $group_var_count ." (${group_var_percent}%) (${group_het_count}/${group_hom_count})", $group_ref_count, $group_nodata_count;
 	    		push @group_vars,$group_var_count;
 	    	}
 		}

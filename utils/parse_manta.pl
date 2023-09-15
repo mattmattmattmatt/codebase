@@ -73,6 +73,7 @@ if ( !-e $manta_vcf ) {
 }
 
 my $manta_sv = &parse_manta_result($manta_vcf);
+
 &print_files($manta_sv,$outbase,'manta');
 
 
@@ -123,8 +124,10 @@ sub print_files {
 					$anno_str .= '^^^ins='.$results->{$sv_type}{$coord_str1}{$coord_str2}{seq} if $sv_type eq 'ins';						 
 					
 					my $second_coord = $sv_type eq 'tra'?$coord1:$coord2;
-					$chr1 =~ s/chr//;
-					$chr2 =~ s/chr//;
+					if (!$OPT{no_human}) {
+						$chr1 =~ s/chr//;
+						$chr2 =~ s/chr//;
+					}
 					
 					
 					
@@ -177,7 +180,7 @@ sub parse_manta_result {
 		}
 		
 		
-		$chr1 =~ s/chr//;
+		$chr1 =~ s/chr// unless $OPT{no_human};
 		my $chr2 = $chr1;
 		
 		if (!$OPT{no_human}) {
@@ -247,13 +250,21 @@ sub parse_manta_result {
 		}
 		
 		if ($event_type eq 'bnd') {
-			($chr2,$start2) = $var_base =~ /([0-9a-zA-Z\.]+):(\d+)/;
-			#Don't record SVs twice
+			($chr2,$start2) = $var_base =~ /([0-9a-zA-Z\._]+):(\d+)/;
+			
+			#print "VB $var_base C $chr2 S $start2\n";
+			
+			if ($chr1 eq $chr2) {
+				$event_type = "inv";
+				$length = $start2-$start1;
+			}
+			
 			if ($chr2 !~ /^([0-9XYM]+)/) {
 				next unless $OPT{no_human};
 			}
 			next if $chr2 =~ /random/;
 			
+			#Don't record SVs twice
 			if (exists $sv_data{$event_type}{"$chr2:$start2"}) {
 				next;
 			}

@@ -81,9 +81,9 @@ my $fq1 = defined $OPT{fq1}?$OPT{fq1}:$short_bam.".R1.fq";
 my $fq2 = defined $OPT{fq2}?$OPT{fq2}:$short_bam.".R2.fq";
 
 my @commands = ();
-#assumes 48 threads
+#assumes 28 threads (normalbw)
 push @commands, "module load samtools";
-push @commands, "samtools  sort -n -@ 48 JT_product.RG.bam| samtools bam2fq -@ 48 -1 $outdir/$fq1  -2 $outdir/$fq2 --reference $ref  -s /dev/null -0 /dev/null -";
+push @commands, "samtools  sort -n -@ 28 $bam | samtools bam2fq -@ 28 -1 $outdir/$fq1  -2 $outdir/$fq2 --reference $ref  -s /dev/null -0 /dev/null -";
 
 
 my $sys_call = modules::SystemCall->new();
