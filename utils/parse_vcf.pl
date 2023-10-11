@@ -301,10 +301,9 @@ sub parse_vcf {
 		for my $var ( @vars ) {
 			next if $var eq '*'; #Due to upstream deletion
 			my ($var_key,$var_type,$ref_base) = _get_variant_key(-type=>'vcf',-chrom=>$chr,-first=>$first_coord,-ref_seq=>$ref,-var_seq=>$var);
-
+			next unless $var_key =~ /(\d+)-(\d+):.+/;
 			my ($start,$end) = $var_key =~ /(\d+)-(\d+)/;
-
-			
+			#print "Here $var_key\n";
 
 			#If fails quality test; only apply if quality score available
 			if ($qual ne '.' && $qual <= $vcf_cutoff) {
@@ -388,6 +387,7 @@ sub parse_vcf {
 			push @vcf_order, $var_key;
 			$zyg_num++;
 		}
+		
     }
     return \%vcf_data;
 }
@@ -467,7 +467,9 @@ sub _get_variant_key {
 						last;
 					}
 					$until_snp_count++;
+					$length--;
 				}
+				
 			}
 			
 		} else {

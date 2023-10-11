@@ -536,7 +536,7 @@ push @commands, $vep_in_command, $vep_indel_command1, $vep_indel_command2;
 push @commands, "$vep_wrapper -vep_bin $svndir/ext/bin/vep -vep_in $outdir/vep.indel.in -all > $outdir/$vcf_out.vep.indel" unless $OPT{skip_vep};
 push @commands, "$vep_wrapper -vep_bin $svndir/ext/bin/vep -vep_in $outdir/vep.in > $outdir/$vcf_out.vep.exon" unless $OPT{skip_vep};
 push @commands, "$vep_wrapper -vep_bin $svndir/ext/bin/vep -vep_in $outdir/vep.in -all > $outdir/$vcf_out.vep.all" unless $OPT{skip_vep};
-push @commands, "$overlap_bin -ref $outdir/$vcf_out -coord $gene_coord_file -just_overlap -all > $outdir/$vcf_out.gene_coord";
+#push @commands, "$overlap_bin -ref $outdir/$vcf_out -coord $gene_coord_file -just_overlap -all > $outdir/$vcf_out.gene_coord"; #Uses too much memory -> replace with per chr 
 
 
 
@@ -550,12 +550,21 @@ for my $chr (@chrs) {
 	
 	push @commands, "grep -w ^$chr $outdir/$vcf_out.snv > $outdir/$vcf_out.snv.gnomad.$chr";
 	push @commands, "grep -w ^$chr $outdir/$vcf_out.indel > $outdir/$vcf_out.indel.gnomad.$chr";
+	push @commands, "grep -w ^$chr $outdir/$vcf_out > $outdir/$vcf_out.gene_coord.$chr";
 	push @commands, "$overlap_bin -ref $outdir/$vcf_out.snv.gnomad.$chr -coord $gnomad_base.snv.$chr -just_overlap -all > $outdir/gnomad.snv.$chr";
 	push @commands, "$overlap_bin -ref $outdir/$vcf_out.indel.gnomad.$chr -coord $gnomad_base.indel.$chr -just_overlap -all > $outdir/gnomad.indel.$chr";
+	push @commands, "$overlap_bin -ref $outdir/$vcf_out.gene_coord.$chr -coord $gene_coord_file -just_overlap -all > $outdir/gene_coord.$chr";
 }
 
 push @commands, "cat $outdir/gnomad.snv.* >> $outdir/$vcf_out.gnomad";
 push @commands, "cat $outdir/gnomad.indel.* >> $outdir/$vcf_out.gnomad";
+push @commands, "cat $outdir/gene_coord.* >> $outdir/$vcf_out.gene_coord";
+
+#Clean up tmp files
+push @commands, "rm -f $outdir/*gnomad.*"; 
+push @commands, "rm -f $outdir/*gene_coord.*";
+push @commands, "rm -f $outdir/*snv";
+push @commands, "rm -f $outdir/*indel";
 
 my $sys_call = modules::SystemCall->new();
 
