@@ -20,7 +20,7 @@ GetOptions(\%OPT,
 	   );
 
 pod2usage(-verbose => 2) if $OPT{man};
-pod2usage(1) if ($OPT{help} || (!$OPT{dir} && !$OPT{tsv_in}) || !$OPT{anno_file});
+pod2usage(1) if ($OPT{help} || (!$OPT{dir} && !$OPT{tsv_in}));
 
 
 
@@ -55,7 +55,7 @@ Matthew Field
 =head1 EXAMPLE
 
 annotate_tsv.pl -anno_file /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/mm10_anno.gene -dir /drive3/work/paragen/output_group_filter
-annotate_tsv.pl -anno_file /drive2/vardb/trunk/conf/gene_names/all_gene_info/110119/mm10_anno.gene -tsv_in /drive3/work/paragen/output_group_filter/DE.tsv -anno_lookup_colnum 1 -file_lookup_colnum 2
+annotate_tsv.pl -tsv_in pre_post_topTable.csv -anno_file /drive2/codebase/utils/GRCh38.tsv -anno_lookup_colnum 2 -file_lookup_colnum 0
 
 =cut
 
@@ -91,8 +91,9 @@ if (defined $OPT{dir}) {
 
 #Lookup table for converting old header to new header names         
 my %data = ();   
+my $svndir = $ENV{'SVNDIR'}; 
 
-my $anno_file = $OPT{anno_file};
+my $anno_file = defined $OPT{anno_file}?$OPT{anno_file}:"${svndir}/utils/GRCh38.tsv";
 
 if (!-e $anno_file) {
 		modules::Exception->throw("Can't open file $anno_file\n");
@@ -136,7 +137,6 @@ while (<ANNO>) {
 
 
 
-print Dumper \%data;
 
 my @no_anno_line = ();
 push @no_anno_line, 'NO_ANNO' for (1..$anno_count); 
@@ -149,7 +149,6 @@ for my $tsv_in_file (@files_to_process) {
 	my $tsv_out = $base.'_annotate.'.$suffix;
 	open(TSV_OUT,">$tsv_out") || modules::Exception->throw("Can't write file $tsv_out\n");
 	my $header_flag = 1;
-	print "$tsv_out\n";
 	
 	while (<TSV_IN>) {
 		chomp;
