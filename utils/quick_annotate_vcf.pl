@@ -24,6 +24,7 @@ GetOptions(\%OPT,
 	   "no_run",
 	   "skip_vep",
 	   "sample_file=s",
+	   "count_all",
 	   "control_file=s",
 	   "somatic",
 	   "outfile=s",
@@ -49,7 +50,33 @@ pod2usage(1) if ($OPT{help} || !$OPT{vcf_in});
 
 =head1 SYNOPSIS
 
-quick_annotate_vcf.pl -vcf_in output_dir -outdir outdir(default=cwd) -min_sample_count minimum_number_samples_with_variant -ref ref_genome(default=GRCh38) -no_zyg no_zyg_info -no_run list_commands_and_quit -gene_anno_file gene_annotation_file -gene_coord_file gene_coordinate_file -skip_vep vep_already_run -control_file for_mixed_datasets_where_specific_controls_are_needed -sample_file only_include_vars_in_these_samples -somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list  -outfile output_summary_name(in_outdir) -gnomad_version version(default=2.0.1) -max_nocall_count don't_include_variants_with_this_many_nocalls -chr run_for_chr -vartrix_input vartrix_file(from_R_code) -sc_min_var sc_min_variant_cells -sc_min_total sc_min_cells_with_data -sc_min_portion portion_sc_with_data_that_are_variant -sort_column columnname_to_sort_by -priority_genes genelist_to_flag -group_file report_variants_by_groups(filters_applied_at_top_level) -min_mean_af min_allele_frequency_from_variant_samples -plot_genes file_of_genes_to_plot_for_MB
+quick_annotate_vcf.pl 
+	-vcf_in output_dir 
+	-outdir outdir(default=cwd)
+	-min_sample_count minimum_number_samples_with_variant
+	-ref ref_genome(default=GRCh38)
+	-no_zyg no_zyg_info
+	-no_run list_commands_and_quit 
+	-gene_anno_file gene_annotation_file 
+	-gene_coord_file gene_coordinate_file 
+	-skip_vep vep_already_run 
+	-control_file for_mixed_datasets_where_specific_controls_are_needed 
+	-sample_file only_include_vars_in_these_samples_dont_count_other_sample
+	-count_all with_sample_file_count_all
+	-somatic with_sample_file_vars_are_somatic_and_exclusive_to_sample_list
+	-outfile output_summary_name(in_outdir)
+	-gnomad_version version(default=2.0.1)
+	-max_nocall_count don't_include_variants_with_this_many_nocalls 
+	-chr run_for_chr 
+	-vartrix_input vartrix_file(from_R_code) 
+	-sc_min_var sc_min_variant_cells 
+	-sc_min_total sc_min_cells_with_data 
+	-sc_min_portion portion_sc_with_data_that_are_variant 
+	-sort_column columnname_to_sort_by 
+	-priority_genes genelist_to_flag 
+	-group_file report_variants_by_groups(filters_applied_at_top_level) 
+	-min_mean_af min_allele_frequency_from_variant_samples 
+	-plot_genes file_of_genes_to_plot_for_MB
 
 Required flags: -vcf_in 
 
@@ -100,7 +127,7 @@ Matthew Field
 ./quick_annotate_vcf.pl -outdir results_1912/  -outfile 1912_all -vcf 1912.cells.hg38.vcf -mb_matrix
 
 #MB for single cluster
-./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_rogue -no_run -mb_matrix -sample_file Rogue_barcodes.txt -sort_column portion_in_cluster
+./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_rogue -no_run -mb_matrix -sample_file Rogue_barcodes.txt -count_all -sort_column portion_in_cluster
 
 #MB with all cluster groups and no sample zygosities and 25 samples and sorted by avg_variant_score
 ./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_cat1groups_min25samples -group_file group_file_cat1.tsv -no_run -no_zyg -min_sample_count 25 -sort_column average_qual_per_sample
@@ -152,6 +179,8 @@ my %sample_varcount = ();
 
 #MissionBio flag for creating matrix
 my $mb = defined $OPT{mb_matrix}?1:0;
+my $count_all = defined $OPT{count_all}?1:0;
+
 
 my ($vcf_short) = basename($vcf);
 (my $vcf_out = $vcf_short) =~ s/.vcf/.txt/;
@@ -420,7 +449,12 @@ my @vartrix_headers = (
 						);
 
 
-my @missionbio_headers = (
+my @missionbio_headers_short = (
+						'cluster_variant_count',
+						'cluster_variant_freq',
+						);
+
+my @missionbio_headers_all = (
 						'cluster_variant_count',
 						'cluster_variant_freq',
 						'nocluster_variant_count',
@@ -428,6 +462,8 @@ my @missionbio_headers = (
 						'cluster_nocluster_freq_diff',
 						'portion_in_cluster'
 						);
+
+
 
 my @group_headers = ();
 
@@ -480,7 +516,11 @@ my @all_headers = ();
 if ($vartrix_input) {
 	@all_headers = (@common_headers, @vartrix_headers, @common_headers2); 
 } elsif ($mb) {
-	@all_headers = (@common_headers, @missionbio_headers, @common_headers2); 
+	if ($count_all) {
+		@all_headers = (@common_headers, @missionbio_headers_all, @common_headers2); 
+	} else {
+		@all_headers = (@common_headers, @missionbio_headers_short, @common_headers2);		
+	}
 } elsif ($group) {
 	@all_headers = (@common_headers, @group_headers, @common_headers2);
 } else {
@@ -661,8 +701,8 @@ while (<PARSED>) {
 		my @geno_fields = split(':',$genotypes[$count]);
 		$sample = $samples[$count];
 		
-		#Don't count if sample not included (except with controls)
-		if (keys %samples && !keys %controls) {
+		#Don't count if sample not included (except with controls or count_all flag)
+		if (keys %samples && !keys %controls && !$count_all) {
 			next unless exists $samples{$sample} ;
 		}
 		
@@ -1291,7 +1331,7 @@ for my $key (@keys) {
 		my $diff = 'N/A';
 		my $portion_cluster = 'N/A';
 		
-		#Check we're running it with -sample_flag (without just gives N/A's)
+		#Check we're running it with -sample_flag or -priority_sample_flag (without just gives N/A's)
 		if (exists $data{$key}{var_samples} && keys %samples) {
 			my $cluster_var_count = my $noncluster_var_count = 0;
 			for my $variant_sample	(@{$data{$key}{var_samples}}) {
@@ -1301,6 +1341,7 @@ for my $key (@keys) {
 					$noncluster_var_count++;
 				}
 			}
+				
 			$cluster_var_str = $cluster_var_count .' / '.$cluster_count;
 			$noncluster_var_str = $noncluster_var_count .' / '.$noncluster_count;
 			$cluster_freq = $cluster_count>0?sprintf("%.3f",$cluster_var_count/$cluster_count):0;
@@ -1309,8 +1350,8 @@ for my $key (@keys) {
 			$portion_cluster = sprintf("%.2f",$cluster_var_count/$var_count);
 		} 
 			
-		
-		 print OUT join("\t",
+		if ($count_all) {
+			print OUT join("\t",
 						$cluster_var_str,
 						$cluster_freq,
 						$noncluster_var_str,
@@ -1328,7 +1369,21 @@ for my $key (@keys) {
 									$diff,
 									$portion_cluster
 									) . "\t";
+			
 			}
+		} else {
+			print OUT join("\t",
+						$cluster_var_str,
+						$cluster_freq,
+						) . "\t";
+				
+			if ($priority_flag) {
+				print PRIORITY join("\t",
+									$cluster_var_str,
+									$cluster_freq,
+									) . "\t";
+			}
+		}
 	} elsif ($vartrix_input) {
 		my $sc_nd = defined $data{$key}{sc_nd}?$data{$key}{sc_nd}:"N/A";
 		my $sc_ref = defined $data{$key}{sc_ref}?$data{$key}{sc_ref}:"N/A";

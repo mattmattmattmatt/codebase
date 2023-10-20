@@ -134,6 +134,8 @@ sub get_base_array {
 	    	push @final_bases, $bases[$count];
 	    } elsif ($bases[$count] eq '*') {
 	    	push @final_bases, 'OTHER_DEL';
+	    } elsif ($bases[$count] eq '<' || $bases[$count] eq '>' ) {
+	    	push @final_bases, 'REFSKIP';
 	    }
 	    $count++;
 	}
@@ -179,6 +181,8 @@ sub get_base_array_indel {
 	    	push @final_bases, 'REF';
 	    } elsif ($bases[$count] eq '*') {
 	    	push @final_bases, 'OTHER_DEL';
+	    } elsif ($bases[$count] eq '<' || $bases[$count] eq '>' ) {
+	    	push @final_bases, 'REFSKIP';
 	    }
 	    $count++;
 	}

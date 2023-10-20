@@ -30,7 +30,7 @@ pod2usage(1) if ($OPT{help} || (!$OPT{dir} && !$OPT{tsv_in}));
 
 annotate_tsv.pl -tsv_in input_tsv -dir dir_of_tsvs -anno_file annotation_file -anno_lookup_colnum default=0 -file_lookup_colnum default=0 [options]
 
-Required flags: (-dir || -tsv_in) -anno_file
+Required flags: (-dir || -tsv_in) 
 
 =head1 OPTIONS
 
