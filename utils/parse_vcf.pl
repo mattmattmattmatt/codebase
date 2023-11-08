@@ -289,17 +289,22 @@ sub parse_vcf {
 
 
 		my @ac_fields =  ();
+		my $total_ac = 0;
 
 		for my $detail (@details) {
 			if ($detail =~ /^AC=/) {
 				$detail =~ s/AC=//;
 				@ac_fields = split(",",$detail);
+				for my $count (@ac_fields) {
+					$total_ac += $count;
+				} 
 			}
 		}
 
 		my $zyg_num = 1;	
 		for my $var ( @vars ) {
 			next if $var eq '*'; #Due to upstream deletion
+			next if $var eq $ref; #Happens with Tapestri occasionally
 			my ($var_key,$var_type,$ref_base) = _get_variant_key(-type=>'vcf',-chrom=>$chr,-first=>$first_coord,-ref_seq=>$ref,-var_seq=>$var);
 			next unless $var_key =~ /(\d+)-(\d+):.+/;
 			my ($start,$end) = $var_key =~ /(\d+)-(\d+)/;
@@ -347,18 +352,14 @@ sub parse_vcf {
 
 			#Get the number of variant samples
 			if ($OPT{keep_allele_freq}) {
-				my ($allele_count) = $rest =~ /AC=(\d+)/;
+				
+				
+				
 				my ($allele_total) = $rest =~ /AN=(\d+)/;
-				$allele_count = 0 if !defined $allele_count;
 				$allele_total = 0 if !defined $allele_total;
 				
-				my $sample_var_freq = 0;
-				if ($rest =~ /AF=([0-9\.e-]+)/) {
-					$sample_var_freq = $1;
-				} else {
-					$sample_var_freq = sprintf("%2f",$allele_count/$allele_total) if $allele_total != 0;
-				}
-				$vcf_data{$var_key}{allele} = $allele_count . '/' . $allele_total . '('. $sample_var_freq .')';
+				
+				$vcf_data{$var_key}{allele} = $total_ac . '/' . $allele_total;
 			}
 			
 			#Get the frequency across all the samples containing the variant

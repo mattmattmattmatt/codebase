@@ -40,7 +40,8 @@ GetOptions(\%OPT,
        "priority_genes=s",
        "group_file=s",
        "min_mean_af=s",
-       "plot_genes=s"
+       "plot_genes=s",
+       "high_quality"
    );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -77,6 +78,7 @@ quick_annotate_vcf.pl
 	-group_file report_variants_by_groups(filters_applied_at_top_level) 
 	-min_mean_af min_allele_frequency_from_variant_samples 
 	-plot_genes file_of_genes_to_plot_for_MB
+	-high_quality apply_combination_of_stringent_filters_with_single_flag
 
 Required flags: -vcf_in 
 
@@ -114,17 +116,17 @@ Matthew Field
 #Rerun with new filters on existing dir
 ./quick_annotate_vcf.pl -skip_vep -no_run -outdir results/ -outfile patient2_WGS_min10samples  -vcf joint_calls.vcf -min_sample_count 10
 
-#Find somatic variants (in sample_list only)
+#Find somatic variants (variants exclusively found in sample_list only)
 ./quick_annotate_vcf.pl -outdir results/ -outfile celiac4_somatic_2samples -vcf joint_call_chr.vcf -sample_file celiac4_samples_rogue -somatic -min_sample_count 2
 
 #In sample_list but not in controls
-./quick_annotate_vcf.pl -outdir results_all/ -outfile patient2_WGS_nodonor  -vcf joint_calls.vcf -control_file sample_control -sample_file sample_noncontrols 
+./quick_annotate_vcf.pl -outdir results_all/ -outfile patient2_WGS_nodonor  -vcf joint_calls.vcf -control_file sample_control -sample_file samples_of_interest
 
 #Max no_data and min sample count cutoffs applied
 ./quick_annotate_vcf.pl -outdir results_all/ -outfile patient2_WGS_1nodata_2orMoreSamples  -vcf joint_calls.vcf -control_file sample_control -sample_file sample_noncontrols -max_nocall_count 1 -min_sample_count 2
 
 #MB generate matrix
-./quick_annotate_vcf.pl -outdir results_1912/  -outfile 1912_all -vcf 1912.cells.hg38.vcf -mb_matrix
+./quick_annotate_vcf.pl -outdir results_1912/  -outfile 1912_all -vcf 1912.cells.hg38.vcf
 
 #MB for single cluster
 ./quick_annotate_vcf.pl -vcf_in 1912.cells.hg38.vcf -outdir analysis/ -outfile Celiac_1912_rogue -no_run -mb_matrix -sample_file Rogue_barcodes.txt -count_all -sort_column portion_in_cluster
@@ -148,20 +150,16 @@ if (!exists $ENV{'SVNDIR'}) {
 	$svndir = $ENV{'SVNDIR'};
 }
 
-my $rare_cutoff = 0.02;
-
-my $min_mean_af = defined $OPT{min_mean_af}?$OPT{min_mean_af}:0;
 
 if (!-d $svndir) {
 	modules::Exception->throw("ERROR: $svndir doesn't exist\n");
 }
 
+my $rare_cutoff = 0.02;
 my $ref = defined $OPT{ref}?$OPT{ref}:"GRCh38";
 
-#Whether to include sample columns; for single cell this isn't useful for example creating huge number of columns
-my $incl_sample = defined $OPT{no_sample}?0:1;
-
-
+#Whether to include sample zygosity columns; for single cell this isn't useful for example creating huge number of columns
+my $incl_zyg = defined $OPT{no_zyg}?0:1;
 
 my $gnomad_version = defined $OPT{gnomad_version}?$OPT{gnomad_version}:"2.0.1";
 
@@ -179,26 +177,28 @@ my %sample_varcount = ();
 
 #MissionBio flag for creating matrix
 my $mb = defined $OPT{mb_matrix}?1:0;
+
+#For comparing one cell type vs the rest
 my $count_all = defined $OPT{count_all}?1:0;
 
-
+#For output files
 my ($vcf_short) = basename($vcf);
 (my $vcf_out = $vcf_short) =~ s/.vcf/.txt/;
 
+#Default run all chromosomes
 my $chr_filter = defined $OPT{chr}?$OPT{chr}:"all";
 
+#Default of current dir for output
 my $outdir = defined $OPT{outdir}?$OPT{outdir}:`pwd`;
 chomp $outdir;
 $outdir = abs_path($outdir);
 
 
-
-
-
 if (!-d $outdir) {
-        modules::Exception->throw("Dir $outdir doesn't exist");
+        `mkdir $outdir`;
 }
 
+#For creating matrices for downstream analysis for vatrix and tapestri
 my %vartrix_map = (
 				"0" => "no_call",
 				"1" => "ref",
@@ -273,8 +273,9 @@ if ($vartrix_input) {
 	print "Parsed vartrix....\n";
 }
 
-#Either pass sample file with -somatic flag (everything else treated as control) or pass in control AND sample file for more complex subsetting
+#Handling of edge cases
 
+#Either pass sample file with -somatic flag (everything else treated as control) or pass in control AND sample file for more complex subsetting
 if ($OPT{somatic} && $OPT{control_file}) {
 	modules::Exception->throw("Only use control_file or somatic flag. Somatic flag treats everything not in sample as control");
 }
@@ -287,12 +288,18 @@ if ($OPT{control_file} && !$OPT{sample_file}) {
 	modules::Exception->throw("ERROR: Can't use control option without sample_file\n");
 }
 
+#Cell annotation file can't be combined with somatic
 if ($OPT{group_file} && $OPT{somatic}) {
 	modules::Exception->throw("Group_file can't be run with somatic\n");
 }
 
+
 if ($OPT{group_file} && $mb) {
 	modules::Exception->throw("Group_file can't be run with mb; mb is for single cluster\n");
+}
+
+if ($mb && !$OPT{sample_file}) {
+	modules::Exception->throw("mb required sample_file for single cluster\n");
 }
 
 my $parse_vcf = "$svndir/utils/parse_vcf.pl";
@@ -329,7 +336,6 @@ my @var_types = qw(snv indel);
 
 my $gene_coord_file = my $gene_anno_file;
 
-my $incl_zyg = defined $OPT{no_zyg}?0:1;
 
 #First parse the annotations file -> this is joined on ENSEMBL gene name
 
@@ -371,7 +377,7 @@ if ($OPT{control_file}) {
 	}
 }
 
-#Variant groups
+#Variant groups (i.e. cell annotations)
 my $group = defined $OPT{group_file}?1:0;
 my %groups = ();
 my %group_counts = ();
@@ -564,47 +570,60 @@ if ( !-e $gene_coord_file ) {
 #Build up command list
 my @commands = ();
 
+
+
+#Parse vcf
+push @commands, "$parse_vcf -vcf $vcf -keep_zyg -mean_var_freq -keep_allele_freq -out $outdir/$vcf_out";
+
+#Split by type (for vep input)
+push @commands, "grep SNV $outdir/$vcf_out > $outdir/$vcf_out.snv";
+push @commands, "grep -v SNV $outdir/$vcf_out > $outdir/$vcf_out.indel";
+
+
+#Generate VEP inputs for SNV/INS/DEL
 my $vep_in_command ="cat $outdir/$vcf_out.snv". ' | sed -e "s/:/ /g" -e "s/;/ /g" -e "s/->/ /" | awk \'{print $1,$2,$3,$7,$8,"+"}'."' > $outdir/vep.in"; 
 my $vep_indel_command1 = "cat $outdir/$vcf_out.indel". ' | grep DEL |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/-/ /g" | awk \'{print $1,$2,$3,$8,"-","+"}'."' > $outdir/vep.indel.in";
 my $vep_indel_command2 = "cat $outdir/$vcf_out.indel". ' | grep INS |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/+/ /g" -e "s/REF=//" | awk \'{print $1,$2,$3,$13,$13$7,"+"}'."' >> $outdir/vep.indel.in";
-
-
-push @commands, "$parse_vcf -vcf $vcf -keep_zyg -mean_var_freq -out $outdir/$vcf_out";
-push @commands, "grep SNV $outdir/$vcf_out > $outdir/$vcf_out.snv";
-push @commands, "grep -v SNV $outdir/$vcf_out > $outdir/$vcf_out.indel";
 push @commands, $vep_in_command, $vep_indel_command1, $vep_indel_command2;
+
+#Run VEP
 push @commands, "$vep_wrapper -vep_bin $svndir/ext/bin/vep -vep_in $outdir/vep.indel.in -all > $outdir/$vcf_out.vep.indel" unless $OPT{skip_vep};
 push @commands, "$vep_wrapper -vep_bin $svndir/ext/bin/vep -vep_in $outdir/vep.in > $outdir/$vcf_out.vep.exon" unless $OPT{skip_vep};
 push @commands, "$vep_wrapper -vep_bin $svndir/ext/bin/vep -vep_in $outdir/vep.in -all > $outdir/$vcf_out.vep.all" unless $OPT{skip_vep};
+
+
 #push @commands, "$overlap_bin -ref $outdir/$vcf_out -coord $gene_coord_file -just_overlap -all > $outdir/$vcf_out.gene_coord"; #Uses too much memory -> replace with per chr 
-
-
-
-#Gnomad needs to be split by chr
+#Gnomad and gene overlap needs to be split by chr
 for my $chr (@chrs) {
 	next if $chr eq 'Y';
-	
 	if ($chr_filter =~ /[0-9X]/) {
     	next unless $chr_filter eq $chr;
   	}
 	
+	#Generate chr input to overlap coord 
 	push @commands, "grep -w ^$chr $outdir/$vcf_out.snv > $outdir/$vcf_out.snv.gnomad.$chr";
 	push @commands, "grep -w ^$chr $outdir/$vcf_out.indel > $outdir/$vcf_out.indel.gnomad.$chr";
 	push @commands, "grep -w ^$chr $outdir/$vcf_out > $outdir/$vcf_out.gene_coord.$chr";
+	
+	#Overlap with gnomad and genes
 	push @commands, "$overlap_bin -ref $outdir/$vcf_out.snv.gnomad.$chr -coord $gnomad_base.snv.$chr -just_overlap -all > $outdir/gnomad.snv.$chr";
 	push @commands, "$overlap_bin -ref $outdir/$vcf_out.indel.gnomad.$chr -coord $gnomad_base.indel.$chr -just_overlap -all > $outdir/gnomad.indel.$chr";
 	push @commands, "$overlap_bin -ref $outdir/$vcf_out.gene_coord.$chr -coord $gene_coord_file -just_overlap -all > $outdir/gene_coord.$chr";
 }
 
+#Clean up before
+push @commands, "rm -f $outdir/$vcf_out.gnomad $outdir/$vcf_out.gnomad $outdir/$vcf_out.gene_coord";
+
+#Generate whole genome files
 push @commands, "cat $outdir/gnomad.snv.* >> $outdir/$vcf_out.gnomad";
 push @commands, "cat $outdir/gnomad.indel.* >> $outdir/$vcf_out.gnomad";
 push @commands, "cat $outdir/gene_coord.* >> $outdir/$vcf_out.gene_coord";
 
-#Clean up tmp files
+#Clean up tmp chr files
 push @commands, "rm -f $outdir/*gnomad.*"; 
 push @commands, "rm -f $outdir/*gene_coord.*";
-push @commands, "rm -f $outdir/*snv";
-push @commands, "rm -f $outdir/*indel";
+push @commands, "rm -f $outdir/$vcf_out.snv";
+push @commands, "rm -f $outdir/$vcf_out.indel";
 
 my $sys_call = modules::SystemCall->new();
 
@@ -641,7 +660,22 @@ while (<VCF>) {
 my $sample_count = @samples;
 my $max_nocall_count = defined $OPT{max_nocall_count}?$OPT{max_nocall_count}:$sample_count;
 my $min_sample_count = defined $OPT{min_sample_count}?$OPT{min_sample_count}:1;
+my $min_mean_af = defined $OPT{min_mean_af}?$OPT{min_mean_af}:0;
 
+#Overwite default quality filters
+if (defined $OPT{high_quality}){
+	if ($mb) {
+		#For tapestri
+		$min_mean_af = 0.3;
+		$min_sample_count = 10;
+		$max_nocall_count = int($sample_count/2);
+	} else {
+		#For others (GTSeq/etc)
+		$min_mean_af = 0.1;
+		$min_sample_count = 2;
+		$max_nocall_count = 0.1*$sample_count;
+	}
+}
 
 #Single cell specific filters to check; set to -1 to account for 0 cases (use for MissionBio and 10X)
 my $sc_min_var = defined $OPT{sc_min_var}?$OPT{sc_min_var}:-1;
@@ -671,7 +705,7 @@ while (<PARSED>) {
     	next unless $chr_filter eq $chr;
   	}
 
-	my ($var_type,$var_base_str,$qual,$allele_count,$zyg_count,$mean_af,$median_af) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+);ZC=(\d);MEANAF=(\S+);MEDAF=([0-9\.]+)/;
+	my ($var_type,$var_base_str,$qual,$allele_count,$zyg_count,$var_allele_total,$mean_af,$median_af) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+);ZC=(\d);ALLELE=(\d+).*MEANAF=(\S+);MEDAF=([0-9\.]+)/;
 	my $var_base = my $ref_base;
 	if ($var_type eq 'SNV') {
 		($ref_base,$var_base) = split('->',$var_base_str); 
@@ -691,12 +725,11 @@ while (<PARSED>) {
 	$data{$key}{qual} = $qual;
 	$data{$key}{mean_af} = $mean_af =~ /\d/?$mean_af:'N/A';
 	$data{$key}{median_af} = $median_af =~ /\d/?$median_af:'N/A';
-	
+	$data{$key}{total_ac} = $var_allele_total;
 	my $zyg;
 	my $sample;
 
 
-	#only if zygosity is included
 	for (my $count = 0; $count < @genotypes; $count++) {
 		my @geno_fields = split(':',$genotypes[$count]);
 		$sample = $samples[$count];
@@ -749,6 +782,9 @@ while (<PARSED>) {
 		$data{$key}{zyg}{$sample} = $zyg;
 		
 	}
+	
+	
+	
   	my $allele_add = 0;
 	if (exists $data{$key}{var_count}){
 		$allele_add = $data{$key}{var_count};
@@ -1117,7 +1153,6 @@ for my $key (@keys) {
 	
 	
 	
-	
 	my $var_samples;
 	if (!exists $data{$key}{var_samples}) {
 		$var_samples = "Complex overlapping event";
@@ -1164,14 +1199,17 @@ for my $key (@keys) {
 
 	my $alleles_key = "$chr:$start:$end";
 
-	if (exists  $total_alleles{$alleles_key}) {
-		if ($total_alleles{$alleles_key} > 0) {
-			$average_score = sprintf("%.2f",$data{$key}{qual} / $total_alleles{$alleles_key});
-		} else {
-			#print "No >0 allele key $key $alleles_key $total_alleles{$alleles_key}\n";
-		}	
-	} else {
-		print "Doesn't exist allele key $key $alleles_key $total_alleles{$alleles_key}\n";
+	#First try allele field from vcf
+	if (exists $data{$key}{total_ac}) {
+		if ($data{$key}{total_ac} > 0) {
+				$average_score = sprintf("%.2f",$data{$key}{qual} / $data{$key}{total_ac});
+		} elsif (exists $total_alleles{$alleles_key}) {
+			#otherwise use allele count from parsing (problems with complex snv/indel mixed events)
+			if ($total_alleles{$alleles_key} > 0) {
+				$average_score = sprintf("%.2f",$data{$key}{qual} / $total_alleles{$alleles_key});
+			}
+		}
+		
 	}
 	
 	#Records samples per variant for upset plots / etc -> needed as we don't report >100 samples in the reports
