@@ -203,19 +203,22 @@ sub parse_result {
 		next if /^#/;
 		my ($chr1,$start1,$id,$ref_base,undef,undef,undef,$gff_str) = split("\t");
 		$chr1 =~ s/chr//;
-		my ($chr2)  = $gff_str =~ /CHR2=c?h?r?([0-9XY]+)/;
+		my $chr2 = $chr1;
+		if ($gff_str =~ /CHR2=c?h?r?([0-9XY]+)/) {
+			$chr2 = $1;
+		}
 		my ($start2) = $gff_str =~ /END=(\d+);/; 
 		my $length = my $sr_count = my $pe_count = 0;
 		if (/SR=/) {
 			($sr_count) = $gff_str =~ /SR=(\d+)/;
 		}
 		($pe_count) = $gff_str =~ /PE=(\d+)/;
-		my ($event_type_uc) = $gff_str =~ /SVTYPE=([A-Z]+)/;
-		my $event_type = lc $event_type_uc;
+		my ($event_type) = $gff_str =~ /SVTYPE=([A-Z]+)/;
+		#my $event_type = lc $event_type_uc;
 		my ($qual) = $gff_str =~ /MAPQ=(\d+)/;
 		$length  = abs($start2 - $start1) unless $event_type eq 'tra';
 		
-		if ($event_type eq 'ins') {
+		if ($event_type eq 'INS') {
 			$start2 = $start1;
 		}
 		
@@ -227,7 +230,7 @@ sub parse_result {
 		$sv_data{$event_type}{"$chr1:$start1"}{"$chr2:$start2"}{id} = $id;
 		$sv_data{$event_type}{"$chr1:$start1"}{"$chr2:$start2"}{qual} = $qual;
 		
-		if ($event_type eq 'ins') {
+		if ($event_type eq 'INS') {
 			my ($seq) = $gff_str =~ /CONSENSUS=([A-Z]+)/;
 			$sv_data{$event_type}{"$chr1:$start1"}{"$chr1:$start2"}{length} = length($seq);
 			$seq = 'TOO_LONG' if length($seq) > 1000;
