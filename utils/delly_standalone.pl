@@ -121,8 +121,6 @@ for my $sv_type ( @sv_types ) {
 	} else {
 		modules::Exception->warning("Warning: no bcf file $bcf_out for type $sv_type");
 	}
-	print Dumper $results;
-	print Dumper $results->{$sv_type};
 	
 	for my $coord_str1 (sort {my ($a_chr,$a_coord) = $a =~ /([0-9XYM]+):(\d+)/; my ($b_chr,$b_coord) = $b =~ /([0-9XYM]+):(\d+)/; $a_chr cmp $b_chr || $a_coord <=> $b_coord }  keys %{$results->{$sv_type}}) {
 		for my $coord_str2 ( keys %{$results->{$sv_type}{$coord_str1}}) {

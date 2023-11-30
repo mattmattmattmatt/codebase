@@ -201,26 +201,35 @@ sub parse_result {
 		chomp;
 		next if /\tLowQual/;
 		next if /^#/;
-		my ($chr1,$start1,$id,$ref_base,undef,undef,undef,$gff_str) = split("\t");
+		my ($chr1,$start1,$id,$ref_base,$other_coord,undef,undef,$gff_str) = split("\t");
 		$chr1 =~ s/chr//;
 		my $chr2 = $chr1;
 		if ($gff_str =~ /CHR2=c?h?r?([0-9XY]+)/) {
 			$chr2 = $1;
 		}
-		my ($start2) = $gff_str =~ /END=(\d+);/; 
+		
 		my $length = my $sr_count = my $pe_count = 0;
 		if (/SR=/) {
 			($sr_count) = $gff_str =~ /SR=(\d+)/;
 		}
 		($pe_count) = $gff_str =~ /PE=(\d+)/;
 		my ($event_type) = $gff_str =~ /SVTYPE=([A-Z]+)/;
+		
+		
+		my $start2;
+		if ($event_type eq 'BND') {
+			($start2) = $other_coord =~ /:(\d+)/; 
+		} elsif ($gff_str =~ /END=(\d+);/) {
+			$start2 = $1;
+		}  else {
+			modules::Exception->throw("ERROR: Can't get second coord\n");
+		}
+		
 		#my $event_type = lc $event_type_uc;
 		my ($qual) = $gff_str =~ /MAPQ=(\d+)/;
-		$length  = abs($start2 - $start1) unless $event_type eq 'tra';
+		$length  = abs($start2 - $start1) unless $event_type eq 'BND';
 		
-		if ($event_type eq 'INS') {
-			$start2 = $start1;
-		}
+		
 		
 		
 		$sv_data{$event_type}{"$chr1:$start1"}{"$chr2:$start2"}{pe} = $pe_count;
