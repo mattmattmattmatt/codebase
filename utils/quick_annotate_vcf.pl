@@ -583,7 +583,7 @@ push @commands, "grep -v SNV $outdir/$vcf_out > $outdir/$vcf_out.indel";
 #Generate VEP inputs for SNV/INS/DEL
 my $vep_in_command ="cat $outdir/$vcf_out.snv". ' | sed -e "s/:/ /g" -e "s/;/ /g" -e "s/->/ /" | awk \'{print $1,$2,$3,$7,$8,"+"}'."' > $outdir/vep.in"; 
 my $vep_indel_command1 = "cat $outdir/$vcf_out.indel". ' | grep DEL |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/-/ /g" | awk \'{print $1,$2,$3,$8,"-","+"}'."' > $outdir/vep.indel.in";
-my $vep_indel_command2 = "cat $outdir/$vcf_out.indel". ' | grep INS |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/+/ /g" -e "s/REF=//" | awk \'{print $1,$2,$3,$13,$13$7,"+"}'."' >> $outdir/vep.indel.in";
+my $vep_indel_command2 = "cat $outdir/$vcf_out.indel". ' | grep INS |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/+/ /g" -e "s/REF=//" | awk \'{print $1,$2,$3,$14,$14$7,"+"}'."' >> $outdir/vep.indel.in";
 push @commands, $vep_in_command, $vep_indel_command1, $vep_indel_command2;
 
 #Run VEP
