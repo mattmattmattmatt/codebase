@@ -1,0 +1,9 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normalbw
+#PBS -l walltime=48:00:00,mem=64GB,jobfs=100Gb,ncpus=4
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84
+
+source /g/data/pq84/software/codebase/conf/export_env.txt /g/data/pq84/software/codebase/
+
+/g/data/pq84/software/codebase/utils/quick_annotate_vcf.pl -vcf_in VCF_FILE -outdir OUTDIR -outfile OUTFILE_allvariants -sort_column average_qual_per_sample
