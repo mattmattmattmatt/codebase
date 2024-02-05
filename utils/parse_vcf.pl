@@ -342,6 +342,11 @@ sub parse_vcf {
 			if ($qual eq '.' && $detail =~ /SomaticEVS=([0-9\.]+)/) {
 				$qual = $1;
 			}
+			
+			if ($qual eq '.' && $detail =~ /TLOD=([0-9\.]+)/) {
+				$qual = $1;
+			}
+			
 		}
 
 		my $zyg_num = 1;	
