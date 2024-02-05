@@ -189,7 +189,21 @@ sub parse_vcf {
    	my $gq_index = 0;
    	my $sample_index = 0;
 
+	#Other indices strelka needs
+	my ($tir_index,$tar_index,$tor_index,$a_index,$c_index,$g_index,$t_index);
+	my $strelka_indel = 0;
+	my $strelka_snv = 0;
+	
+	
+	
+	
+
+
+
     while (<VCF>) {
+    	
+    	
+    	
     	if ($sample_name) {
 			unless (/#CHROM/) {
 	    		next if /^#/;				
@@ -197,7 +211,6 @@ sub parse_vcf {
     	} else {
 	    	next if /^#/;
     	}
-    	
     	next unless /\w/;
     	chomp;
     	my ($chr,$first_coord,undef,$ref,$var_str,$qual,undef,$rest,$gt_fields,@alleles) = split;
@@ -220,7 +233,35 @@ sub parse_vcf {
     		next;
     	}
     	
-    	
+    	#Special handling for strelka AF calculations -> only do once
+    	if ($gt_fields =~ /:TIR/ && $strelka_indel == 0) {
+    		for ( my $count = 0 ; $count < @gt_fields ; $count++ ) {
+    		    if ($gt_fields[$count] eq 'TIR') {
+    		    	$tir_index = $count;
+    		    } elsif ($gt_fields[$count] eq 'TAR') {
+    		    	$tar_index = $count;
+    		    } elsif ($gt_fields[$count] eq 'TOR') {
+    		    	$tor_index = $count;
+    		    } 
+    		}
+    		$strelka_indel = 1;
+    	}
+    		
+    	if ($gt_fields =~ /:AU/ && $strelka_snv == 0) {
+    		for ( my $count = 0 ; $count < @gt_fields ; $count++ ) {
+    			if ($gt_fields[$count] eq 'AU') {
+    			    $a_index = $count;
+    			} elsif ($gt_fields[$count] eq 'CU') {
+    			   	$c_index = $count;
+    			} elsif ($gt_fields[$count] eq 'GU') {
+    			   	$g_index = $count;
+    			} elsif ($gt_fields[$count] eq 'TU') {
+    			   	$t_index = $count;
+    			} 
+    		}
+    		$strelka_snv = 1;
+    	}
+    	#exit;
     	
     	
     	if ($chr eq 'MT') {
@@ -239,7 +280,6 @@ sub parse_vcf {
 		if ($var_str eq '.') {
 			next;
 		}
-
 
 
 		my @vars;
@@ -287,7 +327,6 @@ sub parse_vcf {
 
 				
 
-
 		my @ac_fields =  ();
 		my $total_ac = 0;
 
@@ -298,6 +337,10 @@ sub parse_vcf {
 				for my $count (@ac_fields) {
 					$total_ac += $count;
 				} 
+			}
+			
+			if ($qual eq '.' && $detail =~ /SomaticEVS=([0-9\.]+)/) {
+				$qual = $1;
 			}
 		}
 
@@ -311,18 +354,18 @@ sub parse_vcf {
 			#print "Here $var_key\n";
 
 			#If fails quality test; only apply if quality score available
-			if ($qual ne '.' && $qual <= $vcf_cutoff) {
-				next;
-			}
+#			if ($qual ne '.' && $qual <= $vcf_cutoff) {
+#				next;
+#			}
 
 			if ($sample_name && $geno_qual) {
 				#Here we additionally screen on GQ
-				my @gt_fields = split(':',$fields[$sample_index]);
-				my $gq = $gt_fields[$gq_index];
+				my @gt_fields_data = split(':',$fields[$sample_index]);
+				my $gq = $gt_fields_data[$gq_index];
 				
 				if ($gq < $geno_qual) {
 					#Make sure it's not a het or hom decision -> this is still a variant
-					my @nums = split('/',$gt_fields[0]);
+					my @nums = split('/',$gt_fields_data[0]);
 					if ($nums[0] eq $nums[1]) {
 						next;
 					}
@@ -366,18 +409,61 @@ sub parse_vcf {
 			if ($OPT{mean_var_freq}) {
 				
 				my $stats = Statistics::Descriptive::Full->new();
-				for my $allele_str (@alleles) {
-					my @gt_fields = split(':',$allele_str);
-    				next unless $gt_fields[0] =~ /$zyg_num/; #Make sure it's correct allele
-    				my @ads = split(',',$gt_fields[1]);
-    				my $sum = 0;
-    				for my $element (@ads) {
-    					$sum += $element;
-					}	
-    				my $sample_af = $sum != 0?sprintf("%.4f",$ads[$zyg_num]/$sum):0;
-    				$stats->add_data($sample_af);
-				}
 				
+				#Strelka indels
+				if ($gt_fields =~ /:TIR/) {
+					for my $allele_str (@alleles) {
+						my @gt_fields_data = split(':',$allele_str);
+	    				my ($tir) = split(",",$gt_fields_data[$tir_index]);
+	    				my ($tar) = split(",",$gt_fields_data[$tar_index]);
+	    				my ($tor) = split(",",$gt_fields_data[$tor_index]);
+	    				my ($sum) = $tir+$tar+$tor;
+	    				my $sample_af = sprintf("%.4f",$tir/$sum);
+	    				$stats->add_data($sample_af) if $sample_af != 0;
+					}
+				} elsif ($gt_fields =~ /:AU/) {
+					#Strelka SNVs
+					
+					for my $allele_str (@alleles) {
+						my @gt_fields_data = split(':',$allele_str);
+	    				my $ref_count = my $var_count;
+	    				if ($ref eq 'A') {
+	    					($ref_count) = split (",",$gt_fields_data[$a_index]);
+	    				} elsif ($ref eq 'C') {
+	    					($ref_count) = split (",",$gt_fields_data[$c_index]);
+	    				} elsif ($ref eq 'G') {
+	    					($ref_count) = split (",",$gt_fields_data[$g_index]);
+	    				}  elsif ($ref eq 'T') {
+	    					($ref_count) = split (",",$gt_fields_data[$t_index]);
+	    				}  
+	    				
+	    				if ($var eq 'A') {
+	    					($var_count) = split (",",$gt_fields_data[$a_index]);
+	    				} elsif ($var eq 'C') {
+	    					($var_count) = split (",",$gt_fields_data[$c_index]);
+	    				} elsif ($var eq 'G') {
+	    					($var_count) = split (",",$gt_fields_data[$g_index]);
+	    				}  elsif ($var eq 'T') {
+	    					($var_count) = split (",",$gt_fields_data[$t_index]);
+	    				}  
+	    				my $sum = $var_count+$ref_count;
+	    				my $sample_af = sprintf("%.4f",$var_count/$sum);
+	    				
+	    				$stats->add_data($sample_af) if $sample_af != 0;
+					}
+				} else {
+					for my $allele_str (@alleles) {
+						my @gt_fields_data = split(':',$allele_str);
+	    				my @ads = split(',',$gt_fields_data[1]);
+	    				my $sum = 0;
+	    				for my $element (@ads) {
+	    					$sum += $element;
+						}	
+	    				my $sample_af = $sum != 0?sprintf("%.4f",$ads[$zyg_num]/$sum):0;
+	    				$stats->add_data($sample_af);
+					}
+					
+				}
 				my $mean = defined $stats->mean?$stats->mean:0;
 				my $median = defined $stats->median?$stats->median:0;
 				
