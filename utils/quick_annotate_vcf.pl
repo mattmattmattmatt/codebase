@@ -726,7 +726,7 @@ while (<PARSED>) {
 	$data{$key}{mean_af} = $mean_af =~ /\d/?$mean_af:'N/A';
 	$data{$key}{median_af} = $median_af =~ /\d/?$median_af:'N/A';
 	$data{$key}{total_ac} = $var_allele_total;
-	my $zyg;
+	my $zyg = "N/A";
 	my $sample;
 
 
@@ -745,7 +745,8 @@ while (<PARSED>) {
 		} elsif ($geno_fields[0] =~ /\|/) {
 			($allele1,$allele2) = split('\|',$geno_fields[0]);
 		} else {
-			modules::Exception->throw("ERROR: Can't handle genotype $geno_fields[0]\n");
+			#modules::Exception->throw("ERROR: Can't handle genotype $geno_fields[0]\n");
+			next;
 		}
 		if ($allele1 eq '0' && $allele2 eq '0') {
 			$zyg = 'ref';
