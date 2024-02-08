@@ -734,7 +734,7 @@ while (<PARSED>) {
 
 	for (my $count = 0; $count < @genotypes; $count++) {
 		my @geno_fields = split(':',$genotypes[$count]);
-		$sample = $samples[$count];
+		$sample = defined $samples[$count]?$samples[$count]:0; #Mutect doesn't list samples
 		
 		#Don't count if sample not included (except with controls or count_all flag)
 		if (keys %samples && !keys %controls && !$count_all) {
@@ -765,8 +765,10 @@ while (<PARSED>) {
 				$data{$key}{var_count}++;
 				$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
 				$data{$key}{groups}{$groups{$sample}}{hom_count}++ if $group;
-				push @{$data{$key}{var_samples}},$sample;
-				$sample_varcount{$sample}++;
+				if ($sample) {
+					push @{$data{$key}{var_samples}},$sample;
+					$sample_varcount{$sample}++;
+				}
 			}
 		} elsif ($allele1 != $allele2) {
 			if ($zyg_count == $allele1 || $zyg_count == $allele2) {
@@ -775,8 +777,10 @@ while (<PARSED>) {
 				$data{$key}{var_count}++;
 				$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
 				$data{$key}{groups}{$groups{$sample}}{het_count}++ if $group;
-				push @{$data{$key}{var_samples}},$sample;
-				$sample_varcount{$sample}++;
+				if ($sample) {
+					push @{$data{$key}{var_samples}},$sample;
+					$sample_varcount{$sample}++;
+				}
 			} 
 		}  else {
 			modules::Exception->throw("ERROR with $genotypes[$count]\n");
