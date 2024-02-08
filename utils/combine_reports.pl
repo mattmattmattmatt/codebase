@@ -58,7 +58,9 @@ my %data = ();
 
 my $report1 = $OPT{report1};
 my $report2 = $OPT{report2};
-
+my @reports = ($report1,$report2);
+my %headers = ();
+my %key_count = ();
 
 
 my $combine = defined $OPT{combine_file}?$OPT{combine_file}:"combined.tsv"; 
@@ -69,72 +71,116 @@ if ( !-e $report1 || !-e $report2) {
 
 open(COMBINE,">$combine") || modules::Exception->throw("Can't open file $combine\n");
 
-for my $file ($report1 $report2) {
+for my $file (@reports) {
 	open(FILE,"$file") || modules::Exception->throw("Can't open file $file\n");
 	
 	while (<FILE>) {
 		chomp;
-		next if /^chr/;
-		next if /^$/;
+		
 		my @fields = split("\t");
-		my $key = "$fields[0]:$fields[1]:$fields[2]:$fields[13]";
-		$data{$key}{$file} = "$fields[7]:$fields[8]:$fields[9]";
-	}
-	
-}
-
-while (<COMBINE>) {
-	chomp;
-	my @fields = split("\t");
-	next if /^$/;
-	if (/^chr/) {
-		print join("\t",
-					@fields[0..6],
-					'Day24_sc_nodata',
-					'Day24_sc_ref',
-					'Day24_sc_variants (singlecell_variant %)',
-					'Day548_sc_nodata',
-					'Day548_sc_ref',
-					'Day548_sc_variants (singlecell_variant %)',
-					'Product_sc_nodata',
-					'Product_sc_ref',
-					'Product_sc_variants (singlecell_variant %)',
-					@fields[7..40]
-					) ."\n\n";
-	} else {
-		my $key = "$fields[0]:$fields[1]:$fields[2]:$fields[10]";
-		
-		my @sc_info = ();
-		
-		for my $sample (@samples) {
-			if (exists $data{$sample}{$key}) {
-				my @sc_fields = split(':',$data{$sample}{$key});
-				push @sc_info, $sc_fields[0],$sc_fields[1],$sc_fields[2];
-			} else {
-				push @sc_info, "N/A","N/A","N/A";
-			}
+		my $count = 0;
+		if (/^chr/) {
 			
+			for my $field (@fields) {
+				if (exists $headers{$count} && $headers{$count} != $field) {
+					modules::Exception->throw("ERROR: Headers must be the same");
+				}
+				$headers{$count} = $field;
+				$count++;
+			}
+			next;
 		}
-		print join("\t",
-					@fields[0..6],
-					@sc_info,
-					@fields[7..40]
+		next if /^$/;
+		my $key = "$fields[0]:$fields[1]:$fields[2]:$fields[13]";
+		
+		$key_count{$key}++;
+		
+		for my $field (@fields) {
+			$data{$key}{$count}{$file} = $field;
+			$count++;
+		}
+		
+
+		#$data{$key}{$file} = "$fields[7]:$fields[8]:$fields[9]";
+	}
+	
+}
+
+my %multi_entries = ();
+for my $key ( keys %key_count ) {
+	$multi_entries{$key_count{$key}}{$key} = $data{$key};
+}
+
+open(COMBINE,">$combine") || modules::Exception->throw("Can't open file $combine\n");
+
+my @headers = ();
+for my $count (sort {$a<=>$b} keys %headers) {
+	push @headers, $headers{$count};
+}
+
+print COMBINE join ("\t",
+					"Algorithm(s)",
+					@headers
 					) . "\n";
-		
-		
-		
-		
-		
-		
+
+
+my %total_counts = ();
+
+for my $count ( sort {$b<=>$a} keys %multi_entries ) {
+	if ($count > 1) {
+		print COMBINE "Entries in both reports $report1 and $report2\n";
+	} else {
+		print COMBINE "\n\nEntries unique to either $report1 or $report2\n";
 	}
 	
 	
 	
+    for my $key ( sort {my ($a_chr,$a_coord) = $a =~ /([0-9XYM]+):(\d+)/; my ($b_chr,$b_coord) = $b =~ /([0-9XYM]+):(\d+)/; $a_chr cmp $b_chr || $a_coord <=> $b_coord} keys %{$multi_entries{$count}} ) {
+		my @col_data = ();
+    	if ($count > 1) {
+    		push @col_data, "Strelka_Mutect";
+    		$total_counts{'Strelka_Mutect'}++;
+    	} 
+    	
+		for my $col_count (sort {$a<=>$b} keys %{$multi_entries{$key_count{$key}}{$key}}) {
+	    	my @val = ();
+	    	
+	    	
+			for my $file (sort keys %{$multi_entries{$key_count{$key}}{$key}{$col_count}}) {
+		    	if ($col_count == 0 && $count == 1)  {
+		    		my @algs = split("_",$file);
+    				push @col_data, $algs[1];
+    				$total_counts{$algs[1]}++;
+	    		}
+				push @val, $multi_entries{$key_count{$key}}{$key}{$col_count}{$file};
+				
+			}		
+			
+			if ($val[0] eq $val[1]) {
+				push @col_data,$val[0];
+			} else {
+				push @col_data, join(":",@val);
+				
+			}
+		}
+		
+		print COMBINE join("\t",
+							@col_data
+							) . "\n";
+		
+		
+	}
 }
 
+print COMBINE "\nSUMMARY:\n";
 
+for my $alg (sort keys %total_counts) {
+	print COMBINE $alg.":\t".$total_counts{$alg}."\n";
+}
 
+#print Dumper \%headers;
 
+#print Dumper \%multi_entries;
 
 
 

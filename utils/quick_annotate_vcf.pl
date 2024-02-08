@@ -444,7 +444,8 @@ my @common_headers = (
 						'ref_count',
 						'no_data_count',
 						'mean_variant_af',
-						'median_variant_af'
+						'median_variant_af',
+						'variant_read_count'
 						);
 
 
@@ -705,7 +706,7 @@ while (<PARSED>) {
     	next unless $chr_filter eq $chr;
   	}
 
-	my ($var_type,$var_base_str,$qual,$allele_count,$zyg_count,$var_allele_total,$mean_af,$median_af) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+);ZC=(\d);ALLELE=(\d+).*MEANAF=(\S+);MEDAF=([0-9\.]+)/;
+	my ($var_type,$var_base_str,$qual,$allele_count,$zyg_count,$var_allele_total,$mean_af,$median_af,$var_read_count) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+);ZC=(\d);ALLELE=(\d+).*MEANAF=(\S+);MEDAF=([0-9\.]+);VAR_READ_COUNTS=([0-9\/,]+)/;
 	my $var_base = my $ref_base;
 	if ($var_type eq 'SNV') {
 		($ref_base,$var_base) = split('->',$var_base_str); 
@@ -726,6 +727,7 @@ while (<PARSED>) {
 	$data{$key}{mean_af} = $mean_af =~ /\d/?$mean_af:'N/A';
 	$data{$key}{median_af} = $median_af =~ /\d/?$median_af:'N/A';
 	$data{$key}{total_ac} = $var_allele_total;
+	$data{$key}{var_read_count} = $var_read_count; 
 	my $zyg = "N/A";
 	my $sample;
 
@@ -1151,6 +1153,7 @@ for my $key (@keys) {
 	my $gmaf = !exists $data{$key}{gmaf} || $data{$key}{gmaf} eq 'N/A'?'NO_GMAF':$data{$key}{gmaf};	
 	my $var_mean_af = !exists $data{$key}{mean_af} || $data{$key}{mean_af} eq 'N/A'?'NO_MEAN_AF':$data{$key}{mean_af};	
 	my $var_median_af = !exists $data{$key}{median_af} || $data{$key}{median_af} eq 'N/A'?'NO_MEDIAN_AF':$data{$key}{median_af};	
+	my $var_read_count = !exists $data{$key}{var_read_count} || $data{$key}{var_read_count} eq 'N/A'?'NO_VAR_READ_COUNT': $data{$key}{var_read_count};
 	
 	
 	
@@ -1342,7 +1345,8 @@ for my $key (@keys) {
 						$ref_count,
 						$nd_count,
 						$var_mean_af,
-						$var_median_af
+						$var_median_af,
+						$var_read_count
 						) ."\t";
 	
 	if ($priority_flag) {
@@ -1356,7 +1360,8 @@ for my $key (@keys) {
 									$ref_count,
 									$nd_count,
 									$var_mean_af,
-									$var_median_af) ."\t";
+									$var_median_af,
+									$var_read_count) ."\t";
 	}
 	
 	#Here we divide variants into cluster and non-cluster

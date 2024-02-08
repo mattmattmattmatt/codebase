@@ -148,7 +148,7 @@ for my $var_key (@vcf_order) {
 	} 
 	
 	if ($OPT{mean_var_freq}) {
-		$vcf_str .= ";MEANAF=".$vcf_data->{$var_key}{mean_af}.";MEDAF=".$vcf_data->{$var_key}{median_af};
+		$vcf_str .= ";MEANAF=".$vcf_data->{$var_key}{mean_af}.";MEDAF=".$vcf_data->{$var_key}{median_af}.";VAR_READ_COUNTS=".$vcf_data->{$var_key}{var_read_counts};
 	}
 	
 	
@@ -415,6 +415,8 @@ sub parse_vcf {
 				
 				my $stats = Statistics::Descriptive::Full->new();
 				
+				my @var_counts;
+				
 				#Strelka indels
 				if ($gt_fields =~ /:TIR/) {
 					for my $allele_str (@alleles) {
@@ -424,6 +426,7 @@ sub parse_vcf {
 	    				my ($tor) = split(",",$gt_fields_data[$tor_index]);
 	    				my ($sum) = $tir+$tar+$tor;
 	    				my $sample_af = sprintf("%.4f",$tir/$sum);
+	    				push @var_counts, "$tir/$sum";
 	    				$stats->add_data($sample_af) if $sample_af != 0;
 					}
 				} elsif ($gt_fields =~ /:AU/) {
@@ -453,18 +456,31 @@ sub parse_vcf {
 	    				}  
 	    				my $sum = $var_count+$ref_count;
 	    				my $sample_af = sprintf("%.4f",$var_count/$sum);
-	    				
+	    				push @var_counts, "$var_count/$sum";
 	    				$stats->add_data($sample_af) if $sample_af != 0;
 					}
 				} else {
 					for my $allele_str (@alleles) {
 						my @gt_fields_data = split(':',$allele_str);
+						#print Dumper \@gt_fields_data;
 	    				my @ads = split(',',$gt_fields_data[1]);
 	    				my $sum = 0;
 	    				for my $element (@ads) {
 	    					$sum += $element;
 						}	
-	    				my $sample_af = $sum != 0?sprintf("%.4f",$ads[$zyg_num]/$sum):0;
+	    				my $sample_af;
+						my $var_count = defined $ads[$zyg_num]?$ads[$zyg_num]:0;
+	    				if ($sum == 0) {
+	    					$sample_af = 0;
+	    				} elsif ($var_count == 0) {
+	    					$sample_af = 0;
+	    				} else {
+	    					$sample_af = sprintf("%.4f",$ads[$zyg_num]/$sum)
+		    				
+	    				}
+	    				
+	    				push @var_counts,"$var_count/$sum";
+	    				
 	    				$stats->add_data($sample_af);
 					}
 					
@@ -474,6 +490,7 @@ sub parse_vcf {
 				
 				$vcf_data{$var_key}{mean_af} = sprintf("%.3f",$mean);
 				$vcf_data{$var_key}{median_af} = sprintf("%.3f",$median);
+				$vcf_data{$var_key}{var_read_counts} = join(",",@var_counts);
 			}
 			
 			push @vcf_order, $var_key;
