@@ -20,7 +20,8 @@ GetOptions(\%OPT,
 		"strand=s",
 		"all",
 		"vep_in=s",
-		"vep_bin=s"
+		"vep_bin=s",
+		"parse_file=s"
     	);
 
 	   
@@ -31,7 +32,7 @@ pod2usage(1) if ($OPT{help} || (!$OPT{coord_str} || !$OPT{var_base}) && !$OPT{ve
 
 =head1 SYNOPSIS
 
-./vep_wrapper.pl -coord_str chr:coord -var_base variant_base -vep_bin pass_in_vep_bin -ref_base ref_base(default=use_API) -strand strand(default=+) -all run_on_all -indel run_for_indels(default=SNVs) -vep_in pass_in_batch_fiel
+./vep_wrapper.pl -coord_str chr:coord -var_base variant_base -vep_bin pass_in_vep_bin -ref_base ref_base(default=use_API) -strand strand(default=+) -all run_on_all -indel run_for_indels(default=SNVs) -vep_in pass_in_batch_field -parse_file parse_file_name(don't run)
 
 Required flags: (-coord_str && -var_base) || -vep_in
 
@@ -158,7 +159,17 @@ if ($OPT{coord_str}) {
 	}
 }
 	
-my $outfile = 'vep.out'.$$;
+my $outfile;
+
+if ($OPT{parse_file}) {
+	$outfile = $OPT{parse_file};
+	if ( !-e $outfile ) {
+		modules::Exception->throw("File $outfile doesn't exist");
+	}
+} else {
+	$outfile = 'vep.out'.$$;
+}
+
 
 my $vep = modules::VEP->new(-input_file      => $vep_input,
 							-executable_path => $vep_executable,
@@ -168,7 +179,7 @@ my $vep = modules::VEP->new(-input_file      => $vep_input,
 							-source_type => $source_type,
 							-output_file => $outfile
 							);
-$vep->run;
+$vep->run unless $OPT{parse_file};
 	
 my $results = $vep->parse_result;
 

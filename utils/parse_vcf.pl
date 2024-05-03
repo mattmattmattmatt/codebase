@@ -463,23 +463,33 @@ sub parse_vcf {
 					for my $allele_str (@alleles) {
 						my @gt_fields_data = split(':',$allele_str);
 						#print Dumper \@gt_fields_data;
-	    				my @ads = split(',',$gt_fields_data[1]);
-	    				my $sum = 0;
-	    				for my $element (@ads) {
-	    					$sum += $element;
-						}	
-	    				my $sample_af;
-						my $var_count = defined $ads[$zyg_num]?$ads[$zyg_num]:0;
-	    				if ($sum == 0) {
-	    					$sample_af = 0;
-	    				} elsif ($var_count == 0) {
-	    					$sample_af = 0;
-	    				} else {
-	    					$sample_af = sprintf("%.4f",$ads[$zyg_num]/$sum)
-		    				
-	    				}
+						my $var_count_str = my $sample_af = 0;
+						
+						#Some strange GTs don't have multiple values listed....
+						if (@gt_fields_data > 1) {
+	    					my @ads = split(',',$gt_fields_data[1]);
+	    					my $sum = 0;
+	    					for my $element (@ads) {
+	    						$sum += $element if $element =~ /\d/;
+							}	
+							
+							my $var_count;
+							if (defined $ads[$zyg_num] && $ads[$zyg_num] =~ /\d/) {
+								$var_count = $ads[$zyg_num];
+							} else {
+								$var_count = 0;	
+							}
+	    					if ($sum == 0) {
+	    						$sample_af = 0;
+	    					} elsif ($var_count == 0) {
+	    						$sample_af = 0;
+	    					} else {
+	    						$sample_af = sprintf("%.4f",$ads[$zyg_num]/$sum)
+	    					}
+	    					$var_count_str =  "$var_count/$sum";
+						}
 	    				
-	    				push @var_counts,"$var_count/$sum";
+	    				push @var_counts,$var_count_str;
 	    				
 	    				$stats->add_data($sample_af);
 					}
