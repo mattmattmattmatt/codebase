@@ -3,6 +3,7 @@ use strict;
 use modules::Exception;
 use modules::Vcf;
 use modules::SystemCall;
+use modules::Pipeline;
 use Getopt::Long;
 use File::Basename;
 use Pod::Usage;
@@ -41,7 +42,8 @@ GetOptions(\%OPT,
        "group_file=s",
        "min_mean_af=s",
        "plot_genes=s",
-       "high_quality"
+       "high_quality",
+       "overwrite"
    );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -161,16 +163,15 @@ my $ref = defined $OPT{ref}?$OPT{ref}:"GRCh38";
 #Whether to include sample zygosity columns; for single cell this isn't useful for example creating huge number of columns
 my $incl_zyg = defined $OPT{no_zyg}?0:1;
 
-my $gnomad_version = defined $OPT{gnomad_version}?$OPT{gnomad_version}:"2.0.1";
+my $vcf_file = $OPT{vcf_in};
+$vcf_file = abs_path($vcf_file);
 
-my $gnomad_base = $svndir.'/conf/human/'.$ref.'/gnomad/'.$gnomad_version.'/'.$ref.'.gnomAD.overlap';
-
-my $vcf = $OPT{vcf_in};
-$vcf = abs_path($vcf);
-
-if ( !-e $vcf ) {
-	modules::Exception->throw("File $vcf doesn't exist");	
+if ( !-e $vcf_file ) {
+	Exception->throw("File $vcf_file doesn't exist");	
 }
+
+my $overwrite = defined $OPT{overwrite}?1:0;
+
 
 #Keep track of total var/sample to allow potential filtering (rerun with reduced sample list)
 my %sample_varcount = ();
@@ -182,7 +183,7 @@ my $mb = defined $OPT{mb_matrix}?1:0;
 my $count_all = defined $OPT{count_all}?1:0;
 
 #For output files
-my ($vcf_short) = basename($vcf);
+my ($vcf_short) = basename($vcf_file);
 (my $vcf_out = $vcf_short) =~ s/.vcf/.txt/;
 
 #Default run all chromosomes
@@ -302,10 +303,17 @@ if ($mb && !$OPT{sample_file}) {
 	modules::Exception->throw("mb required sample_file for single cluster\n");
 }
 
-my $parse_vcf = "$svndir/utils/parse_vcf.pl";
+if ($OPT{no_run} && $overwrite) {
+	modules::Exception->throw("Can't run option overwrite with option no_run\n");
+}
+
+
+
+#my $parse_vcf = "$svndir/utils/parse_vcf.pl";
 my $overlap_bin = "$svndir/utils/overlap_files.pl";
 my $vep_wrapper = "$svndir/utils/vep_wrapper.pl";
 my $conf_dir = "$svndir/conf/human/".$ref;
+my $mgrb_dir = &GetLatest('MGRB');
 
 
 my $pipe_config = modules::Pipeline::get_pipe_conf();
@@ -493,6 +501,7 @@ my @common_headers2 = (
 						'dbsnp',
 						'gmaf',
 						'gnomad',
+						'MGRB',
 						'aa_change',
 						'poly_cat',
 						'poly_score',
@@ -574,7 +583,18 @@ my @commands = ();
 
 
 #Parse vcf
-push @commands, "$parse_vcf -vcf $vcf -keep_zyg -mean_var_freq -keep_allele_freq -out $outdir/$vcf_out";
+#First check and parse the vcf
+if (!-e "$outdir/$vcf_out" || $overwrite) {
+	if (!$OPT{no_run}) {
+		print STDERR "Normalising vcf...\n";
+		my $vcf_obj = Vcf->new(-vcf=>$vcf_file);
+		$vcf_obj->check_vcf(-vcf_file=>$vcf_file);
+		$vcf_obj->parse_vcf(-vcf_file=>$vcf_file);
+		$vcf_obj->write_normalised(-vcf_file=>$vcf_file,-vcf_out=>"$outdir/$vcf_out");
+	}
+}
+
+
 
 #Split by type (for vep input)
 push @commands, "grep SNV $outdir/$vcf_out > $outdir/$vcf_out.snv";
@@ -585,7 +605,7 @@ push @commands, "grep -v SNV $outdir/$vcf_out > $outdir/$vcf_out.indel";
 my $vep_in_command ="cat $outdir/$vcf_out.snv". ' | sed -e "s/:/ /g" -e "s/;/ /g" -e "s/->/ /" | awk \'{print $1,$2,$3,$7,$8,"+"}'."' > $outdir/vep.in"; 
 my $vep_indel_command1 = "cat $outdir/$vcf_out.indel". ' | grep DEL |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/-/ /g" | awk \'{print $1,$2,$3,$8,"-","+"}'."' > $outdir/vep.indel.in";
 my $vep_indel_command2 = "cat $outdir/$vcf_out.indel". ' | grep INS |  sed -e "s/:/ /g" -e "s/;/ /g" -e "s/+/ /g" -e "s/REF=//" | awk \'{print $1,$2,$3,$15,$15$7,"+"}'."' >> $outdir/vep.indel.in";
-push @commands, $vep_in_command, $vep_indel_command1, $vep_indel_command2;
+push @commands, $vep_in_command, $vep_indel_command1, $vep_indel_command2 unless $OPT{skip_vep};
 
 #Run VEP
 push @commands, "$vep_wrapper -vep_bin $svndir/ext/bin/vep -vep_in $outdir/vep.indel.in -all > $outdir/$vcf_out.vep.indel" unless $OPT{skip_vep};
@@ -601,28 +621,27 @@ for my $chr (@chrs) {
     	next unless $chr_filter eq $chr;
   	}
 	
+	my $mgrb_snv = $mgrb_dir .'/MGRB_all_'.$chr.'.snv.bed';
+	my $mgrb_indel = $mgrb_dir .'/MGRB_all_'.$chr.'.indel.bed';
+	
 	#Generate chr input to overlap coord 
-	push @commands, "grep -w ^$chr $outdir/$vcf_out.snv > $outdir/$vcf_out.snv.gnomad.$chr";
-	push @commands, "grep -w ^$chr $outdir/$vcf_out.indel > $outdir/$vcf_out.indel.gnomad.$chr";
-	push @commands, "grep -w ^$chr $outdir/$vcf_out > $outdir/$vcf_out.gene_coord.$chr";
+	push @commands, "grep -w ^$chr $outdir/$vcf_out.snv > $outdir/$vcf_out.snv.mgrb.$chr";
+	push @commands, "grep -w ^$chr $outdir/$vcf_out.indel > $outdir/$vcf_out.indel.mgrb.$chr";
 	
 	#Overlap with gnomad and genes
-	push @commands, "$overlap_bin -ref $outdir/$vcf_out.snv.gnomad.$chr -coord $gnomad_base.snv.$chr -just_overlap -all > $outdir/gnomad.snv.$chr";
-	push @commands, "$overlap_bin -ref $outdir/$vcf_out.indel.gnomad.$chr -coord $gnomad_base.indel.$chr -just_overlap -all > $outdir/gnomad.indel.$chr";
-	push @commands, "$overlap_bin -ref $outdir/$vcf_out.gene_coord.$chr -coord $gene_coord_file -just_overlap -all > $outdir/gene_coord.$chr";
+	push @commands, "$overlap_bin -ref $outdir/$vcf_out.snv.mgrb.$chr -coord $mgrb_snv -just_overlap -all > $outdir/mgrb.snv.$chr";
+	push @commands, "$overlap_bin -ref $outdir/$vcf_out.indel.mgrb.$chr -coord $mgrb_indel -just_overlap -all > $outdir/mgrb.indel.$chr";
 }
 
 #Clean up before
-push @commands, "rm -f $outdir/$vcf_out.gnomad $outdir/$vcf_out.gnomad $outdir/$vcf_out.gene_coord";
+push @commands, "rm -f $outdir/$vcf_out.mgrb";
 
 #Generate whole genome files
-push @commands, "cat $outdir/gnomad.snv.* >> $outdir/$vcf_out.gnomad";
-push @commands, "cat $outdir/gnomad.indel.* >> $outdir/$vcf_out.gnomad";
-push @commands, "cat $outdir/gene_coord.* >> $outdir/$vcf_out.gene_coord";
+push @commands, "cat $outdir/mgrb.snv.* >> $outdir/$vcf_out.mgrb";
+push @commands, "cat $outdir/mgrb.indel.* >> $outdir/$vcf_out.mgrb";
 
 #Clean up tmp chr files
-push @commands, "rm -f $outdir/*gnomad.*"; 
-push @commands, "rm -f $outdir/*gene_coord.*";
+push @commands, "rm -f $outdir/*mgrb.*"; 
 push @commands, "rm -f $outdir/$vcf_out.snv";
 push @commands, "rm -f $outdir/$vcf_out.indel";
 
@@ -638,7 +657,7 @@ for my $command (@commands) {
 #Now parse the files for the final report
 my @samples = ();
 
-open(VCF,"$vcf") || modules::Exception->throw("Can't open file\n");
+open(VCF,"$vcf_file") || modules::Exception->throw("Can't open file\n");
 while (<VCF>) {
 	chomp;
 	next unless /^#CHROM/;
@@ -741,8 +760,10 @@ while (<PARSED>) {
 		my @geno_fields = split(':',$genotypes[$count]);
 		$sample = defined $samples[$count]?$samples[$count]:0; #Mutect doesn't list samples
 		
-		#Don't count if sample not included (except with controls or count_all flag)
-		if (keys %samples && !keys %controls && !$count_all) {
+		
+		
+		#Don't count if sample not included (except with controls, somatic or count_all flag)
+		if (keys %samples && !keys %controls && !$count_all && !$somatic) {
 			next unless exists $samples{$sample} ;
 		}
 		
@@ -755,6 +776,8 @@ while (<PARSED>) {
 			#modules::Exception->throw("ERROR: Can't handle genotype $geno_fields[0]\n");
 			next;
 		}
+		
+		
 		if ($allele1 eq '0' && $allele2 eq '0') {
 			$zyg = 'ref';
 			$data{$key}{ref_count}++;
@@ -774,6 +797,9 @@ while (<PARSED>) {
 					push @{$data{$key}{var_samples}},$sample;
 					$sample_varcount{$sample}++;
 				}
+			} else {
+				#Here no samples have rare mutation (happens when subset vcf)
+				$zyg = 'ref';
 			}
 		} elsif ($allele1 != $allele2) {
 			if ($zyg_count == $allele1 || $zyg_count == $allele2) {
@@ -786,11 +812,12 @@ while (<PARSED>) {
 					push @{$data{$key}{var_samples}},$sample;
 					$sample_varcount{$sample}++;
 				}
-			} 
+			} else {
+				$zyg = 'ref';
+			}
 		}  else {
 			modules::Exception->throw("ERROR with $genotypes[$count]\n");
-		}
-		
+		}		
 		$data{$key}{zyg}{$sample} = $zyg;
 		
 	}
@@ -800,11 +827,11 @@ while (<PARSED>) {
   	my $allele_add = 0;
 	if (exists $data{$key}{var_count}){
 		$allele_add = $data{$key}{var_count};
-	}	
+	} 
 	$total_alleles{"$chr:$start:$end"} += $allele_count;
 	$line_count++;
 
-  if ($line_count % 10000 == 0) {
+  if ($line_count % 100000 == 0) {
     print "Parsing vcf $chr $start\n";
   }
 }
@@ -830,6 +857,7 @@ while (<VEPINDEL>) {
     	modules::Exception->throw("ERROR: Key $key doesn't exist\n");
     	next;
     }
+    
     $data{$key}{rs} = $fields[5];
     $data{$key}{gmaf} = $fields[6];
     $data{$key}{domain} = $fields[7];
@@ -838,10 +866,26 @@ while (<VEPINDEL>) {
     $data{$key}{exon_str} = $fields[10]; 
     $data{$key}{ens_gene} = $fields[11];
     $data{$key}{ens_trans} = $fields[12];
-    #Handle old veps w/o CADD
-    if ($fields[13] && $fields[13] =~ /_/) {
-	    $data{$key}{indel_result} = $fields[13];
-    }
+    $data{$key}{cadd_phred} = $fields[13];
+    
+    
+    $data{$key}{var_consequence} = $fields[14];
+    $data{$key}{gnomad} = $fields[15];
+    $data{$key}{genename} = $fields[16];
+    
+    
+#    $data{$key}{rs} = $fields[5];
+#    $data{$key}{gmaf} = $fields[6];
+#    $data{$key}{domain} = $fields[7];
+#    $data{$key}{pubmed} = $fields[8];
+#    $data{$key}{clin} = $fields[9];
+#    $data{$key}{exon_str} = $fields[10]; 
+#    $data{$key}{ens_gene} = $fields[11];
+#    $data{$key}{ens_trans} = $fields[12];
+#    #Handle old veps w/o CADD
+#    if ($fields[13] && $fields[13] =~ /_/) {
+#	    $data{$key}{indel_result} = $fields[13];
+#    }
     
 }
 
@@ -863,6 +907,7 @@ while (<VEPALL>) {
     	next;
     	#modules::Exception->throw("ERROR: Key $key doesn't exist\n");
     }
+    
     $data{$key}{rs} = $fields[5];
     $data{$key}{gmaf} = $fields[6];
     $data{$key}{domain} = $fields[7];
@@ -871,10 +916,25 @@ while (<VEPALL>) {
     $data{$key}{exon_str} = $fields[10]; 
     $data{$key}{ens_gene} = $fields[11];
     $data{$key}{ens_trans} = $fields[12];
-    #Handle old veps w/o CADD
-    if ($fields[14] && $fields[14] =~ /\d/) {
-	    $data{$key}{cadd_phred} = $fields[14];
-    }
+    $data{$key}{ens_trans} = $fields[12];
+    $data{$key}{cadd_phred} = $fields[13];
+    $data{$key}{var_consequence} = $fields[14];
+    $data{$key}{gnomad} = $fields[15];
+    $data{$key}{genename} = $fields[16];
+    
+    
+#    $data{$key}{rs} = $fields[5];
+#    $data{$key}{gmaf} = $fields[6];
+#    $data{$key}{domain} = $fields[7];
+#    $data{$key}{pubmed} = $fields[8];
+#    $data{$key}{clin} = $fields[9];
+#    $data{$key}{exon_str} = $fields[10]; 
+#    $data{$key}{ens_gene} = $fields[11];
+#    $data{$key}{ens_trans} = $fields[12];
+#    #Handle old veps w/o CADD
+#    if ($fields[14] && $fields[14] =~ /\d/) {
+#	    $data{$key}{cadd_phred} = $fields[14];
+#    }
     
 }
 
@@ -896,7 +956,10 @@ while (<VEPEXON>) {
     	next;
     	#modules::Exception->throw("ERROR: Key $key doesn't exist\n");
     }
-    my ($poly_score) = $fields[9] =~ /([0-9\.]+)/;
+    my $poly_score = 'N/A';
+    if ($fields[9] =~ /([0-9\.]+)/) {
+    	$poly_score = $1;
+    }
     my ($sift_score) = $fields[11] =~ /([0-9\.]+)/;
     
     $data{$key}{aa_change} = $fields[5];
@@ -912,59 +975,16 @@ while (<VEPEXON>) {
     }
 }
 
-
-
-
 print "Parsed VEP...\n";
 
-open(GENE,"$outdir/$vcf_out.gene_coord") || modules::Exception->throw("Can't open file\n");
+open(MGRB,"$outdir/$vcf_out.mgrb") || modules::Exception->throw("Can't open file\n");
 
-while (<GENE>) {
-    chomp;
-    $_ =~ s/^chr//;
-    my @fields = split;
-    if ($chr_filter =~ /[0-9X]/) {
-    	next unless $chr_filter eq $fields[0];
-    }
-
-    my @annos = split(';',$fields[3]);
-    my $var_base;
-    my $ens_gene;
-    
-    if ($fields[-1] =~ /(ENSG\d+)/) {
-    	$ens_gene = $1;
-    } elsif ($fields[-1] == 1) {
-    	$ens_gene = 'NO_GENE';
-    } else {
-    	modules::Exception->throw("ERROR: Can't have no gene entry $_\n");
-    }
-    
-    if ($annos[0] eq 'SNV') {
-    	($var_base) = $annos[1] =~ /->([ACTG])/;
-    } elsif ($annos[0] eq 'DEL') {
-    	($var_base) = $annos[1] =~ /(\-[ATGC]+)/;
-    } elsif ($annos[0] eq 'INS') {
-    	($var_base) = $annos[1] =~ /(\+[ATGC]+)/;
-    }
-    my $key = $fields[0].':'.$fields[1].':'.$fields[2].':'.$var_base;
-    
-	if (!exists $data{$key}) {
-    	modules::Exception->throw("ERROR: Key $key doesn't exist\n");
-    }
-    if (!exists $data{$key}{ens_gene}) {
-	    $data{$key}{ens_gene} = $ens_gene;
-    }
-    
-}
-
-open(GNOMAD,"$outdir/$vcf_out.gnomad") || modules::Exception->throw("Can't open file\n");
-
-while (<GNOMAD>) {
+while (<MGRB>) {
     chomp;
  	$_ =~ s/^chr//;
     my @fields = split("\t");
     if ($chr_filter =~ /[0-9X]/) {
-      next unless $chr_filter eq $fields[0];
+      	next unless $chr_filter eq $fields[0];
     }
 
     my @annos = split(';',$fields[3]);
@@ -978,15 +998,43 @@ while (<GNOMAD>) {
     }
     my $key = $fields[0].':'.$fields[1].':'.$fields[2].':'.$var_base;
     if (!exists $data{$key}) {
-    	modules::Exception->throw("ERROR: Key $key doesn't exist\n");
+    	modules::Exception->warning("ERROR: Key $key doesn't exist\n");
+    	next;
     }
-    my $match = $fields[-1] eq '1'?'NO_GNOMAD':$fields[-1];
-    $data{$key}{gnomad} = $match;
-    $data{$key}{gnomad} =~ s/^\d+://;
+    
+    my $match;
+    if ($fields[-1] eq '1') {
+    	$match = 'NO_MGRB';
+    } else {
+    	$match = 'OTHER_VARS_ONLY';
+    	my @matches = split('^^^',$fields[-1]);
+    	
+    	
+    	for my $possible_match (@matches) {
+   			my @af_data = split(':',$possible_match);
+    		
+    		my $mgrb_var_base;
+    		if ($af_data[0] eq 'SNV') {
+		    	($mgrb_var_base) = $af_data[3] =~ /->([ACTG])/;
+		    } elsif ($af_data[0] eq 'DEL') {
+		    	($mgrb_var_base) = $af_data[3] =~ /(\-[ATGC]+)/;
+		    } elsif ($af_data[0] eq 'INS') {
+		    	($mgrb_var_base) = $af_data[3] =~ /(\+[ATGC]+)/;
+		    }
+    		
+    		#If we find the correct variant allele
+    		if ($var_base eq $mgrb_var_base) {
+    			$match = $af_data[-1];
+    		}
+    	}	
+    }
+    
+    $data{$key}{mgrb} = $match;
+    #$data{$key}{mgrb} =~ s/^\d+://;
 }
-close GNOMAD;
+close MGRB;
 
-print "Parsed GNOMAD...\n";
+print "Parsed MGRB...\n";
 
 if ($vartrix_input) {
 	open(VARTRIX,"$vartrix_summary") || modules::Exception->throw("Can't open file $vartrix_summary\n");
@@ -1153,7 +1201,7 @@ for my $key (@keys) {
 	my $sift_cat = exists $data{$key}{sift_cat}?$data{$key}{sift_cat}:'NO_SIFT_CAT';
 	my $sift_score = exists $data{$key}{sift_score}?$data{$key}{sift_score}:'NO_SIFT_SCORE';
 	my $cadd_phred = exists $data{$key}{cadd_phred}?$data{$key}{cadd_phred}:'NO_CADD_SCORE';
-	my $indel_result = exists $data{$key}{indel_result}?$data{$key}{indel_result}:'N/A';
+	my $var_consequence = exists $data{$key}{var_consequence}?$data{$key}{var_consequence}:'N/A';
 	my $gnomad = exists $data{$key}{gnomad}?$data{$key}{gnomad}:'NO_GNOMAD';
 	my $domain = !exists $data{$key}{domain} || $data{$key}{domain} eq 'N/A'?'NO_DOMAIN':$data{$key}{domain};
 	my $pubmed = !exists $data{$key}{pubmed} || $data{$key}{pubmed} eq 'N/A'?'NO_PUBMED':$data{$key}{pubmed};
@@ -1163,12 +1211,12 @@ for my $key (@keys) {
 	my $var_mean_af = !exists $data{$key}{mean_af} || $data{$key}{mean_af} eq 'N/A'?'NO_MEAN_AF':$data{$key}{mean_af};	
 	my $var_median_af = !exists $data{$key}{median_af} || $data{$key}{median_af} eq 'N/A'?'NO_MEDIAN_AF':$data{$key}{median_af};	
 	my $var_read_count = !exists $data{$key}{var_read_count} || $data{$key}{var_read_count} eq 'N/A'?'NO_VAR_READ_COUNT': $data{$key}{var_read_count};
-	
+	my $mgrb = exists $data{$key}{mgrb}?$data{$key}{mgrb}:'NO_MGRB';
 	
 	
 	my $var_samples;
 	if (!exists $data{$key}{var_samples}) {
-		$var_samples = "Complex overlapping event";
+		$var_samples = "N/A(NO_VAR_SAMPLES)";
 	} elsif (@{$data{$key}{var_samples}} > 100) {
 		$var_samples = ">100 samples";
 	} else {
@@ -1185,6 +1233,9 @@ for my $key (@keys) {
 	if (exists $data{$key}{var_count}) {
 		$var_count =  $data{$key}{var_count};
 	}
+	
+	#Arises when you subset vcfs and samples don't have variant; don't report these
+	next if $var_count == 0;
 	
 	my @group_numbers = ();
 	my @group_vars = ();
@@ -1208,7 +1259,7 @@ for my $key (@keys) {
 		print GROUP join("\t", $key,@group_vars) . "\n";
 	}
 	my $var_str = $var_count . '('.$het_count . '/'. $hom_count .')';
-	my $average_score = 'COMPLEX EVENT';
+	my $average_score = 'N/A(NO_VAR_SAMPLES)';
 
 	my $alleles_key = "$chr:$start:$end";
 
@@ -1259,18 +1310,22 @@ for my $key (@keys) {
 	my $priority_flag = 1;
 	
 	if ($aa_change eq 'NO_AA_CHANGE') {
-		$priority_flag = 0 unless $indel_result =~ /frameshift/ || $indel_result =~ /stop_gained/;
+		$priority_flag = 0 unless $var_consequence =~ /frameshift/ || $var_consequence =~ /stop_gained/;
 	} 
 	
 	if ($gmaf =~ /\d/) {
-		if ($gmaf > $rare_cutoff) {
-			$priority_flag = 0;
+		my @gmafs = split(',',$gmaf);
+		#Occasionally multiple AFs reported
+		for my $var_gmaf (@gmafs) {
+			if ($var_gmaf > $rare_cutoff) {
+				$priority_flag = 0;
+			}
+			
 		}
 	} 
 	
 	if ($gnomad =~ /\d/) {
-		my @fields = split(':',$gnomad);
-		if ($fields[1] > $rare_cutoff) {
+		if ($gnomad > $rare_cutoff) {
 			$priority_flag = 0;
 		} 
 	} 
@@ -1302,15 +1357,15 @@ for my $key (@keys) {
 	
 	#Now we check if it's somatic
 	if ($somatic) {
-		my $somatic = 1;
+		my $somatic_flag = 1;
 		for my $var_sample ( @{$data{$key}{var_samples}} ) {
 			#Here we found the variant in at least once control sample so don't keep report it
 			if (!exists $samples{$var_sample}) {
-				$somatic = 0;
+				$somatic_flag = 0;
 			}
 		}
 		#Means a sample not in the list had the variant so it's not somatic
-		next unless $somatic == 1;
+		next unless $somatic_flag == 1;
 	} elsif (%controls) {
 		my $control = 0;
 		for my $var_sample ( @{$data{$key}{var_samples}} ) {
@@ -1500,13 +1555,14 @@ for my $key (@keys) {
 						$rs,
 						$gmaf,
 						$gnomad,
+						$mgrb,
 						$aa_change,
 						$poly_cat,
 						$poly_score,
 						$sift_cat,
 						$sift_score,
 						$cadd_phred,
-						$indel_result,
+						$var_consequence,
 						$domain,
 						$pubmed,
 						$clin,
@@ -1520,7 +1576,7 @@ for my $key (@keys) {
 			if ($aa_change ne 'NO_AA_CHANGE') {
 				$group_key .= ":$gene_name:$aa_change";
 			} else {
-				$group_key .= ":$gene_name:$indel_result";
+				$group_key .= ":$gene_name:$var_consequence";
 			}
 			print GROUPPRIORITY join("\t", $group_key,@group_vars) . "\n";
 					
@@ -1537,13 +1593,14 @@ for my $key (@keys) {
 								$rs,
 								$gmaf,
 								$gnomad,
+								$mgrb,
 								$aa_change,
 								$poly_cat,
 								$poly_score,
 								$sift_cat,
 								$sift_score,
 								$cadd_phred,
-								$indel_result,
+								$var_consequence,
 								$domain,
 								$pubmed,
 								$clin,

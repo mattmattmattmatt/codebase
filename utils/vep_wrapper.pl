@@ -226,7 +226,7 @@ foreach my $result (@$results){
 		    $snv_start,
 		    $snv_end,
 			$var_type,
-			$se_type,
+			$vep_category,
 		    $var_base,
 		 	$rs, 
 		 	$gmaf, 
@@ -236,8 +236,9 @@ foreach my $result (@$results){
 		 	$exon_str,
 		 	$snv_gene,
 		 	$snv_trans,
-		 	$consequence,
-		 	$cadd_phred) = @$result;
+		 	$cadd_phred,
+	    	    $gnomad_af,
+	    	    $gene_name) = @$result;
 		 my $ref_base = $ref_base_map{"$snv_chr:$snv_start-$snv_end"};
 		 print join("\t",
 					$snv_chr,
@@ -253,9 +254,13 @@ foreach my $result (@$results){
 		 			$exon_str,
 		 			$snv_gene,
 		 			$snv_trans,
-					$consequence,
-					$cadd_phred
+					$cadd_phred,
+					$vep_category,
+	    	    $gnomad_af,
+	    	    $gene_name
 					) ."\n";
+		
+		
 	}
 	
 		

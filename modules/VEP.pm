@@ -248,7 +248,7 @@ sub parse_result {
 			$aa_var = 'Stop' if ($aa_var eq '*');
 		
 			#Just keep one copy of redundant entries
-			$grouping_data{$chr}{$start}{$end}{"$aa_ref->$aa_var"} = [ $chr, $start, $end, $var_type, $aa_type, $var_base, $ens_gene, $ens_transcript, $aa_ref, $aa_var, $aa_pos, $polyphen_pred, $polyphen_score, $sift_pred, $sift_score, $cadd_phred];
+			$grouping_data{$chr}{$start}{$end}{$var_base}{"$aa_ref->$aa_var"} = [ $chr, $start, $end, $var_type, $aa_type, $var_base, $ens_gene, $ens_transcript, $aa_ref, $aa_var, $aa_pos, $polyphen_pred, $polyphen_score, $sift_pred, $sift_score, $cadd_phred];
 		
 			#push @parsed_result, [$aa_type, $chr, $start, $ens_gene, $ens_transcript, $aa_ref, $aa_var, $polyphen_pred, $polyphen_score, $sift_pred, $sift_score];
 	    } else {
@@ -261,45 +261,57 @@ sub parse_result {
 	    	my $exon_str = "N/A";
 	    	my $cadd_phred = "N/A";
 	    	my $canonical = $attribute_str =~ /CANONICAL/ ? 1:0;
-
+			my $gnomad_af = "N/A";
+			my $gene_name = "N/A";
+			
 			my @attribute_pairs = split /;/, $attribute_str;
 			#Sample attribute line: 
 			#DOMAINS=Pfam_domain:PF01108,Superfamily_domains:SSF49265;CCDS=CCDS33544.1;PUBMED=16690980,16885196;CLIN_SIG=non-pathogenic;GMAF=G:0.0325
 			my $exon = my $intron = 0;
 			
+			
+			
 			for my $attribute_pair ( @attribute_pairs ) {
+			    if ($canonical) {
+			    	if ($attribute_pair =~ /DOMAINS=(.*)/) {
+			    		$domain=$1;
+			    	} elsif ($attribute_pair =~ /PUBMED=(.*)/) {
+			    		$pubmed = $1;
+			    	} elsif ($attribute_pair =~ /EXON/){
+			    		($exon_str) = $attribute_pair =~ /(EXON=\d+\/\d+)/;
+			    		$exon_str =~ s/=/->/;
+			    		$exon = 1;
+			    	} elsif ($attribute_pair =~ /INTRON/){
+			    		($exon_str) = $attribute_pair =~ /(INTRON=\d+\/\d+)/;
+			    		$exon_str =~ s/=/->/;
+			    		$intron = 1;
+			    	}  elsif ($attribute_pair =~ /SYMBOL=(.*)/) {
+			    		$gene_name = $1;
+			    	}
+			    }
 			    
-			    if ($attribute_pair =~ /DOMAINS=(.*)/ && $canonical) {
-			    	$domain=$1;
-			    } elsif ($attribute_pair =~ /AF=([0-9\.]+)/) {
-			    	#my ($base,$freq) = split(':',$1);
-			    	#$gmaf = $freq .'('. $base.')';
+			    #Not canonical dependent traits
+			    if ($attribute_pair =~ /gnomAD_AF=(.*)/) {
+			    	$gnomad_af = $1;
+			    } elsif ($attribute_pair =~ /AF=(.*)/) {
 			    	$gmaf=$1;
 			    } elsif ($attribute_pair =~ /CLIN_SIG=(.*)/) {
 			    	$clinical = $1;
-			    } elsif ($attribute_pair =~ /PUBMED=(.*)/) {
-			    	$pubmed = $1;
-			    } elsif ($attribute_pair =~ /EXON/ && $canonical){
-			    	($exon_str) = $attribute_pair =~ /(EXON=\d+\/\d+)/;
-			    	$exon_str =~ s/=/->/;
-			    	$exon = 1;
-			    } elsif ($attribute_pair =~ /INTRON/ && $canonical){
-			    	($exon_str) = $attribute_pair =~ /(INTRON=\d+\/\d+)/;
-			    	$exon_str =~ s/=/->/;
-			    	$intron = 1;
-			    } elsif ($attribute_pair =~ /CADD_PHRED=([^\;]+)/) {
+			    } elsif ($attribute_pair =~ /CADD_PHRED=(.*)/) {
 			    	$cadd_phred = $1;
-			    } 
+			    }  
 			}
 			
+			
 			if ($intron) {
-		    	$grouping_data{$chr}{$start}{$end}{intron} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript,$aa_type,$cadd_phred];
+		    	$grouping_data{$chr}{$start}{$end}{$var_base}{intron} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript,$cadd_phred,$gnomad_af,$gene_name];
 			} elsif ($exon) {
-				$grouping_data{$chr}{$start}{$end}{exon} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript,$aa_type,$cadd_phred];				
+				$grouping_data{$chr}{$start}{$end}{$var_base}{exon} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript,$cadd_phred,$gnomad_af,$gene_name];				
 			} else {
-				$grouping_data{$chr}{$start}{$end}{neither} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript,$aa_type,$cadd_phred];
+				$grouping_data{$chr}{$start}{$end}{$var_base}{neither} = [$chr, $start, $end, $var_type, $aa_type, $var_base, $rs, $gmaf, $domain, $pubmed, $clinical, $exon_str, $ens_gene, $ens_transcript,$cadd_phred,$gnomad_af,$gene_name];
 			}
-	    	
+			
+			
 	    }
 	    
 	}
@@ -310,20 +322,23 @@ sub parse_result {
 	for my $chr ( sort keys %grouping_data ) {
 	    for my $start_coord ( sort {$a<=>$b} keys %{$grouping_data{$chr}} ) {
 	    	for my $end_coord (keys %{$grouping_data{$chr}{$start_coord}}) {
-	    		if ($self->{exon}) {
-	    			for my $aa_change (keys %{$grouping_data{$chr}{$start_coord}{$end_coord}}) {
-	    				push @parsed_result, $grouping_data{$chr}{$start_coord}{$end_coord}{$aa_change};
-	    			}
-	    		} else {
-	    			#Preferably use exon overlap
-	    			if (exists $grouping_data{$chr}{$start_coord}{$end_coord}{exon}) {
-	    				push @parsed_result, $grouping_data{$chr}{$start_coord}{$end_coord}{exon};
-	    			} elsif (exists $grouping_data{$chr}{$start_coord}{$end_coord}{intron}) {
-	    				push @parsed_result, $grouping_data{$chr}{$start_coord}{$end_coord}{intron};
-	    			} else {
-	    				push @parsed_result, $grouping_data{$chr}{$start_coord}{$end_coord}{neither};
-	    			}
-	    		}
+				for my $var_base (keys %{$grouping_data{$chr}{$start_coord}{$end_coord}}) {
+		    		if ($self->{exon}) {
+		    			for my $aa_change (keys %{$grouping_data{$chr}{$start_coord}{$end_coord}{$var_base}}) {
+		    				push @parsed_result, $grouping_data{$chr}{$start_coord}{$end_coord}{$var_base}{$aa_change};
+		    			}
+		    		} else {
+		    			#Preferably use exon overlap
+		    			if (exists $grouping_data{$chr}{$start_coord}{$end_coord}{$var_base}{exon}) {
+		    				push @parsed_result, $grouping_data{$chr}{$start_coord}{$end_coord}{$var_base}{exon};
+		    			} elsif (exists $grouping_data{$chr}{$start_coord}{$end_coord}{$var_base}{intron}) {
+		    				push @parsed_result, $grouping_data{$chr}{$start_coord}{$end_coord}{$var_base}{intron};
+		    			} else {
+		    				push @parsed_result, $grouping_data{$chr}{$start_coord}{$end_coord}{$var_base}{neither};
+		    			}
+		    		}
+					
+				}
 	    	}
 		}
 	}
