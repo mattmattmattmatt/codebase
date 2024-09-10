@@ -867,25 +867,11 @@ while (<VEPINDEL>) {
     $data{$key}{ens_gene} = $fields[11];
     $data{$key}{ens_trans} = $fields[12];
     $data{$key}{cadd_phred} = $fields[13];
-    
-    
     $data{$key}{var_consequence} = $fields[14];
     $data{$key}{gnomad} = $fields[15];
     $data{$key}{genename} = $fields[16];
     
-    
-#    $data{$key}{rs} = $fields[5];
-#    $data{$key}{gmaf} = $fields[6];
-#    $data{$key}{domain} = $fields[7];
-#    $data{$key}{pubmed} = $fields[8];
-#    $data{$key}{clin} = $fields[9];
-#    $data{$key}{exon_str} = $fields[10]; 
-#    $data{$key}{ens_gene} = $fields[11];
-#    $data{$key}{ens_trans} = $fields[12];
-#    #Handle old veps w/o CADD
-#    if ($fields[13] && $fields[13] =~ /_/) {
-#	    $data{$key}{indel_result} = $fields[13];
-#    }
+
     
 }
 
@@ -921,21 +907,6 @@ while (<VEPALL>) {
     $data{$key}{var_consequence} = $fields[14];
     $data{$key}{gnomad} = $fields[15];
     $data{$key}{genename} = $fields[16];
-    
-    
-#    $data{$key}{rs} = $fields[5];
-#    $data{$key}{gmaf} = $fields[6];
-#    $data{$key}{domain} = $fields[7];
-#    $data{$key}{pubmed} = $fields[8];
-#    $data{$key}{clin} = $fields[9];
-#    $data{$key}{exon_str} = $fields[10]; 
-#    $data{$key}{ens_gene} = $fields[11];
-#    $data{$key}{ens_trans} = $fields[12];
-#    #Handle old veps w/o CADD
-#    if ($fields[14] && $fields[14] =~ /\d/) {
-#	    $data{$key}{cadd_phred} = $fields[14];
-#    }
-    
 }
 
 

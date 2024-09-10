@@ -70,7 +70,7 @@ my $delim = defined $OPT{delim}?$OPT{delim}:"\t";
 
 my $rand = int(rand(10000000));
 
-
+print Dumper \@key_columns;
 
 my $venn_r_file = "venn$rand.r";
 
@@ -84,18 +84,15 @@ my $set_count = 1;
 my $list_str;
 foreach my $file (@files) {
     my $set_file = "s$set_count";
-#    my ($igl) = $file =~ /(IGL\d+)/;
     if ($OPT{s1} && $set_file eq 's1') {
     	$list_str .= "$OPT{s1} = $set_file,"
     } elsif ($OPT{s2} && $set_file eq 's2') {
     	$list_str .= "$OPT{s2} = $set_file,"
     } elsif ($OPT{s3} && $set_file eq 's3') {
     	$list_str .= "$OPT{s3} = $set_file,"
-    } else {
-#    	$list_str .= "$igl = $set_file,";
     }
     
-    open(FILE,$file) || modules::Exception->throw("Can't open $file");;
+    open(FILE,$file) || modules::Exception->throw("Can't open $file");
     my $r_string = "s$set_count<-c(";
 
     my $count = 0;
@@ -103,12 +100,18 @@ foreach my $file (@files) {
     	chomp;
 		my @cols = split($delim,$_);
 		$r_string .= "\"";
-		for my $key_entry ( @key_columns ) {
-		    $r_string .= $cols[$key_entry] . ':';
+		if (@key_columns == 1) {
+			$r_string .= $cols[0];
+		} else {
+			for my $key_entry ( @key_columns ) {
+			    $r_string .= $cols[$key_entry] . ':';
+			}
+			$r_string =~ s/:$//;
+			
 		}
-		$r_string =~ s/:$//;
-		
+
 		$r_string .= "\",";
+		
 		$count++;
 		#last if $count > 25;
     }
