@@ -17,7 +17,7 @@ sub new {
     $self->var_base($args{'var_base'})             if defined $args{'var_base'};
     $self->base_string($args{'base_string'})       if defined $args{'base_string'};
     $self->quality_string($args{'quality_string'}) if defined $args{'quality_string'};
-
+	
     return $self;
 }
 
@@ -85,6 +85,7 @@ sub base_string {
     }
 }
 
+
 sub base_string_indel {
     my ($self, $base_string) = @_;
 
@@ -104,6 +105,53 @@ sub quality_string {
 	return $self->{'quality_string'}
     }
 }
+
+
+sub get_var_tags {
+	my ($self,$base_string,$tags) = @_;
+	my @tags = split(",",$tags);
+	my $tag_count = 0;
+	$base_string =~ s/[\[\]\$\^]//g;
+	my @bases = split("",uc($base_string));
+	#print Dumper \@bases;
+	#print Dumper \@tags;
+	my $base_count = @bases;
+	my @var_tags = ();
+	my $count = 0;
+	
+	
+#	if (scalar(@tags) != scalar(@bases)) {
+#		modules::Exception->throw("ERROR: Length of bases and tags don't match\n");
+#	}
+	
+	while ($count < $base_count) {
+	    if (defined $bases[$count+2] && ($bases[$count+1] eq '+' && $count+2 != $base_count && $bases[$count+2] =~ /(\d)/)) {
+	    	#Skip all the indel bases from the array
+	    	my $rest_indel = join("",@bases[$count+2..$#bases]);
+			my ($length_indel) = $rest_indel =~ /(\d+)/;
+    		$count +=  $length_indel+2+length($length_indel);
+    		$tag_count++;
+    		push @var_tags,$tags[$tag_count];
+	    	next;
+	    } elsif (defined $bases[$count+2] && ($bases[$count+1] eq '-' && $count+2 != $base_count && $bases[$count+2] =~ /(\d)/)) {
+	    	my $rest_indel = join("",@bases[$count+2..$#bases]);
+			my ($length_indel) = $rest_indel =~ /(\d+)/;
+    		$count +=  $length_indel+2+length($length_indel);
+    		$tag_count++;
+    		push @var_tags,$tags[$tag_count];
+	    	next;
+	    } elsif ($bases[$count] =~ /[ATCGN]/) {
+	    	push @var_tags,$tags[$tag_count];
+	    } 
+	    
+	    #print "$bases[$count]\t$tags[$tag_count]\n";
+	    
+	    $count++;
+	    $tag_count++;
+	}
+	return \@var_tags;
+}
+
 
 sub get_base_array {
     my ($self) = @_;
@@ -131,6 +179,7 @@ sub get_base_array {
     		$count +=  $length_indel+2+length($length_indel);
 	    	next;
 	    } elsif ($bases[$count] =~ /[ATCGN]/) {
+	    	
 	    	push @final_bases, $bases[$count];
 	    } elsif ($bases[$count] eq '*') {
 	    	push @final_bases, 'OTHER_DEL';

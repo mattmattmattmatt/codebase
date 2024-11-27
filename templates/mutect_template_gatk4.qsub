@@ -8,4 +8,4 @@
 module load java
 module load python3-as-python
 /g/data/u86/software/gatk-4.2.5.0/gatk Mutect2 -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -L /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/intervals/CHR.intervals -I OUTDIR/SAMPLE_tumor1_md_realign_recal.bam -I OUTDIR/SAMPLE_tumor1_md_realign_recal.bam -I OUTDIR/SAMPLE_normal1_md_realign_recal.bam -I OUTDIR/SAMPLE_normal2_md_realign_recal.bam -normal SAMPLE_normal1 -normal SAMPLE_normal2 -O OUTDIR/SAMPLE.CHR.vcf
-
+/g/data/u86/software/gatk-4.2.5.0/gatk FilterMutectCalls -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V SAMPLE.vcf -O SAMPLE.filter.vcf

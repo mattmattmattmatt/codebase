@@ -70,8 +70,6 @@ my $delim = defined $OPT{delim}?$OPT{delim}:"\t";
 
 my $rand = int(rand(10000000));
 
-print Dumper \@key_columns;
-
 my $venn_r_file = "venn$rand.r";
 
 print "R $venn_r_file\n";

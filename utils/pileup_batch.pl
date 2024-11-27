@@ -15,6 +15,7 @@ GetOptions(\%OPT,
 	   	"pileup_file=s",
 	   	"min_freq=s",
 	   	"min_reads=i",
+	   	"tag"
 	   	);
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -26,7 +27,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{pileup_file});
 
 =head1 SYNOPSIS
 
-pileup_batch.pl -help -man [options] -pileup pileup_file_from_samtools -min_freq min_var_freq_to_include -min_reads min_reads_for_variant_to_include
+pileup_batch.pl -help -man [options] -pileup pileup_file_from_samtools -min_freq min_var_freq_to_include -min_reads min_reads_for_variant_to_include -tag parse_tags_for_variant_reads
 
 Required flags: -pileup_file pileup_file
 
@@ -62,6 +63,7 @@ if ( !-e $pileup_file ) {
 	modules::Exception->throw("File $pileup_file doesn't exist");
 }
 
+my $tag = defined $OPT{tag}?1:0;
 
 my $min_freq = defined $OPT{min_freq}?$OPT{min_freq}:'0';
 my $min_reads = defined $OPT{min_reads}?$OPT{min_reads}:'0';
@@ -113,7 +115,34 @@ while (<PILEUP>) {
  	    $base_str .= $base.":".sprintf("%.5f",$freq{$base}).';';
  	}
  	$base_str =~ s/;$//;
-	print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg) . "\n";
+
+	if ($tag) {
+		my $var_tags = $pl->get_var_tags($fields[4],$fields[6]);
+		
+		my $var_tag_count = @{$var_tags};
+		
+		my %tags = ();
+		
+		for my $arr_tag ( @{$var_tags} ) {
+		    $tags{$arr_tag}++;
+		}
+		
+		my $tag_uniq_count = keys %tags;
+
+		#print "$var_tag_count\t$fields[3]\t$tag_uniq_count\n";
+
+		my @tag_str;
+		
+		for my $tag ( sort keys %tags ) {
+			push @tag_str, $tag.'('.$tags{$tag}.')';
+		}
+		my $tag_str = join(':',@tag_str);		
+		
+		print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $tag_uniq_count, $tag_str) . "\n";
+	} else {
+		print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg) . "\n";
+		
+	}
 	
 	#my @counts = @{$pl->base_frequencies->counts};
 	#my @freqs = @{$pl->base_frequencies->counts};
