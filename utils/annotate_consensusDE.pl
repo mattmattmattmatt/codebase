@@ -150,7 +150,7 @@ for my $tsv_in_file (@files_to_process) {
 				modules::Exception->throw("Error with format of line $_\nMust start with ENSEMBL gene name");
 			}
 			$fields[0] =~ s/"//g;
-			
+			$fields[0] =~ s/\.[0-9]+$//;
 			my @local_anno_line = defined $data{$fields[0]}?@{$data{$fields[0]}}:@no_anno_line;
 			
 			print TSV_OUT join("\t",
