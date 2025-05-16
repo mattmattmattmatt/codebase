@@ -54,7 +54,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{vcf_in});
 =head1 SYNOPSIS
 
 quick_annotate_vcf.pl 
-	-vcf_in output_dir 
+	-vcf_in vcf_file
 	-outdir outdir(default=cwd)
 	-min_sample_count minimum_number_samples_with_variant
 	-ref ref_genome(default=GRCh38)

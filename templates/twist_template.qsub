@@ -1,0 +1,23 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normalbw
+#PBS -l walltime=24:00:00,mem=192GB,jobfs=200GB,ncpus=28
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84
+
+
+module load java/jdk-8.40
+module load samtools
+module load bwa
+
+source /g/data/u86/mxf221/miniconda3/bin/activate
+
+java -Xmx32g -jar /g/data/pq84/software/picard/picard.jar FastqToSam O=SAMPLE_unaligned.bam F1=SAMPLE_R1.fastq.gz F2=SAMPLE_R2.fastq.gz SM=SAMPLE LB=1912 PU=Unit1 PL=Illumina
+fgbio ExtractUmisFromBam --input=SAMPLE_unaligned.bam --output=SAMPLE_unaligned_umi_extracted.bam --read-structure=5M2S+T 5M2S+T --molecular-index-tags=ZA ZB --single-tag=RX
+java -Xmx16g -jar /drive2/software/picard.jar SamToFastq I=SAMPLE_unaligned_umi_extracted.bam F=SAMPLE_unaligned_umi_extracted.fastq INTERLEAVE=true
+bwa mem -p -t 28 /drive2/codebase/conf/human/GRCh38/bwa_index/GRCh38d1_noalt SAMPLE_unaligned_umi_extracted.fastq |  samtools sort -@ 8 -m 1G -o SAMPLE_aligned_umi_extracted.bam
+java -jar /g/data/pq84/software/picard/picard.jar MergeBamAlignment UNMAPPED=SAMPLE_unaligned_umi_extracted.bam ALIGNED=SAMPLE_aligned_umi_extracted.bam O=SAMPLE_aligned_tag_umi.bam R=/g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa CLIP_ADAPTERS=false  VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true EXPECTED_ORIENTATIONS=FR  MAX_GAPS=-1 SO=coordinate ALIGNER_PROPER_PAIR_FLAGS=false
+fgbio  GroupReadsByUmi --strategy=Paired --input=SAMPLE_aligned_tag_umi.bam --output=SAMPLE_grouped_by_umi.bam --raw-tag=RX --min-map-q=10 --edits=1
+fgbio -Xmx175G CallDuplexConsensusReads --input=SAMPLE_grouped_by_umi.bam --output=SAMPLE_unaligned_consensus.bam --error-rate-pre-umi=45 --error-rate-post-umi=30 --min-input-base-quality=30 --min-reads 2 1 1
+java -jar /g/data/pq84/software/picard/picard.jar SamToFastq I=SAMPLE_unaligned_consensus.bam  F=SAMPLE_consensus.fastq INTERLEAVE=true
+bwa mem -p -t 28 /g/data/u86/variantdb/v2.38/conf/human/GRCh38/bwa_index/GRCh38d1_noalt SAMPLE_consensus.fastq |  samtools sort -@ 28 -m 1G -o SAMPLE_aligned_consensus.bam
+java -jar /g/data/pq84/software/picard/picard.jar AddOrReplaceReadGroups I=SAMPLE_aligned_consensus_noRG.bam O=SAMPLE_aligned_consensus_final.bam RGID=SAMPLE RGLB=SAMPLE RGPL=Illumina RGSM=SAMPLE RGPU=NA
