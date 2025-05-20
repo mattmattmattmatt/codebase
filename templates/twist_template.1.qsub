@@ -21,3 +21,5 @@ fgbio -Xmx175G CallDuplexConsensusReads --input=OUTDIR/SAMPLE_grouped_by_umi.bam
 java -jar /g/data/pq84/software/picard/picard.jar SamToFastq I=OUTDIR/SAMPLE_unaligned_consensus.bam  F=OUTDIR/SAMPLE_consensus.fastq INTERLEAVE=true
 bwa mem -p -t 28 /g/data/u86/variantdb/v2.38/conf/human/GRCh38/bwa_index/GRCh38d1_noalt OUTDIR/SAMPLE_consensus.fastq |  samtools sort -@ 28 -m 1G -o OUTDIR/SAMPLE_aligned_consensus.bam
 java -jar /g/data/pq84/software/picard/picard.jar AddOrReplaceReadGroups I=OUTDIR/SAMPLE_aligned_consensus_noRG.bam O=OUTDIR/SAMPLE_aligned_consensus_final.bam RGID=OUTDIR/SAMPLE RGLB=SAMPLE RGPL=Illumina RGSM=SAMPLE RGPU=NA
+
+qsub QSUBDIR/QSUBNEXT
