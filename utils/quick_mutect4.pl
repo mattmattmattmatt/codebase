@@ -124,7 +124,7 @@ my $softdir = defined $OPT{softdir}?$OPT{softdir}:'/g/data/u86/software/';
 $softdir = abs_path($softdir);
 
 if (!-d $softdir) {
-        #modules::Exception->throw("Dir $softdir doesn't exist");
+        modules::Exception->throw("Dir $softdir doesn't exist");
 }
 
 
