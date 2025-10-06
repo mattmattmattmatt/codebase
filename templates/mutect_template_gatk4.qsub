@@ -7,6 +7,6 @@
 
 module load java
 module load python3-as-python
-SOFT/gatk-4.2.5.0/gatk Mutect2 --java-options "-Djava.io.tmpdir=/path/to/tmp" -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa BYCH SAMPLE_BAMS NORMAL_SAMPLES -O OUTDIR/PREF.CHR.vcf
+SOFT/gatk-4.2.5.0/gatk Mutect2 --java-options "-Djava.io.tmpdir=OUTDIR" -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa BYCH SAMPLE_BAMS NORMAL_SAMPLES -O OUTDIR/PREF.CHR.vcf
 sleep 300
 SOFT/gatk-4.2.5.0/gatk FilterMutectCalls -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V OUTDIR/PREF.CHR.vcf -O OUTDIR/PREF.CHR.filter.vcf
