@@ -4,12 +4,12 @@
 #PBS -l walltime=24:00:00,mem=192GB,jobfs=200GB,ncpus=28
 #PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84+gdata/pw1+scratch/pw1
 
+source /g/data/u86/mxf221/miniconda3/bin/activate
 
 module load java/jdk-17.0.2/
 module load samtools
 module load bwa
 
-source /g/data/u86/mxf221/miniconda3/bin/activate
 
 java -Xmx32g -jar SOFT/picard/picard.jar FastqToSam O=OUTDIR/SAMPLE_unaligned.bam F1=READDIR/SAMPLE_R1.fastq.gz F2=READDIR/SAMPLE_R2.fastq.gz SM=SAMPLE LB=SAMPLE PU=Unit1 PL=Illumina
 fgbio ExtractUmisFromBam --input=OUTDIR/SAMPLE_unaligned.bam --output=OUTDIR/SAMPLE_unaligned_umi_extracted.bam --read-structure=5M2S+T 5M2S+T --molecular-index-tags=ZA ZB --single-tag=RX
