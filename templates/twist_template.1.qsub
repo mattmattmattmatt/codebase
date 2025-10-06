@@ -5,7 +5,7 @@
 #PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84+gdata/pw1+scratch/pw1
 
 
-module load java/jdk-8.40
+module load java
 module load samtools
 module load bwa
 
