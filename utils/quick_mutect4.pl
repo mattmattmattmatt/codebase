@@ -18,7 +18,7 @@ GetOptions(\%OPT,
 	   	"man|m",
 		"tumor_list=s",
 		"outdir=s",
-		"prefix=s",
+		"pref=s",
 		"normal_list=s",
 		"template=s",
 		"qsubdir=s",
@@ -33,7 +33,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{normal_list} || !$OPT{outdir} || !$OPT{tumo
 
 =head1 SYNOPSIS
 
-quick_mutect4.pl -template template_qsub -qsubdir qsub_dir -outdir outdir -tumor_list -normal_list normal_list -bychr 
+quick_mutect4.pl -template template_qsub -qsubdir qsub_dir -outdir outdir -tumor_list -normal_list normal_list -bychr -pref name_prefix
 
 Required flags: -outdir -tumor_list -normal_list -template
 
