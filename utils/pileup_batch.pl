@@ -15,6 +15,7 @@ GetOptions(\%OPT,
 	   	"pileup_file=s",
 	   	"min_freq=s",
 	   	"min_reads=i",
+	   	"just_var",
 	   	"tag"
 	   	);
 
@@ -64,6 +65,7 @@ if ( !-e $pileup_file ) {
 }
 
 my $tag = defined $OPT{tag}?1:0;
+my $just_var = defined $OPT{just_var}?1:0;
 
 my $min_freq = defined $OPT{min_freq}?$OPT{min_freq}:'0';
 my $min_reads = defined $OPT{min_reads}?$OPT{min_reads}:'0';
@@ -117,28 +119,59 @@ while (<PILEUP>) {
  	$base_str =~ s/;$//;
 
 	if ($tag) {
+		
+		#First count up the total tags
+		my %all_tag_count = ();
+		
+		my @tags = split(",",$fields[6]);
+		
+		for my $tmp_tag (@tags) {
+			$all_tag_count{$tmp_tag}++;
+		}
+		#Hack to prevent complex indels not reporting tags
+		$all_tag_count{'Indel_tag'} = 1;
+		
+		#Then count the variant tags
 		my $var_tags = $pl->get_var_tags($fields[4],$fields[6]);
 		
 		my $var_tag_count = @{$var_tags};
 		
 		my %tags = ();
 		
+		if ($just_var) {
+			next if @{$var_tags} == 0;
+		}
+		
+		#print Dumper \$var_tags;
+		
 		for my $arr_tag ( @{$var_tags} ) {
+			if (!$arr_tag) {
+				$arr_tag = 'Indel_tag';
+			}
 		    $tags{$arr_tag}++;
 		}
 		
-		my $tag_uniq_count = keys %tags;
+		
 
 		#print "$var_tag_count\t$fields[3]\t$tag_uniq_count\n";
 
 		my @tag_str;
+		my $total_var_tags = 0;
 		
 		for my $tag ( sort keys %tags ) {
-			push @tag_str, $tag.'('.$tags{$tag}.')';
+			push @tag_str, $tag.'('.$tags{$tag}.'/'.$all_tag_count{$tag}.')';
+			$total_var_tags += $tags{$tag};
 		}
-		my $tag_str = join(':',@tag_str);		
 		
-		print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $tag_uniq_count, $tag_str) . "\n";
+		my $tag_uniq_count = keys %tags;
+		
+		
+		my $tag_str = join(':',@tag_str);		
+		if ($just_var && $total_var_tags>0) {
+			print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $total_var_tags.'('.$tag_uniq_count.')', $tag_str) . "\n";
+		} elsif ($just_var == 0) {
+			print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $total_var_tags.'('.$tag_uniq_count.')', $tag_str) . "\n";
+		}
 	} else {
 		print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg) . "\n";
 		

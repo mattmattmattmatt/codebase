@@ -39,6 +39,7 @@ GetOptions(\%OPT,
        "mb_matrix",
        "sort_column=s",
        "priority_genes=s",
+       "only_priority",
        "group_file=s",
        "min_mean_af=s",
        "plot_genes=s",
@@ -77,6 +78,7 @@ quick_annotate_vcf.pl
 	-sc_min_portion portion_sc_with_data_that_are_variant 
 	-sort_column columnname_to_sort_by 
 	-priority_genes genelist_to_flag 
+	-only_priority only_report_priority_genes
 	-group_file report_variants_by_groups(filters_applied_at_top_level) 
 	-min_mean_af min_allele_frequency_from_variant_samples 
 	-plot_genes file_of_genes_to_plot_for_MB
@@ -167,10 +169,12 @@ my $vcf_file = $OPT{vcf_in};
 $vcf_file = abs_path($vcf_file);
 
 if ( !-e $vcf_file ) {
-	Exception->throw("File $vcf_file doesn't exist");	
+	modules::Exception->throw("File $vcf_file doesn't exist");	
 }
 
 my $overwrite = defined $OPT{overwrite}?1:0;
+
+my $only_priority = defined $OPT{only_priority}?1:0;
 
 
 #Keep track of total var/sample to allow potential filtering (rerun with reduced sample list)
@@ -335,7 +339,7 @@ open(PRIOR,"$priority_genes") || modules::Exception->throw("Can't open file $pri
 while (<PRIOR>) {
 	chomp;
 	my ($gene) = $_ =~ /(\S+)/;
-	$priority_genes{$gene} = 1;
+	$priority_genes{uc($gene)} = 1;
 }
 
 
@@ -1310,6 +1314,10 @@ for my $key (@keys) {
 	
 	if (exists $priority_genes{$gene_name}) {
 		$priority_gene = 'YES';
+	}
+	
+	if ($only_priority) {
+		next unless $priority_gene eq 'YES';
 	}
 	
 	

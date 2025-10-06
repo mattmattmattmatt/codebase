@@ -26,6 +26,10 @@ for f in `cat celiac_samples`; do cat ${f}.mapstat | grep ^Reads | sed -e 's/^Re
 Mean cover
 for f in `cat celiac_samples`; do cat ${f}.depth | cut -d$'\t' -f3 | stats | cut -d' ' -f 4; done
 
+#Too slow for WGS:
+module load R/4.3.1
+for f in {1..22} X; do cat 2046-PBMC-CD3.depth.$f | cut -d$'\t' -f3 | Rscript -e 'd<-scan("stdin", quiet=TRUE)' -e 'cat(mean(d))'; done
+
 >1 read bases
 for f in `cat celiac_samples`; do cat ${f}.depth | extract -t "_2 > 1" | wc -l | awk '{print $1/3344125*100"%"}'; done
 

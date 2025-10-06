@@ -2,10 +2,11 @@
 #PBS -P pq84
 #PBS -q normalbw
 #PBS -l walltime=48:00:00,mem=16GB,jobfs=100Gb,ncpus=1
-#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84+gdata/pw1+scratch/pw1
 
 
 module load java
 module load python3-as-python
-/g/data/u86/software/gatk-4.2.5.0/gatk Mutect2 -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -L /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/intervals/CHR.intervals -I OUTDIR/SAMPLE_tumor1_md_realign_recal.bam -I OUTDIR/SAMPLE_tumor1_md_realign_recal.bam -I OUTDIR/SAMPLE_normal1_md_realign_recal.bam -I OUTDIR/SAMPLE_normal2_md_realign_recal.bam -normal SAMPLE_normal1 -normal SAMPLE_normal2 -O OUTDIR/SAMPLE.CHR.vcf
-/g/data/u86/software/gatk-4.2.5.0/gatk FilterMutectCalls -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V SAMPLE.vcf -O SAMPLE.filter.vcf
+SOFT/gatk-4.2.5.0/gatk Mutect2 --java-options "-Djava.io.tmpdir=/path/to/tmp" -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa BYCH SAMPLE_BAMS NORMAL_SAMPLES -O OUTDIR/PREF.CHR.vcf
+sleep 300
+SOFT/gatk-4.2.5.0/gatk FilterMutectCalls -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V OUTDIR/PREF.CHR.vcf -O OUTDIR/PREF.CHR.filter.vcf

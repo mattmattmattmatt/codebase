@@ -16,9 +16,5 @@ java -Xms3g -Xmx30g -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAna
 
 java -Xms3g -Xmx30g -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T IndelRealigner --consensusDeterminationModel KNOWNS_ONLY -LOD 0.4 -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md.bam -known /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Homo_sapiens_assembly38.known_indels.vcf -targetIntervals OUTDIR/SAMPLE.intervals -o OUTDIR/SAMPLE_md_realign.bam -allowPotentiallyMisencodedQuals
 
-java -Xms3g -Xmx30g -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T BaseRecalibrator -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md_realign.bam -knownSites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Homo_sapiens_assembly38.dbsnp138.vcf -knownSites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Mills_and_1000G_gold_standard.indels.hg38.vcf -o OUTDIR/SAMPLE_md_realign.recal.table 
-
-java -Xms3g -Xmx30g -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T PrintReads -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md_realign.bam -BQSR  OUTDIR/SAMPLE_md_realign.recal.table  -o OUTDIR/SAMPLE_md_realign_recal.bam 
-
 java -Xms3g -Xmx30g -jar /g/data/u86/variantdb/v2.3/ext/bin/GATK-3.6.0/GenomeAnalysisTK.jar -T HaplotypeCaller -nt 1 -ERC GVCF -variant_index_type LINEAR -variant_index_parameter 128000 --minPruning 3 --maxNumHaplotypesInPopulation 200 --max_alternate_alleles 3 -contamination 0.0 -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md_realign.bam -o OUTDIR/SAMPLE.g.vcf.gz -allowPotentiallyMisencodedQuals
 

@@ -123,6 +123,14 @@ cat normal_tumor_ratio | awk '{print $1"\t"$1/NNNNN}'
 
 #Trisomy ratio ~1.5, full dup ~2, etc
 
+#Depth for each chromosome relative to other
+cat sample.depth | cut -d$'\t' -f3 | Rscript -e 'd<-scan("stdin", quiet=TRUE)' -e 'cat(mean(d))' #Total for genome
+for f in {1..22} X; do cat sample.depth | grep -w ^${f} > sample.depth.$f; done
+for f in {1..22} X; do cat sample.depth.$f | cut -d$'\t' -f3 | Rscript -e 'd<-scan("stdin", quiet=TRUE)' -e 'cat(mean(d))'; done >> sample.average_chromosome
+#Divide each chr number by genome total to get ratio
+
+#To check candidate dup or del with coordinates
+cat 2046-T2_10Clones_merged.depth.1 | extract -t "_1>147656490 && _1<234613722" | cut -d$'\t' -f3  | Rscript -e 'd<-scan("stdin", quiet=TRUE)' -e 'cat(mean(d))'
 
 #Convert hg19 BAM to reads
 samtools sort -n -@ 32 SVR_tumor.bam | samtools bam2fq -@ 32 -1 SVR_rogue_R1.fastq.gz -2 SVR_rogue_R2.fastq.gz --reference ~/g/variantdb/v2.3/conf/human/hs37d5/fasta/single_file/hs37d5.fa -s /dev/null -0 /dev/null -
@@ -165,6 +173,8 @@ for f in {39..83}; do echo "cat ../Celiac2_all_variants.tsv | extract -t \"_${f}
 
 #Get percent
 paste hom_ref_controlhet_counts hom_ref_counts | awk '{print $1/$2*100"%"}'
+
+
 
 
 
