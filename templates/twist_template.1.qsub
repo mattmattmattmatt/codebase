@@ -14,7 +14,7 @@ module load bwa
 java -Xmx32g -jar SOFT/picard/picard.jar FastqToSam O=OUTDIR/SAMPLE_unaligned.bam F1=READDIR/SAMPLE_R1.fastq.gz F2=READDIR/SAMPLE_R2.fastq.gz SM=SAMPLE LB=SAMPLE PU=Unit1 PL=Illumina
 fgbio ExtractUmisFromBam --input=OUTDIR/SAMPLE_unaligned.bam --output=OUTDIR/SAMPLE_unaligned_umi_extracted.bam --read-structure=5M2S+T 5M2S+T --molecular-index-tags=ZA ZB --single-tag=RX
 java -Xmx16g -jar SOFT/picard/picard.jar SamToFastq I=OUTDIR/SAMPLE_unaligned_umi_extracted.bam F=OUTDIR/SAMPLE_unaligned_umi_extracted.fastq INTERLEAVE=true
-bwa mem -p -t 28 /drive2/codebase/conf/human/GRCh38/bwa_index/GRCh38d1_noalt OUTDIR/SAMPLE_unaligned_umi_extracted.fastq |  samtools sort -@ 28 -m 1G -o OUTDIR/SAMPLE_aligned_umi_extracted.bam
+bwa mem -p -t 28 /g/data/u86/variantdb/v2.38/conf/human/GRCh38/bwa_index/GRCh38d1_noalt OUTDIR/SAMPLE_unaligned_umi_extracted.fastq |  samtools sort -@ 28 -m 1G -o OUTDIR/SAMPLE_aligned_umi_extracted.bam
 java -jar SOFT/picard/picard.jar MergeBamAlignment UNMAPPED=OUTDIR/SAMPLE_unaligned_umi_extracted.bam ALIGNED=OUTDIR/SAMPLE_aligned_umi_extracted.bam O=OUTDIR/SAMPLE_aligned_tag_umi.bam R=/g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa CLIP_ADAPTERS=false  VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true EXPECTED_ORIENTATIONS=FR  MAX_GAPS=-1 SO=coordinate ALIGNER_PROPER_PAIR_FLAGS=false
 fgbio  GroupReadsByUmi --strategy=Paired --input=OUTDIR/SAMPLE_aligned_tag_umi.bam --output=OUTDIR/SAMPLE_grouped_by_umi.bam --raw-tag=RX --min-map-q=10 --edits=1
 fgbio -Xmx175G CallDuplexConsensusReads --input=OUTDIR/SAMPLE_grouped_by_umi.bam --output=OUTDIR/SAMPLE_unaligned_consensus.bam --error-rate-pre-umi=45 --error-rate-post-umi=30 --min-input-base-quality=30 --min-reads 2 1 1
