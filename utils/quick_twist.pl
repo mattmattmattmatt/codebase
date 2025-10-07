@@ -58,7 +58,7 @@ Matt Field
 
 =head1 EXAMPLE
 
-scp_results.pl 
+/g/data/pq84/software/codebase/utils/quick_twist.pl -readdir fastq -template qsub/twist_template.1.qsub -outdir /g/data/pw1/Goodnow_Matt/Twist/celiac/IBDpanel_epithelial/analysis/ -sample_list sample_names -pref twist -qsubdir qsub/
 
 =cut
 

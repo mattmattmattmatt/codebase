@@ -59,7 +59,7 @@ Matt Field
 
 =head1 EXAMPLE
 
-scp_results.pl 
+ /g/data/pq84/software/codebase/utils/quick_mutect4.pl -template /g/data/pq84/software/codebase/templates/mutect_template_gatk4.qsub -outdir /g/data/pw1/Goodnow_Matt/RA/STAT3/RUS15466/analysis/ -tumor_list sample_tumor -normal_list sample_normal -pref sample_mutect -qsubdir qsub/
 
 =cut
 
