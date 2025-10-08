@@ -85,7 +85,7 @@ while (<PILEUP>) {
 	}
 	
 	my $ref_base = uc($fields[2]);
-	my $zyg = 'het';
+	my $zyg = 'ref';
 	my %freq = ();
 	if (defined %{$pl->base_frequencies->lookup}{$ref_base}) {
 		$freq{$ref_base."(ref)"} = %{$pl->base_frequencies->lookup}{$ref_base};
@@ -99,6 +99,7 @@ while (<PILEUP>) {
 		
 	for my $base (keys %{$pl->base_frequencies->lookup}) {
 		next if $base eq $ref_base;
+		$zyg = 'het' unless $zyg eq 'hom';
 		$freq{$base} = %{$pl->base_frequencies->lookup}{$base};
 		if ($freq{$base} > $max_alt && $base ne 'REFSKIP') {
 			$max_alt = $freq{$base};
