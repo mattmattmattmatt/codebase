@@ -16,7 +16,8 @@ GetOptions(\%OPT,
 	   	"min_freq=s",
 	   	"min_reads=i",
 	   	"just_var",
-	   	"tag"
+	   	"tag",
+	   	"pref=s"
 	   	);
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -69,6 +70,8 @@ my $just_var = defined $OPT{just_var}?1:0;
 
 my $min_freq = defined $OPT{min_freq}?$OPT{min_freq}:'0';
 my $min_reads = defined $OPT{min_reads}?$OPT{min_reads}:'0';
+
+my $pref = defined $OPT{pref}?$OPT{pref}:'';
 
 open(PILEUP,"$pileup_file") || modules::Exception->throw("Can't open file $pileup_file\n");
 
@@ -168,13 +171,27 @@ while (<PILEUP>) {
 		
 		
 		my $tag_str = join(':',@tag_str);		
-		if ($just_var && $total_var_tags>0) {
-			print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $total_var_tags.'('.$tag_uniq_count.')', $tag_str) . "\n";
-		} elsif ($just_var == 0) {
-			print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $total_var_tags.'('.$tag_uniq_count.')', $tag_str) . "\n";
+		if ($pref =~ /\S/) {
+			if ($just_var && $total_var_tags>0) {
+				print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $total_var_tags.'('.$tag_uniq_count.')', $tag_str, $pref) . "\n";
+			} elsif ($just_var == 0) {
+				print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $total_var_tags.'('.$tag_uniq_count.')', $tag_str, $pref) . "\n";
+			}	
+		} else {
+			if ($just_var && $total_var_tags>0) {
+				print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $total_var_tags.'('.$tag_uniq_count.')', $tag_str) . "\n";
+			} elsif ($just_var == 0) {
+				print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $total_var_tags.'('.$tag_uniq_count.')', $tag_str) . "\n";
+			}	
 		}
 	} else {
-		print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg) . "\n";
+		
+		if ($pref =~ /\S/) {
+			print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg, $pref) . "\n";			
+		} else {
+			print join ("\t",$fields[0],$fields[1],$fields[3],$fields[4], $base_str, $zyg) . "\n";
+		}
+		
 		
 	}
 	
