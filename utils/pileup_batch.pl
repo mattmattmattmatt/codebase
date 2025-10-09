@@ -97,6 +97,7 @@ while (<PILEUP>) {
 		$zyg = 'hom';
 	}
 	
+	
 	my $max_alt = 0;
 	my $max_reads = 1;
 		
@@ -110,10 +111,30 @@ while (<PILEUP>) {
 		}
 			
 	}
+	my $indel_tag = $pl->get_base_array_indel();
+	
+	my %indel_tags = ();
+	
+	
+	for my $indel (@{$indel_tag}) {
+
+		if ($indel =~ /^-/ || $indel =~ /^\+/) {
+			$indel_tags{$indel}++;
+		} 
+	}
+	
+	
+	if (keys %indel_tags) {
+		$zyg = 'het' unless $zyg eq 'hom';
+		for my $tag ( keys %indel_tags ) {
+		    $freq{$tag} = sprintf("%.4f",$indel_tags{$tag}/$fields[3]);
+		}
+	}
+	
+	
 
 	next if ($max_alt < $min_freq);
 	next if ($max_reads < $min_reads);
-	#print Dumper $pl;
 	
 
 	my $base_str;
