@@ -127,7 +127,12 @@ while (<PILEUP>) {
 	if (keys %indel_tags) {
 		$zyg = 'het' unless $zyg eq 'hom';
 		for my $tag ( keys %indel_tags ) {
-		    $freq{$tag} = sprintf("%.4f",$indel_tags{$tag}/$fields[3]);
+			my $indel_freq =  sprintf("%.4f",$indel_tags{$tag}/$fields[3]);
+			if ($indel_freq > $max_alt) {
+				$max_alt = $indel_freq;
+				$max_reads = int($fields[3]*$max_alt);
+			} 
+		    $freq{$tag} = $indel_freq;
 		}
 	}
 	
