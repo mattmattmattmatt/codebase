@@ -599,7 +599,6 @@ if (!-e "$outdir/$vcf_out" || $overwrite) {
 }
 
 
-
 #Split by type (for vep input)
 push @commands, "grep SNV $outdir/$vcf_out > $outdir/$vcf_out.snv";
 push @commands, "grep -v SNV $outdir/$vcf_out > $outdir/$vcf_out.indel";
@@ -759,6 +758,10 @@ while (<PARSED>) {
 	my $zyg = "N/A";
 	my $sample;
 
+	my @var_read_counts = split(",",$var_read_count);
+
+	
+
 
 	for (my $count = 0; $count < @genotypes; $count++) {
 		my @geno_fields = split(':',$genotypes[$count]);
@@ -777,7 +780,40 @@ while (<PARSED>) {
 		} elsif ($geno_fields[0] =~ /\|/) {
 			($allele1,$allele2) = split('\|',$geno_fields[0]);
 		} else {
-			#modules::Exception->throw("ERROR: Can't handle genotype $geno_fields[0]\n");
+			#Here we assume strelka with no GT fields; calculate af 
+			if (exists $var_read_counts[$count]) {
+				my ($var_reads,$total_reads) = split('/',$var_read_counts[$count]);
+				my $af = $total_reads>0?$var_reads/$total_reads:0;
+				
+				if ($af < 0.02) {
+					$zyg = 'ref';
+					$data{$key}{ref_count}++;
+					$data{$key}{groups}{$groups{$sample}}{ref_count}++ if $group;
+				} elsif ($af < 0.75) {
+					$data{$key}{het_count}++;
+					$data{$key}{var_count}++;
+					$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
+					$data{$key}{groups}{$groups{$sample}}{het_count}++ if $group;
+					if ($sample) {
+						push @{$data{$key}{var_samples}},$sample;
+						$sample_varcount{$sample}++;
+					}
+				} elsif ($af >= 0.75) {
+					$zyg = 'hom';
+					$data{$key}{hom_count}++;
+					$data{$key}{var_count}++;
+					$data{$key}{groups}{$groups{$sample}}{var_count}++ if $group;
+					$data{$key}{groups}{$groups{$sample}}{hom_count}++ if $group;
+					if ($sample) {
+						push @{$data{$key}{var_samples}},$sample;
+						$sample_varcount{$sample}++;
+					}
+				} else {
+					modules::Exception->throw("ERROR with $genotypes[$count]\n");
+				}
+				$data{$key}{zyg}{$sample} = $zyg;
+				
+			}
 			next;
 		}
 		
@@ -1166,7 +1202,6 @@ for my $key (@keys) {
 	if ($chr_filter =~ /[0-9X]/) {
     		next unless $chr_filter eq $chr;
   	}
-
   	next unless $chr =~ /^[0-9X]/;
 	my $aa_change = exists $data{$key}{aa_change}?$data{$key}{aa_change}:'NO_AA_CHANGE';
 	my $ens_trans = exists $data{$key}{ens_trans}?$data{$key}{ens_trans}:'NO_ENS_TRANS';
@@ -1269,6 +1304,7 @@ for my $key (@keys) {
 	
 	#Start filtering here
 	#If below min_mean_af
+	
 	if ($var_mean_af =~ /\d/ && $min_mean_af > $var_mean_af) {
 		next;
 	}

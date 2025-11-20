@@ -77,6 +77,15 @@ sub parse_vcf {
    	my $sample_index = 0;
 	my $vcf_line = 1;
 
+	#Other indices strelka needs
+	my ($tir_index,$tar_index,$tor_index,$a_index,$c_index,$g_index,$t_index);
+	my $strelka_indel = 0;
+	my $strelka_snv = 0;
+	
+	
+
+
+
     while (<VCF>) {
 	    next if /^#/;
     	next unless /\w/;
@@ -87,6 +96,35 @@ sub parse_vcf {
         my @gt_fields = split(':',$gt_fields) if $gt_fields;
 		my @details = split(';',$rest);	
 
+    	#Special handling for strelka AF calculations -> only do once
+    	if ($gt_fields =~ /:TIR/ && $strelka_indel == 0) {
+    		for ( my $count = 0 ; $count < @gt_fields ; $count++ ) {
+    		    if ($gt_fields[$count] eq 'TIR') {
+    		    	$tir_index = $count;
+    		    } elsif ($gt_fields[$count] eq 'TAR') {
+    		    	$tar_index = $count;
+    		    } elsif ($gt_fields[$count] eq 'TOR') {
+    		    	$tor_index = $count;
+    		    } 
+    		}
+    		$strelka_indel = 1;
+    	}
+    		
+    	if ($gt_fields =~ /:AU/ && $strelka_snv == 0) {
+    		for ( my $count = 0 ; $count < @gt_fields ; $count++ ) {
+    			if ($gt_fields[$count] eq 'AU') {
+    			    $a_index = $count;
+    			} elsif ($gt_fields[$count] eq 'CU') {
+    			   	$c_index = $count;
+    			} elsif ($gt_fields[$count] eq 'GU') {
+    			   	$g_index = $count;
+    			} elsif ($gt_fields[$count] eq 'TU') {
+    			   	$t_index = $count;
+    			} 
+    		}
+    		$strelka_snv = 1;
+    	}
+    	
     	
     	if ($chr eq 'MT') {
 			$chr = 'M';
@@ -174,54 +212,106 @@ sub parse_vcf {
 			my @var_counts;
 			
 			if (@alleles) {
-				for my $allele_str (@alleles) {
-					my @gt_fields_data = split(':',$allele_str);
-					#print Dumper \@gt_fields_data;
-					my $var_count_str = my $sample_af = 0;
-						
-					#Some strange GTs don't have multiple values listed....
-					if (@gt_fields_data > 1) {
-						#Strings like 10,5,2
-	    				my @ads = split(',',$gt_fields_data[1]);
-	    				#Total allele count
-	    				my $sum = 0;
-	    				for my $element (@ads) {
-	    					$sum += $element if $element =~ /\d/;
-						}	
-							
-						my $var_count;
-						#Variant count for that allele
-						if (defined $ads[$zyg_num] && $ads[$zyg_num] =~ /\d/) {
-							$var_count = $ads[$zyg_num];
-						} else {
-							$var_count = 0;	
+
+			
+				if ($gt_fields =~ /:TIR/) {
+						for my $allele_str (@alleles) {
+							next unless $allele_str =~ /\d/;
+							my @gt_fields_data = split(':',$allele_str);
+		    				my ($tir) = split(",",$gt_fields_data[$tir_index]);
+		    				my ($tar) = split(",",$gt_fields_data[$tar_index]);
+		    				my ($tor) = split(",",$gt_fields_data[$tor_index]);
+		    				my ($sum) = $tir+$tar+$tor;
+		    				next if $sum == 0;
+		    				my $sample_af = sprintf("%.4f",$tir/$sum);
+		    				push @var_counts, "$tir/$sum";
+		    				push @stats,$sample_af if $sample_af != 0;
 						}
-	    				if ($sum == 0) {
-	    					$sample_af = 0;
-	    				} elsif ($var_count == 0) {
-	    					$sample_af = 0;
-	    				} else {
-	    					$sample_af = sprintf("%.4f",$ads[$zyg_num]/$sum)
-	    				}
-	    				$var_count_str =  "$var_count/$sum";
-	    				
-	    				
-		    			push @stats,$sample_af if $var_count>1;
-		    			push @var_counts,$var_count_str;
+				} elsif ($gt_fields =~ /:AU/) {
+						#Strelka SNVs
+						
+						for my $allele_str (@alleles) {
+							next unless $allele_str =~ /\d/; 
+							my @gt_fields_data = split(':',$allele_str);
+		    				my $ref_count = my $var_count;
+		    				if ($ref eq 'A') {
+		    					($ref_count) = split (",",$gt_fields_data[$a_index]);
+		    				} elsif ($ref eq 'C') {
+		    					($ref_count) = split (",",$gt_fields_data[$c_index]);
+		    				} elsif ($ref eq 'G') {
+		    					($ref_count) = split (",",$gt_fields_data[$g_index]);
+		    				}  elsif ($ref eq 'T') {
+		    					($ref_count) = split (",",$gt_fields_data[$t_index]);
+		    				}  
+		    				
+		    				if ($var eq 'A') {
+		    					($var_count) = split (",",$gt_fields_data[$a_index]);
+		    				} elsif ($var eq 'C') {
+		    					($var_count) = split (",",$gt_fields_data[$c_index]);
+		    				} elsif ($var eq 'G') {
+		    					($var_count) = split (",",$gt_fields_data[$g_index]);
+		    				}  elsif ($var eq 'T') {
+		    					($var_count) = split (",",$gt_fields_data[$t_index]);
+		    				}  
+		    				my $sum = $var_count+$ref_count;
+		    				next if $sum == 0;
+		    				my $sample_af = sprintf("%.4f",$var_count/$sum);
+		    				push @var_counts, "$var_count/$sum";
+		    				push @stats, $sample_af if $sample_af != 0;
+						}
+					} else {
+							for my $allele_str (@alleles) {
+								my @gt_fields_data = split(':',$allele_str);
+								#print Dumper \@gt_fields_data;
+								my $var_count_str = my $sample_af = 0;
+									
+								#Some strange GTs don't have multiple values listed....
+								if (@gt_fields_data > 1) {
+									#Strings like 10,5,2
+				    				my @ads = split(',',$gt_fields_data[1]);
+				    				#Total allele count
+				    				my $sum = 0;
+				    				for my $element (@ads) {
+				    					$sum += $element if $element =~ /\d/;
+									}	
+										
+									my $var_count;
+									#Variant count for that allele
+									if (defined $ads[$zyg_num] && $ads[$zyg_num] =~ /\d/) {
+										$var_count = $ads[$zyg_num];
+									} else {
+										$var_count = 0;	
+									}
+				    				if ($sum == 0) {
+				    					$sample_af = 0;
+				    				} elsif ($var_count == 0) {
+				    					$sample_af = 0;
+				    				} else {
+				    					$sample_af = sprintf("%.4f",$ads[$zyg_num]/$sum)
+				    				}
+				    				$var_count_str =  "$var_count/$sum";
+				    				
+				    				
+					    			push @stats,$sample_af if $var_count>1;
+					    			push @var_counts,$var_count_str;
+								}
+				    			
+				    		}
+				    	
+				    	}
+				    my $mean = my $median = 0;
+				
+					if (@stats) {
+						($mean,$median) = _mean_median(-numbers=>\@stats);
 					}
-	    			
-	    		}		
-				my $mean = my $median = 0;
-				
-				if (@stats) {
-					($mean,$median) = _mean_median(-numbers=>\@stats);
-				}
 				
 				
 				
-				$vcf_data{$var_key}{mean_af} = sprintf("%.3f",$mean);
-				$vcf_data{$var_key}{median_af} = sprintf("%.3f",$median);
-				$vcf_data{$var_key}{var_read_counts} = join(",",@var_counts);
+					$vcf_data{$var_key}{mean_af} = sprintf("%.3f",$mean);
+					$vcf_data{$var_key}{median_af} = sprintf("%.3f",$median);
+					$vcf_data{$var_key}{var_read_counts} = join(",",@var_counts);
+			   				
+				
 			} elsif (@af_fields) {
 				$vcf_data{$var_key}{mean_af} = $af_fields[$zyg_num-1];
 				$vcf_data{$var_key}{median_af} = $af_fields[$zyg_num-1];
