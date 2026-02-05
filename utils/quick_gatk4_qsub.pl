@@ -151,13 +151,13 @@ for my $sample (@samples) {
 }
 
 open(JOINT,">$qsubdir/joint_call.qsub") || modules::Exception->throw("Can't open file $qsubdir/joint_call.qsub\n");
-print JOINT "#!/bin/bash\n#PBS -P pq84\n#PBS -q normal\n#PBS -l walltime=48:00:00,mem=64GB,jobfs=100GB,ncpus=4\n#PBS -l storage=gdata/u86+scratch/u86+gdata/xx92+gdata/pw1+gdata/pq84\n";
+print JOINT "#!/bin/bash\n#PBS -P pq84\n#PBS -q normalbw\n#PBS -l walltime=48:00:00,mem=64GB,jobfs=100GB,ncpus=4\n#PBS -l storage=gdata/u86+scratch/u86+gdata/xx92+gdata/pw1+gdata/pq84\n";
 my $gvf_str = join(' -V ',@g_vcfs);
 
 print JOINT "\nmodule load java\n";
 print JOINT "module load python3-as-python\n";
-print JOINT "/g/data/u86/software/gatk-4.2.5.0/gatk CombineGVCFs -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V $gvf_str -O OUTDIR/joint_calls.g.vcf.gz\n";
-print JOINT "/g/data/u86/software/gatk-4.2.5.0/gatk GenotypeGVCFs -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V OUTDIR/joint_calls.g.vcf.gz -o OUTDIR/joint_calls.vcf";
+print JOINT "/g/data/u86/software/gatk-4.2.5.0/gatk CombineGVCFs -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V $gvf_str -O $outdir/joint_calls.g.vcf.gz\n";
+print JOINT "/g/data/u86/software/gatk-4.2.5.0/gatk GenotypeGVCFs -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V $outdir/joint_calls.g.vcf.gz -o $outdir/joint_calls.vcf\n";
 
 
 
