@@ -7,6 +7,8 @@
 
 module load java
 module load samtools
+module load python3-as-python
+
 
 java -Xms3200m -Xmx30g  -jar /g/data/u86/variantdb/v2.3/ext/bin/picard-tools-2.4.1/picard.jar MarkDuplicates AS=TRUE VALIDATION_STRINGENCY=LENIENT  I=OUTDIR/SAMPLE.bam O=OUTDIR/SAMPLE_md.bam M=OUTDIR/SAMPLE_md.txt TMP_DIR=OUTDIR
 
