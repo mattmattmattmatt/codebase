@@ -14,7 +14,7 @@ java -Xms3200m -Xmx30g  -jar /g/data/u86/variantdb/v2.3/ext/bin/picard-tools-2.4
 
 samtools index OUTDIR/SAMPLE_md.bam
 
-/g/data/u86/software/gatk-4.2.5.0/gatk --java-options "-Djava.io.tmpdir=OUTDIR -Xms3g -Xmx30g" BaseRecalibrator -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md.bam -knownSites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Homo_sapiens_assembly38.dbsnp138.vcf -knownSites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Mills_and_1000G_gold_standard.indels.hg38.vcf -O OUTDIR/SAMPLE_md_recal.table 
+/g/data/u86/software/gatk-4.2.5.0/gatk --java-options "-Djava.io.tmpdir=OUTDIR -Xms3g -Xmx30g" BaseRecalibrator -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md.bam --known-sites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Homo_sapiens_assembly38.dbsnp138.vcf --known-sites /g/data/u86/variantdb/v2.38/conf/human/GRCh38/resources//Mills_and_1000G_gold_standard.indels.hg38.vcf -O OUTDIR/SAMPLE_md_recal.table 
 
 /g/data/u86/software/gatk-4.2.5.0/gatk --java-options "-Djava.io.tmpdir=OUTDIR -Xms3g -Xmx30g" ApplyBQSR -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -I OUTDIR/SAMPLE_md.bam --bqsr-recal-file OUTDIR/SAMPLE_md_recal.table -O OUTDIR/SAMPLE_md_recal.bam 
 
