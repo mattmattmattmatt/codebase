@@ -2,13 +2,13 @@
 #PBS -P pq84
 #PBS -q normalbw
 #PBS -l walltime=48:00:00,mem=16GB,jobfs=100GB,ncpus=2
-#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84+gdata/pw1+scratch/pw1
 
 module load java/jdk-8.40
 module load samtools
 module load samtools
 
-SOFT/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang SJDB_value --readFilesCommand zcat --runThreadN 2 --genomeDir SOFT/STAR/REF/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz
+/g/data/pq84/software/STAR/bin/Linux_x86_64_static/STAR --sjdbOverhang SJDB_value --readFilesCommand zcat --runThreadN 2 --genomeDir /g/data/pq84/software/STAR/GRCh38/READLENGTHbp --outFileNamePrefix OUTDIR/SAMPLE_ --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --readFilesIn READDIR/SAMPLE_R1.fastq.gz READDIR/SAMPLE_R2.fastq.gz
 
 samtools index OUTDIR/SAMPLE_Aligned.sortedByCoord.out.bam
 
