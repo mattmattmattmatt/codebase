@@ -22,7 +22,8 @@ GetOptions(\%OPT,
 		"templates=s",
 		"qsubdir=s",
 		"softdir=s",
-		"run"
+		"run",
+		"bychr"
 	   );
 pod2usage(-verbose => 2) if $OPT{man};
 pod2usage(1) if ($OPT{help} || !$OPT{readdir} || !$OPT{outdir} || !$OPT{sample_list} || !$OPT{templates});
@@ -32,7 +33,7 @@ pod2usage(1) if ($OPT{help} || !$OPT{readdir} || !$OPT{outdir} || !$OPT{sample_l
 
 =head1 SYNOPSIS
 
-quick_gatk_qsub.pl -template template_qsub -qsubdir qsub_dir -readdir readdir(fastq_must_be_named_'sample_R[12]_fastq.gz') -outdir outdir -sample_list sample_list_file -run submit_single_jobs(except_joint.qsub) -softdir software_directory
+quick_gatk_qsub.pl -template template_qsub -qsubdir qsub_dir -readdir readdir(fastq_must_be_named_'sample_R[12]_fastq.gz') -outdir outdir -sample_list sample_list_file -run submit_single_jobs(except_joint.qsub) -softdir software_directory -bychr generate_bychr_jobs
 
 Required flags: -readdir -outdir -sample_list
 
@@ -88,6 +89,7 @@ if (!-d $outdir) {
 
 my $qsubdir = defined $OPT{qsubdir}?$OPT{qsubdir}:$outdir;
 $qsubdir = abs_path($qsubdir);
+my $bychr = defined $OPT{bychr}?1:0;
 
 
 my @samples = ();
@@ -109,44 +111,111 @@ if (!-d $softdir) {
 
 
 my @g_vcfs = ();
-
+my %chr_gvcf = ();
 #print Dumper \@samples;
+
+
 
 
 for my $sample (@samples) {
 	my $template_count = 1;
 	for my $template (@templates) {
-		my $qsub = "$sample.${template_count}.qsub";
-		open(QSUB, ">$qsubdir/$qsub") || modules::Exception->throw("Can't open qsub for $sample");
-		open(TEMPLATE,$template) || modules::Exception->throw("Can't open file $template");
 		
-		my $next_qsub;
-		if ($qsub =~ /(\d+)\.qsub/) {
-			my $qsub_count = $1 + 1;
-			
-			($next_qsub = $qsub) =~ s/\d+.qsub/$qsub_count.qsub/;	
-		}
-		
-		
-		
-		while (<TEMPLATE>) {
-			$_ =~ s/QSUBDIR/$qsubdir/g;
-			$_ =~ s/SAMPLE/$sample/g;
-			$_ =~ s/OUTDIR/$outdir/g;
-			$_ =~ s/READDIR/$readdir/g;
-			$_ =~ s/QSUBNEXT/$next_qsub/g;
-			$_ =~ s/SOFT/$softdir/g;
-			
-			print QSUB $_;
-			if ($_ =~ /(\S+g.vcf.gz$)/) {
-				push @g_vcfs, $1;
+		my $chr_qsubs = 0;
+		if ($bychr) {
+			#check the qsub uses this flag
+			open(TEMPLATE,$template) || modules::Exception->throw("Can't open file $template");
+			while (<TEMPLATE>) {
+				if ($_ =~ /BYCH/) {
+					$chr_qsubs = 1;
+				}
 			}
-		}	
-		close QSUB;
-		$template_count++;		
+			close TEMPLATE;
+		}
+
+		if ($chr_qsubs) {
+			my @chr = (1..22,'X');
+			my $g_vcf;
+			for my $chr ( @chr ) {
+				my $qsub_chr = "$sample.${chr}.${template_count}.qsub";
+				open(QSUB,">$qsubdir/$qsub_chr") || modules::Exception->throw("Can't open file $qsub_chr\n");
+				
+				open(TEMPLATE,$template) || modules::Exception->throw("Can't open file $template");
+				
+				
+				while (<TEMPLATE>) {
+					
+					$_ =~ s/QSUBDIR/$qsubdir/g;
+					$_ =~ s/SAMPLE/$sample/g;
+					$_ =~ s/OUTDIR/$outdir/g;
+					$_ =~ s/READDIR/$readdir/g;
+					$_ =~ s/SOFT/$softdir/g;
+
+					$_ =~ s/BYCH/-L \/g\/data\/u86\/variantdb\/v2.38\/conf\/human\/GRCh38\/fasta\/intervals\/${chr}.intervals/;
+					
+					if ($_ =~ /(\S+g.vcf.gz$)/) {
+						my $no_chr = $1;
+						$no_chr =~ s/.CHR//;
+						$g_vcf = $no_chr;	
+					}
+					
+					
+					$_ =~ s/.CHR/.$chr/g;
+					
+					if ($_ =~ /(\S+g.vcf.gz$)/) {
+						push @{$chr_gvcf{$sample}}, $1;
+					}
+					
+					
+					
+					
+					
+					print QSUB $_;	
+				}
+				close TEMPLATE;				
+				
+			}
+			push @g_vcfs, $g_vcf;
+			close QSUB;
+			$template_count++;	
+			
+		} else {
+			my $qsub = "$sample.${template_count}.qsub";
+			open(QSUB, ">$qsubdir/$qsub") || modules::Exception->throw("Can't open qsub for $sample");
+			open(TEMPLATE,$template) || modules::Exception->throw("Can't open file $template");
+			
+			my $next_qsub;
+			if ($qsub =~ /(\d+)\.qsub/) {
+				my $qsub_count = $1 + 1;
+				
+				($next_qsub = $qsub) =~ s/\d+.qsub/$qsub_count.qsub/;	
+			}
+			
+			
+			
+			while (<TEMPLATE>) {
+				if ($bychr) {
+					next if $_ =~ /^qsub/; #Skip auto-submit next job if by chr
+				}
+				$_ =~ s/QSUBDIR/$qsubdir/g;
+				$_ =~ s/SAMPLE/$sample/g;
+				$_ =~ s/OUTDIR/$outdir/g;
+				$_ =~ s/READDIR/$readdir/g;
+				$_ =~ s/QSUBNEXT/$next_qsub/g;
+				$_ =~ s/SOFT/$softdir/g;
+				$_ =~ s/\.CHR//g;
+				$_ =~ s/BYCH //g;
+				
+				print QSUB $_;
+				if ($_ =~ /(\S+g.vcf.gz$)/) {
+					push @g_vcfs, $1;
+				}
+			}	
+			close QSUB;
+			$template_count++;		
+		}
+	
 	}
-	
-	
 	
 }
 
@@ -156,8 +225,16 @@ my $gvf_str = join(' -V ',@g_vcfs);
 
 print JOINT "\nmodule load java\n";
 print JOINT "module load python3-as-python\n";
+
+if ($bychr) {
+	for my $sample (@samples) {
+		my $chr_gvcf_str = join(" -V ",@{$chr_gvcf{$sample}});
+		print JOINT "/g/data/u86/software/gatk-4.2.5.0/gatk CombineGVCFs -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V $chr_gvcf_str -O $outdir/${sample}.g.vcf.gz\n";
+	}
+}
+
 print JOINT "/g/data/u86/software/gatk-4.2.5.0/gatk CombineGVCFs -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V $gvf_str -O $outdir/joint_calls.g.vcf.gz\n";
-print JOINT "/g/data/u86/software/gatk-4.2.5.0/gatk GenotypeGVCFs -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V $outdir/joint_calls.g.vcf.gz -o $outdir/joint_calls.vcf\n";
+print JOINT "/g/data/u86/software/gatk-4.2.5.0/gatk GenotypeGVCFs -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -V $outdir/joint_calls.g.vcf.gz -O $outdir/joint_calls.vcf\n";
 
 
 
