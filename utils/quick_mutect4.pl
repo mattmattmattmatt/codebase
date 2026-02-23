@@ -152,7 +152,7 @@ if ($bychr) {
 			my $normal_samples;
 			
 			for my $sample (@samples) {
-				$sample_bams .= " -I ${outdir}/${sample}_md_realign_recal.bam";
+				$sample_bams .= " -I ${outdir}/${sample}_md_recal.bam";
 			}
 			
 			for my $normal (@normals) {
@@ -186,7 +186,7 @@ if ($bychr) {
 		my $normal_samples;
 		
 		for my $sample (@samples) {
-			$sample_bams .= " -I ${outdir}/${sample}_md_realign_recal.bam";
+			$sample_bams .= " -I ${outdir}/${sample}_md_recal.bam";
 		}
 		
 		for my $normal (@normals) {

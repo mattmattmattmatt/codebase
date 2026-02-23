@@ -6,9 +6,10 @@
 
 source /g/data/u86/mxf221/miniconda3/bin/activate
 
-module load java/jdk-17.0.2/
+module load java
 module load samtools
 module load bwa
+module load python3-as-python
 
 
 java -Xmx32g -jar SOFT/picard/picard.jar FastqToSam O=OUTDIR/SAMPLE_unaligned.bam F1=READDIR/SAMPLE_R1.fastq.gz F2=READDIR/SAMPLE_R2.fastq.gz SM=SAMPLE LB=SAMPLE PU=Unit1 PL=Illumina
@@ -21,5 +22,9 @@ fgbio -Xmx175G CallDuplexConsensusReads --input=OUTDIR/SAMPLE_grouped_by_umi.bam
 java -jar SOFT/picard/picard.jar SamToFastq I=OUTDIR/SAMPLE_unaligned_consensus.bam  F=OUTDIR/SAMPLE_consensus.fastq INTERLEAVE=true
 bwa mem -p -t 28 /g/data/u86/variantdb/v2.38/conf/human/GRCh38/bwa_index/GRCh38d1_noalt OUTDIR/SAMPLE_consensus.fastq |  samtools sort -@ 28 -m 1G -o OUTDIR/SAMPLE_aligned_consensus.bam
 java -jar SOFT/picard/picard.jar MergeBamAlignment UNMAPPED=OUTDIR/SAMPLE_unaligned_consensus.bam ALIGNED=OUTDIR/SAMPLE_aligned_consensus.bam O=OUTDIR/SAMPLE_aligned_consensus_noRG.bam R=/g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa CLIP_ADAPTERS=false VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true EXPECTED_ORIENTATIONS=FR MAX_GAPS=-1 SORT_ORDER=coordinate ALIGNER_PROPER_PAIR_FLAGS=false ATTRIBUTES_TO_RETAIN=X0 ATTRIBUTES_TO_RETAIN=ZS ATTRIBUTES_TO_RETAIN=ZI ATTRIBUTES_TO_RETAIN=ZM ATTRIBUTES_TO_RETAIN=ZC ATTRIBUTES_TO_RETAIN=ZN ATTRIBUTES_TO_RETAIN=ad ATTRIBUTES_TO_RETAIN=bd ATTRIBUTES_TO_RETAIN=cd ATTRIBUTES_TO_RETAIN=ae ATTRIBUTES_TO_RETAIN=be ATTRIBUTES_TO_RETAIN=ce
-java -jar SOFT/picard/picard.jar AddOrReplaceReadGroups I=OUTDIR/SAMPLE_aligned_consensus_noRG.bam O=OUTDIR/SAMPLE_aligned_consensus_final.bam RGID=OUTDIR/SAMPLE RGLB=SAMPLE RGPL=Illumina RGSM=SAMPLE RGPU=NA
+java -jar SOFT/picard/picard.jar AddOrReplaceReadGroups I=OUTDIR/SAMPLE_aligned_consensus_noRG.bam O=OUTDIR/SAMPLE_aligned_consensus_twist.bam RGID=OUTDIR/SAMPLE RGLB=SAMPLE RGPL=Illumina RGSM=SAMPLE RGPU=NA
 
+
+java -Xms3200m -Xmx30g  -jar /g/data/u86/variantdb/v2.3/ext/bin/picard-tools-2.4.1/picard.jar MarkDuplicates AS=TRUE VALIDATION_STRINGENCY=LENIENT  I=OUTDIR/SAMPLE_aligned_consensus_twist.bam O=OUTDIR/SAMPLE_twist_md.bam M=OUTDIR/SAMPLE_twist_md.CHR.txt TMP_DIR=OUTDIR
+samtools index OUTDIR/SAMPLE_twist_md.bam
+/g/data/pq84/software/gatk-4.2.5.0/gatk --java-options "-Djava.io.tmpdir=OUTDIR -Xms3g -Xmx30g" HaplotypeCaller -R /g/data/u86/variantdb/v2.38/conf/human/GRCh38/fasta/single_file/GRCh38d1_noalt.fa -ERC GVCF -I OUTDIR/SAMPLE_twist_md.bam -O OUTDIR/SAMPLE_twist.g.vcf.gz

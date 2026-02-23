@@ -59,7 +59,7 @@ Matt Field
 
 =head1 EXAMPLE
 
-scp_results.pl 
+quick_gatk4_qsub.pl -readdir fastq/ -outdir analysis/ -sample_list sample_list -qsubdir qsub/ -templates WGS_bwa.qsub,WGS_gatk4.qsub -bychr
 
 =cut
 
@@ -137,7 +137,7 @@ for my $sample (@samples) {
 			my @chr = (1..22,'X');
 			my $g_vcf;
 			for my $chr ( @chr ) {
-				my $qsub_chr = "$sample.${chr}.${template_count}.qsub";
+				my $qsub_chr = "$sample.chr${chr}.${template_count}.qsub";
 				open(QSUB,">$qsubdir/$qsub_chr") || modules::Exception->throw("Can't open file $qsub_chr\n");
 				
 				open(TEMPLATE,$template) || modules::Exception->throw("Can't open file $template");
