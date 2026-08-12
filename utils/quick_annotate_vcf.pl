@@ -44,7 +44,8 @@ GetOptions(\%OPT,
        "min_mean_af=s",
        "plot_genes=s",
        "high_quality",
-       "overwrite"
+       "overwrite",
+       "mutect"
    );
 
 pod2usage(-verbose => 2) if $OPT{man};
@@ -83,6 +84,7 @@ quick_annotate_vcf.pl
 	-min_mean_af min_allele_frequency_from_variant_samples 
 	-plot_genes file_of_genes_to_plot_for_MB
 	-high_quality apply_combination_of_stringent_filters_with_single_flag
+	-mutect overwrite_zyg_calls_and_use_variant_reads
 
 Required flags: -vcf_in 
 
@@ -159,6 +161,9 @@ if (!-d $svndir) {
 	modules::Exception->throw("ERROR: $svndir doesn't exist\n");
 }
 
+my $mutect = defined $OPT{mutect}?1:0;
+
+
 my $rare_cutoff = 0.02;
 my $ref = defined $OPT{ref}?$OPT{ref}:"GRCh38";
 
@@ -188,7 +193,7 @@ my $count_all = defined $OPT{count_all}?1:0;
 
 #For output files
 my ($vcf_short) = basename($vcf_file);
-(my $vcf_out = $vcf_short) =~ s/.vcf/.txt/;
+(my $vcf_out = $vcf_short) =~ s/\.vcf/\.txt/;
 
 #Default run all chromosomes
 my $chr_filter = defined $OPT{chr}?$OPT{chr}:"all";
@@ -244,8 +249,7 @@ if ($vartrix_input) {
 							"Ref",
 							"Hom",
 							"Het",
-							"% Calls",
-							"% Variant"
+							"% Calls"
 							) ."\n\n";
 	
 		while (<MATRIX>) {
@@ -327,14 +331,14 @@ my $gene_dir = &GetLatest('gene');
 
 my %priority_genes = ();
 
-my $priority_genes = defined $OPT{priority_genes}?$OPT{priority_genes}:$gene_dir . "/Lymphoma_genes";
+my $priority_genes_file = defined $OPT{priority_genes}?$OPT{priority_genes}:$gene_dir . "/Lymphoma_genes";
 
-if ( !-e $priority_genes ) {
-	modules::Exception->throw("File $priority_genes doesn't exist");
+if ( !-e $priority_genes_file ) {
+	modules::Exception->throw("File $priority_genes_file doesn't exist");
 }
 
 
-open(PRIOR,"$priority_genes") || modules::Exception->throw("Can't open file $priority_genes\n");
+open(PRIOR,"$priority_genes_file") || modules::Exception->throw("Can't open file $priority_genes_file\n");
 
 while (<PRIOR>) {
 	chomp;
@@ -346,7 +350,7 @@ while (<PRIOR>) {
 
 my @var_types = qw(snv indel);
 
-my $gene_coord_file = my $gene_anno_file;
+my ($gene_coord_file,$gene_anno_file);
 
 
 #First parse the annotations file -> this is joined on ENSEMBL gene name
@@ -527,7 +531,8 @@ my @common_headers2 = (
 						'refseq',
 						'gene_desc',
 						'omim',
-						'go_term'
+						'go_term',
+						'mouse_phenotype'
 						);
 
 
@@ -730,11 +735,11 @@ while (<PARSED>) {
 
 	my ($var_type,$var_base_str,$qual,$allele_count,$zyg_count,$var_allele_total,$mean_af,$median_af,$var_read_count) = $data =~ /([A-Z]+);.*:(\S+);Q=(\S+);AC=(\d+);ZC=(\d+);ALLELE=(\d+).*MEANAF=(\S+);MEDAF=([0-9\.]+);VAR_READ_COUNTS=([0-9\/,]+)/;
 	
-	if ($var_type !~ /./) {
+	if (!defined $var_type || $var_type eq '') {
 		print "ERROR: Data $data\n";
 	}
 	
-	my $var_base = my $ref_base;
+	my ($var_base,$ref_base);
 	if ($var_type eq 'SNV') {
 		($ref_base,$var_base) = split('->',$var_base_str); 
 	} else {
@@ -775,17 +780,21 @@ while (<PARSED>) {
 		}
 		
 		my ($allele1,$allele2);
-		if ($geno_fields[0] =~ /\//) {
+		if (!$mutect && $geno_fields[0] =~ /\//) {
 			($allele1,$allele2) = split('/',$geno_fields[0]);
-		} elsif ($geno_fields[0] =~ /\|/) {
+		} elsif (!$mutect && $geno_fields[0] =~ /\|/) {
 			($allele1,$allele2) = split('\|',$geno_fields[0]);
 		} else {
 			#Here we assume strelka with no GT fields; calculate af 
-			if (exists $var_read_counts[$count]) {
+			if ($count < @var_read_counts && defined $var_read_counts[$count]) {
 				my ($var_reads,$total_reads) = split('/',$var_read_counts[$count]);
 				my $af = $total_reads>0?$var_reads/$total_reads:0;
 				
-				if ($af < 0.02) {
+				if ($var_reads == 0 && $total_reads == 0) {
+					$zyg = 'no_call';
+					$data{$key}{no_data_count}++;
+					$data{$key}{groups}{$groups{$sample}}{nodata_count}++ if $group;
+				} elsif ($af < 0.02) {
 					$zyg = 'ref';
 					$data{$key}{ref_count}++;
 					$data{$key}{groups}{$groups{$sample}}{ref_count}++ if $group;
@@ -1018,7 +1027,7 @@ while (<MGRB>) {
     	$match = 'NO_MGRB';
     } else {
     	$match = 'OTHER_VARS_ONLY';
-    	my @matches = split('^^^',$fields[-1]);
+    	my @matches = split('\^\^\^',$fields[-1]);
     	
     	
     	for my $possible_match (@matches) {
@@ -1178,7 +1187,7 @@ if ($mb) {
 
 if ($incl_zyg) {
 	for my $fh ( @fhs ) {
-		print $fh "\t";
+		#print $fh "\t";
 		print $fh join("\t",@samples);
 	}
 	
