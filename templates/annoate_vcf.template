@@ -1,0 +1,10 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normalbw
+#PBS -l walltime=24:00:00,mem=128GB,jobfs=100GB,ncpus=4
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84+gdata/pw1
+
+source /g/data/pq84/software/codebase/conf/export_env.txt /g/data/pq84/software/codebase
+cd DIR
+/g/data/pq84/software/codebase/utils/quick_annotate_vcf.pl -vcf_in FILE.vcf  -outdir results/ -outfile FILE_all
+
