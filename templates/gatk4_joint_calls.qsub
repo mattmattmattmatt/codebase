@@ -1,0 +1,10 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normalbw
+#PBS -l walltime=48:00:00,mem=64GB,jobfs=100GB,ncpus=4
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84+gdata/pw1+scratch/pw1
+
+module load java
+module load python3-as-python
+/g/data/pq84/software/gatk-4.2.5.0/gatk CombineGVCFs -R /g/data/pq84/references/GRCh38/GRCh38d1_noalt.fa -V FILE1.g.vcf.gz -V FILE2.g.vcf -O OUTDIR/joint_calls_SAMPLE.g.vcf.gz
+/g/data/pq84/software/gatk-4.2.5.0/gatk GenotypeGVCFs -R /g/data/pq84/references/GRCh38/GRCh38d1_noalt.fa -V OUTDIR/joint_calls_SAMPLE.g.vcf.gz -o OUTDIR/joint_calls_SAMPLE.vcf

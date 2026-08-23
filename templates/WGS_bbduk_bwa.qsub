@@ -1,0 +1,18 @@
+#!/bin/bash
+#PBS -P pq84
+#PBS -q normalbw
+#PBS -l walltime=48:00:00,mem=128GB,jobfs=400GB,ncpus=28
+#PBS -l storage=gdata/u86+scratch/u86+gdata/pq84+scratch/pq84+gdata/pw1+scratch/pw1
+
+
+module load java/jdk-8.40
+module load bwa
+module load samtools
+module load bbmap
+
+bbduk.sh in1=READDIR/SAMPLE_R1.fastq.gz in2=READDIR/SAMPLE_R2.fastq.gz out1=READDIR/SAMPLE_R1_trim.fastq.gz out2=READDIR/SAMPLE_R2_trim.fastq.gz outm1=READDIR/SAMPLE_R1_trim_fail.fastq.gz outm2=READDIR/SAMPLE_R2_trim_fail.fastq.gz outs=READDIR/SAMPLE_pass_singletons.fastq.gz t=28 ref=/g/data/pq84/andrew/misc/bbmap_adapters.fa ktrim=r k=23 mink=11 hdist=1 qtrim=r trimq=10 minlen=50 ordered tbo tpe
+
+bwa mem -M -R "@RG\tID:SAMPLE\tSM:SAMPLE_l1\tPL:ILLUMINA" -t 28  /g/data/u86/variantdb/v2.38/conf/human/GRCh38/bwa_index/GRCh38d1_noalt READDIR/SAMPLE_R1_trim.fastq.gz READDIR/SAMPLE_R2_trim.fastq.gz |  samtools view -u -S - | /g/data/u86/software/bin/novosort --md --kt -c 8 -x 6 -m 10G -t $PBS_JOBFS -i -o OUTDIR/SAMPLE.bam -
+
+qsub QSUBDIR/QSUBNEXT
+
