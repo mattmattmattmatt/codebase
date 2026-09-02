@@ -197,8 +197,8 @@ sub parse_result {
 			$start = $2;
 			$end = $3;
 			if ($identifier =~ /\/[ACTG][ACTG]/) {
-				#insertions need to change insert start coord #NOTE: Don't need to do this with new version
-				#$start++;
+				#insertions need to change insert start coord #NOTE: New version needs to reduce end coordinate
+				$end--;
 			}
 		} else {
 			($chr,$start) = $coord_str =~ /([0-9XYMT]+):(\d+)/;
